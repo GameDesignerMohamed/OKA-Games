@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OKA-Games — Forge Build Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0a0a0f;
+      color: #e0e0e0;
+      font-family: 'Courier New', monospace;
+      padding: 24px;
+      min-height: 100vh;
+    }
+    header {
+      border-bottom: 1px solid #2a2a3a;
+      padding-bottom: 16px;
+      margin-bottom: 32px;
+    }
+    header h1 {
+      font-size: 24px;
+      color: #ff6b35;
+      letter-spacing: 2px;
+    }
+    header p {
+      color: #666;
+      font-size: 13px;
+      margin-top: 6px;
+    }
+    .stats {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+    .stat-box {
+      background: #111118;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 16px 24px;
+      min-width: 120px;
+    }
+    .stat-box .label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+    .stat-box .value { font-size: 28px; color: #ff6b35; font-weight: bold; margin-top: 4px; }
+    .feed-title {
+      font-size: 13px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 16px;
+    }
+    .build-card {
+      background: #111118;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 12px;
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+    }
+    .build-card .date {
+      color: #666;
+      font-size: 12px;
+      min-width: 90px;
+      padding-top: 2px;
+    }
+    .build-card .info { flex: 1; }
+    .build-card .project-name {
+      font-size: 15px;
+      color: #e0e0e0;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    .build-card .project-name a {
+      color: #ff6b35;
+      text-decoration: none;
+    }
+    .build-card .project-name a:hover { text-decoration: underline; }
+    .build-card .idea { color: #999; font-size: 13px; margin-bottom: 8px; }
+    .build-card .takeaway { color: #ccc; font-size: 13px; font-style: italic; }
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      white-space: nowrap;
+    }
+    .badge.working { background: #1a3a1a; color: #4caf50; border: 1px solid #2d5a2d; }
+    .badge.partial { background: #3a2e1a; color: #ff9800; border: 1px solid #5a4a2d; }
+    .badge.failed  { background: #3a1a1a; color: #f44336; border: 1px solid #5a2d2d; }
+    .empty-state {
+      text-align: center;
+      padding: 60px 0;
+      color: #444;
+    }
+    .empty-state .big { font-size: 48px; margin-bottom: 12px; }
+    .empty-state p { font-size: 14px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🔨 OKA-GAMES FORGE DASHBOARD</h1>
+  <p>Overnight prototype builds — one idea per night — shipped ugly, learned fast</p>
+</header>
+
+<div class="stats">
+  <div class="stat-box">
+    <div class="label">Total Builds</div>
+    <div class="value" id="total">0</div>
+  </div>
+  <div class="stat-box">
+    <div class="label">Working</div>
+    <div class="value" id="working" style="color:#4caf50">0</div>
+  </div>
+  <div class="stat-box">
+    <div class="label">Partial</div>
+    <div class="value" id="partial" style="color:#ff9800">0</div>
+  </div>
+  <div class="stat-box">
+    <div class="label">Failed</div>
+    <div class="value" id="failed" style="color:#f44336">0</div>
+  </div>
+</div>
+
+<div class="feed-title">Build Feed</div>
+
+<div id="feed">
+  <!-- BUILD ENTRIES GO HERE — newest first -->
+
+  <div class="empty-state">
+    <div class="big">🔨</div>
+    <p>No builds yet. First build runs at 02:00 UTC — 04:00 Cairo.</p>
+  </div>
+</div>
+
+<script>
+  // Auto-compute stats from build cards
+  window.addEventListener('DOMContentLoaded', () => {
+    const cards = document.querySelectorAll('.build-card');
+    let w=0, p=0, f=0;
+    cards.forEach(c => {
+      if (c.querySelector('.badge.working')) w++;
+      else if (c.querySelector('.badge.partial')) p++;
+      else if (c.querySelector('.badge.failed')) f++;
+    });
+    document.getElementById('total').textContent = w+p+f;
+    document.getElementById('working').textContent = w;
+    document.getElementById('partial').textContent = p;
+    document.getElementById('failed').textContent = f;
+
+    // Hide empty state if builds exist
+    if (cards.length > 0) {
+      const empty = document.querySelector('.empty-state');
+      if (empty) empty.remove();
+    }
+  });
+</script>
+
+</body>
+</html>

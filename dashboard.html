@@ -133,10 +133,20 @@
 <div id="feed">
   <!-- BUILD ENTRIES GO HERE — newest first -->
 
-  <div class="empty-state">
-    <div class="big">🔨</div>
-    <p>No builds yet. First build runs at 02:00 UTC — 04:00 Cairo.</p>
+  <div class="build-card">
+    <div class="project-name">
+      <a href="./2026-02-27-trust-floor-compound-sim/index.html" target="_blank">trust-floor-compound-sim</a>
+    </div>
+    <div style="font-size:11px; color:#666; margin-bottom:6px;">2026-02-27 · 02:00 UTC</div>
+    <div class="idea">Interactive visualizer proving ABH's trust floor mechanic creates an uncatchable moat — even when late-entering agents have a 20%+ accumulation bonus rate.</div>
+    <span class="badge working">✅ working prototype</span>
+    <div class="takeaway" style="margin-top:8px;">Takeaway: Early floor compounds faster than a 20% raw bonus can close it. Late agents starting >10 ticks behind cannot close the moat under default params. Design tuning is now quantifiable.</div>
+    <div style="margin-top:10px; font-size:11px; color:#555;">
+      Source: ABH trust primitive (Pixel) + competitive gap (Scout) — no existing agent platform has this mechanic<br>
+      <strong style="color:#666;">Pixel DESIGN.md:</strong> <em style="color:#444;">pending — see MC task</em>
+    </div>
   </div>
+
 </div>
 
 <script>

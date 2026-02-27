@@ -83,6 +83,14 @@
       border-radius: 3px;
       padding: 1px 7px;
     }
+
+    .empty-state {
+      text-align: center;
+      padding: 80px 0;
+      color: #333;
+    }
+    .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+    .empty-state p { font-size: 13px; }
   </style>
 </head>
 <body>
@@ -114,24 +122,11 @@
 <div class="feed-title">Build Feed</div>
 
 <div id="feed">
-
-  <div class="build-card">
-    <div class="card-top">
-      <div class="project-name">
-        <a href="./2026-02-27-trust-floor-compound-sim/index.html" target="_blank">trust-floor-compound-sim</a>
-      </div>
-      <div class="date">2026-02-27</div>
-      <span class="badge working">Working</span>
-    </div>
-    <div class="idea">ABH trust floor visualizer — early agents build an uncloseable moat even against 20% bonus late-entrants.</div>
-    <div class="takeaway">Floor compounds faster than any bonus rate can close. Break-point: &gt;60% bonus + T+5 entry.</div>
-    <div class="tags">
-      <span class="tag">visualizer</span>
-      <span class="tag">ABH</span>
-      <span class="tag">trust mechanic</span>
-    </div>
+  <!-- BUILD ENTRIES GO HERE — newest first -->
+  <div class="empty-state">
+    <div class="icon">🎮</div>
+    <p>First game ships tonight.</p>
   </div>
-
 </div>
 
 <script>

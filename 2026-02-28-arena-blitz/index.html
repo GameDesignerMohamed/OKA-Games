@@ -104,7 +104,7 @@
   <h1 id="overlayTitle" style="color:#ff6b35">ARENA BLITZ</h1>
   <div class="sub" id="overlaySub">Rogue agent. Digital arena. Ten waves.</div>
   <div class="score-display" id="overlayScore"></div>
-  <button id="overlayBtn" onclick="startGame()">▶ ENTER ARENA</button>
+  <button id="overlayBtn">▶ ENTER ARENA</button>
   <div class="controls">
     WASD — MOVE &nbsp;|&nbsp; MOUSE — AIM &nbsp;|&nbsp; CLICK / SPACE — SHOOT<br>
     3 HITS AND YOU'RE TERMINATED
@@ -118,6 +118,10 @@ const overlay = document.getElementById('overlay');
 const hitFlash = document.getElementById('hitFlash');
 const waveAnnounce = document.getElementById('waveAnnounce');
 
+// ─── GAME STATE ─────────────────────────────────────────────────────────────
+let game = null;
+let animId = null;
+
 // ─── CANVAS SIZING ──────────────────────────────────────────────────────────
 function resize() {
   const size = Math.min(window.innerWidth, window.innerHeight) - 80;
@@ -127,10 +131,6 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 resize();
-
-// ─── GAME STATE ─────────────────────────────────────────────────────────────
-let game = null;
-let animId = null;
 
 const WAVE_COUNT = 10;
 const PLAYER_SPEED = 4;
@@ -585,6 +585,7 @@ function startGame() {
 }
 
 // Start on click
+document.getElementById('overlayBtn').addEventListener('click', startGame);
 </script>
 </body>
 </html>

@@ -201,6 +201,27 @@
       margin: 14px 0;
     }
 
+    /* ── Verdict Pill ── */
+    .verdict-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-top: 4px;
+    }
+    .verdict-pill {
+      flex-shrink: 0;
+      padding: 3px 11px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-top: 1px;
+    }
+    .verdict-pill.pursue     { background: #E6F4EC; color: #008A3C; }
+    .verdict-pill.conditional { background: #FFF3E0; color: #CC6600; }
+    .verdict-pill.pass       { background: #FDECEA; color: #CC0000; }
+
     /* ── Tags ── */
     .tags {
       display: flex;
@@ -303,11 +324,11 @@
           <a href="2026-03-01-rogue-protocol/index.html" target="_blank">Rogue Protocol</a>
         </div>
         <div class="date">March 1, 2026</div>
-        <div class="badge working">Working Prototype</div>
+        <div class="badge partial">Conditional</div>
       </div>
 
       <div class="card-section">
-        <div class="card-section-label">Project</div>
+        <div class="card-section-label">Project (Forge)</div>
         <div class="card-section-body">
           A turn-based roguelike deckbuilder where you play as an AI agent fighting through a corrupted network. Each run gives you a 13-card deck, 3 energy per turn, and a 5-card hand. Navigate 9 rooms across 3 floors and defeat the CORE NODE boss to win. Enemies telegraph their next move every turn, making each card choice a meaningful tactical decision.
         </div>
@@ -319,6 +340,14 @@
         <div class="card-section-label">Design (Pixel)</div>
         <div class="card-section-body">
           The intent telegraph (showing what the enemy will do before you act) is the core skill layer — it transforms card selection from guessing into planning. The current fixed 13-card deck proves the format works; the next step is a draft system that lets players build a deck as they progress. Recommended approach: offer 3 random cards after each room, pick 1, seeded from 5 archetypes (Poison, Lifesteal, Weaken, Barrier, Echo) with rarity scaling by floor depth. This adds 3-4x replay variance with minimal code changes.
+        </div>
+      </div>
+
+      <div class="card-section">
+        <div class="card-section-label">Verdict (Pixel)</div>
+        <div class="verdict-row">
+          <span class="verdict-pill conditional">Conditional</span>
+          <span class="card-section-body">The intent telegraph is genuinely good design — it makes every card choice a planning decision, not a guess. But the fixed 13-card deck collapses the skill layer after 2-3 runs: once you know the deck, you're executing a memorized sequence. The one thing that would make it a real game: a card draft after each room. Three cards offered, pick one. That single addition gives 3-4x replay variance and turns this from a puzzle with a known answer into an actual roguelike worth pursuing.</span>
         </div>
       </div>
 
@@ -349,11 +378,11 @@
           <a href="2026-02-28-arena-blitz/index.html" target="_blank">Arena Blitz</a>
         </div>
         <div class="date">February 28, 2026</div>
-        <div class="badge working">Working Prototype</div>
+        <div class="badge failed">Pass</div>
       </div>
 
       <div class="card-section">
-        <div class="card-section-label">Project</div>
+        <div class="card-section-label">Project (Forge)</div>
         <div class="card-section-body">
           A top-down arena shooter where you play as a rogue AI agent surviving 10 enemy waves. Move with WASD, aim with the mouse, and shoot to clear each wave before the next one spawns. A boss enemy appears on wave 10. Splitter enemies divide into two smaller units on death, punishing spray-and-pray tactics in the later waves.
         </div>
@@ -365,6 +394,14 @@
         <div class="card-section-label">Design (Pixel)</div>
         <div class="card-section-body">
           The core loop — move, aim, shoot, survive, repeat — is clean and readable. Splitter enemies (introduced wave 7+) create a risk-reward decision: shooting a splitter in a crowd creates two smaller threats. The scoring system rewards aggressive play over passive survival. Next priorities: powerup drops between waves, ranged enemy variants, Web Audio sound effects, and a localStorage leaderboard for replay motivation.
+        </div>
+      </div>
+
+      <div class="card-section">
+        <div class="card-section-label">Verdict (Pixel)</div>
+        <div class="verdict-row">
+          <span class="verdict-pill pass">Pass</span>
+          <span class="card-section-body">The core loop is functional but undifferentiated. WASD twin-stick wave survival has been done to death, and the rogue AI framing is cosmetic — it changes nothing about how the game plays. The splitter mechanic is the one interesting decision point but arrives on wave 7 with no buildup. A player picking this up would feel like they have played it before — because they essentially have. Nothing here earns a second run.</span>
         </div>
       </div>
 

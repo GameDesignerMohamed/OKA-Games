@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rogue Protocol</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #070710; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    canvas { display: block; cursor: pointer; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+'use strict';
+
+// ── CANVAS SETUP ──────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = 640, H = 520;
+canvas.width = W; canvas.height = H;
+
+// ── CONSTANTS ─────────────────────────────────────────────────────────────────
+const CARD_DEFS = [
+  { id:'strike',  name:'STRIKE',       cost:1, color:'#e05050', type:'attack',  dmg:6,  block:0, draw:0, desc:'Deal 6 dmg' },
+  { id:'heavy',   name:'HEAVY STRIKE', cost:2, color:'#cc2020', type:'attack',  dmg:12, block:0, draw:0, desc:'Deal 12 dmg' },
+  { id:'shield',  name:'SHIELD',       cost:1, color:'#2980b9', type:'defense', dmg:0,  block:7, draw:0, desc:'Gain 7 block' },
+  { id:'clock',   name:'OVERCLOCK',    cost:0, color:'#9b59b6', type:'utility', dmg:0,  block:0, draw:2, desc:'Draw 2 cards' },
+  { id:'burst',   name:'DATA BURST',   cost:1, color:'#e08030', type:'attack',  dmg:4,  block:0, draw:1, desc:'4 dmg, draw 1' },
+];
+// deck template: indices into CARD_DEFS
+const DECK_TPL = [0,0,0,0,1,1,2,2,2,3,3,4,4];
+
+const ENEMY_TYPES = {
+  brute:    { name:'BRUTE',     hp:20, atk:8,  gain:0, bchance:0,   color:'#c0392b' },
+  scrambler:{ name:'SCRAMBLER', hp:15, atk:5,  gain:2, bchance:0,   color:'#e67e22' },
+  sentinel: { name:'SENTINEL',  hp:25, atk:6,  gain:0, bchance:0.4, color:'#8e44ad' },
+  boss:     { name:'CORE NODE', hp:60, atk:10, gain:0, bchance:0,   color:'#e74c3c', isBoss:true },
+};
+
+// 3 floors x 3 rooms; last of floor 3 is boss
+const FLOORS = [
+  ['brute','scrambler','brute'],
+  ['scrambler','sentinel','scrambler'],
+  ['sentinel','brute','boss'],
+];
+
+// ── GAME STATE (all top-scope, no TDZ bugs) ───────────────────────────────────
+let phase = 'title';    // title | combat | win | lose
+let player = { hp:60, maxHp:60, block:0 };
+let enemy  = {};
+let hand   = [];
+let deck   = [];
+let discard = [];
+let energy = 3;
+const MAX_ENERGY = 3;
+let floorIdx = 0;
+let roomIdx  = 0;
+let score    = 0;
+let selCard  = -1;       // selected card index in hand
+let intent   = null;     // { type:'attack'|'block', val }
+let locked   = false;    // no input during transitions
+let flashRed = 0;        // player hit flash alpha
+let eShake   = 0;        // enemy shake timer
+let msg      = '';
+let msgTimer = 0;
+
+// Button rects (set each frame)
+let btnStart  = null;
+let btnEnd    = null;
+let btnRetry  = null;
+let cardRects = [];
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length-1; i > 0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
+function showMsg(s, dur = 1.5) { msg = s; msgTimer = dur; }
+
+function drawCards(n) {
+  for (let i = 0; i < n; i++) {
+    if (!deck.length) {
+      if (!discard.length) break;
+      deck = shuffle(discard); discard = [];
+    }
+    hand.push(deck.pop());
+  }
+}
+
+function discardHand() { discard.push(...hand); hand = []; }
+
+function makeDeck() {
+  return shuffle(DECK_TPL.map(i => ({...CARD_DEFS[i]})));
+}
+
+function calcIntent() {
+  if (enemy.bchance && Math.random() < enemy.bchance) {
+    intent = { type:'block', val: 8 };
+  } else {
+    intent = { type:'attack', val: enemy.atk };
+  }
+}
+
+// ── GAME FLOW ─────────────────────────────────────────────────────────────────
+function startGame() {
+  floorIdx = 0; roomIdx = 0; score = 0;
+  player = { hp:60, maxHp:60, block:0 };
+  deck = makeDeck(); discard = []; hand = [];
+  drawCards(5);
+  spawnRoom();
+  phase = 'combat';
+}
+
+function spawnRoom() {
+  energy = MAX_ENERGY;
+  player.block = 0;
+  selCard = -1;
+  locked = false;
+  msg = ''; msgTimer = 0;
+  const key = FLOORS[floorIdx][roomIdx];
+  const def = ENEMY_TYPES[key];
+  enemy = {
+    key, name: def.name,
+    hp: def.hp, maxHp: def.hp,
+    atk: def.atk, gain: def.gain,
+    bchance: def.bchance, block: 0,
+    color: def.color,
+    isBoss: def.isBoss || false,
+  };
+  calcIntent();
+}
+
+function doNextRoom() {
+  roomIdx++;
+  if (roomIdx >= FLOORS[floorIdx].length) {
+    floorIdx++; roomIdx = 0;
+    if (floorIdx >= FLOORS.length) { phase = 'win'; return; }
+  }
+  spawnRoom();
+}
+
+// ── CARD PLAY ─────────────────────────────────────────────────────────────────
+function playCard(idx) {
+  if (locked || idx < 0 || idx >= hand.length) return;
+  const card = hand[idx];
+  if (card.cost > energy) { showMsg('NOT ENOUGH ENERGY'); return; }
+
+  energy -= card.cost;
+  const played = hand.splice(idx, 1)[0];
+  discard.push(played);
+  selCard = -1;
+
+  if (played.dmg > 0) {
+    const absorbed = Math.min(enemy.block, played.dmg);
+    enemy.block = Math.max(0, enemy.block - played.dmg);
+    const actualDmg = played.dmg - absorbed;
+    enemy.hp = Math.max(0, enemy.hp - actualDmg);
+    score += actualDmg;
+    eShake = 0.25;
+    showMsg('-' + actualDmg + ' to ' + enemy.name);
+  }
+  if (played.block > 0) {
+    player.block += played.block;
+    showMsg('+' + played.block + ' BLOCK');
+  }
+  if (played.draw > 0) {
+    drawCards(played.draw);
+  }
+
+  if (enemy.hp <= 0) {
+    score += 50;
+    locked = true;
+    showMsg('ENEMY ELIMINATED! +50');
+    setTimeout(doNextRoom, 900);
+  }
+}
+
+// ── END TURN ──────────────────────────────────────────────────────────────────
+function endTurn() {
+  if (locked) return;
+  locked = true;
+
+  // enemy acts
+  if (intent.type === 'attack') {
+    const absorbed = Math.min(player.block, intent.val);
+    player.block = Math.max(0, player.block - intent.val);
+    const dmg = intent.val - absorbed;
+    player.hp = Math.max(0, player.hp - dmg);
+    flashRed = 0.4;
+    showMsg('TOOK ' + dmg + ' DAMAGE!');
+    if (player.hp <= 0) {
+      setTimeout(() => { phase = 'lose'; }, 700);
+      return;
+    }
+  } else {
+    enemy.block += intent.val;
+    showMsg('Enemy blocked +' + intent.val);
+  }
+
+  // scrambler escalates
+  if (enemy.gain > 0) enemy.atk += enemy.gain;
+  // boss phase 2
+  if (enemy.isBoss && enemy.hp < enemy.maxHp * 0.5) enemy.atk = Math.max(enemy.atk, 14);
+
+  // new player turn
+  player.block = 0;
+  discardHand();
+  drawCards(5);
+  energy = MAX_ENERGY;
+  selCard = -1;
+  locked = false;
+  calcIntent();
+}
+
+// ── DRAW HELPERS ──────────────────────────────────────────────────────────────
+function rrect(x, y, w, h, r, fill, stroke, lw) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y); ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h); ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+  if (fill)   { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw||1.5; ctx.stroke(); }
+}
+
+function hpBar(x, y, w, h, hp, max, label) {
+  const pct = Math.max(0, hp/max);
+  ctx.fillStyle = '#111122'; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = pct > 0.5 ? '#27ae60' : pct > 0.25 ? '#e67e22' : '#e74c3c';
+  ctx.fillRect(x, y, Math.floor(w*pct), h);
+  ctx.strokeStyle = '#1e1e3a'; ctx.lineWidth = 1; ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = '#e0e0e0'; ctx.font = 'bold 10px Courier New'; ctx.textAlign = 'center';
+  ctx.fillText(label + ' ' + hp + '/' + max, x + w/2, y + h - 2);
+}
+
+function button(x, y, w, h, label, active) {
+  rrect(x, y, w, h, 6, active ? '#1a3a1a' : '#111118', active ? '#2ecc71' : '#333344');
+  ctx.fillStyle = active ? '#2ecc71' : '#555566';
+  ctx.font = 'bold 11px Courier New'; ctx.textAlign = 'center';
+  ctx.fillText(label, x + w/2, y + h/2 + 4);
+  return { x, y, w, h };
+}
+
+// ── SCREENS ───────────────────────────────────────────────────────────────────
+function drawTitle() {
+  ctx.fillStyle = '#070710'; ctx.fillRect(0, 0, W, H);
+
+  ctx.shadowColor = '#3a7abf'; ctx.shadowBlur = 30;
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 44px Courier New'; ctx.textAlign = 'center';
+  ctx.fillText('ROGUE PROTOCOL', W/2, 140);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#555577'; ctx.font = '13px Courier New';
+  ctx.fillText('A rogue AI agent vs a corrupted network', W/2, 175);
+
+  ctx.fillStyle = '#9999bb'; ctx.font = '11px Courier New';
+  ctx.fillText('Turn-based card combat  •  3 Floors  •  3 Rooms each  •  Final boss awaits', W/2, 205);
+  ctx.fillText('Click cards to play them  •  End Turn to let the enemy act', W/2, 225);
+
+  // Cards preview
+  const previewCards = [0,1,2,3,4];
+  const pw = 68, ph = 80, pgap = 78;
+  const pstart = W/2 - (pgap * (previewCards.length-1) + pw)/2;
+  previewCards.forEach((ci, i) => {
+    const def = CARD_DEFS[ci];
+    const px = pstart + i * pgap, py = 255;
+    rrect(px, py, pw, ph, 5, '#13132a', def.color, 1.5);
+    ctx.fillStyle = def.color; ctx.font = 'bold 8px Courier New'; ctx.textAlign = 'center';
+    ctx.fillText(def.name, px + pw/2, py + 16);
+    ctx.font = '18px Arial'; ctx.fillText(def.type==='attack'?'⚔':def.type==='defense'?'🛡':'⚡', px + pw/2, py + 44);
+    ctx.fillStyle = '#9999bb'; ctx.font = '8px Courier New';
+    ctx.fillText(def.desc, px + pw/2, py + 64);
+    ctx.fillStyle = def.cost===0?'#9b59b6':def.cost===1?'#f39c12':'#e74c3c';
+    ctx.font = 'bold 12px Courier New'; ctx.textAlign = 'left';
+    ctx.fillText(def.cost, px + 6, py + 14);
+  });
+
+  btnStart = button(W/2 - 90, 365, 180, 44, '[ INITIALIZE ]', true);
+}
+
+function drawCombat() {
+  // Background
+  ctx.fillStyle = '#070710'; ctx.fillRect(0, 0, W, H);
+
+  // Red flash
+  if (flashRed > 0) {
+    ctx.fillStyle = `rgba(200,30,30,${flashRed * 0.5})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // ── Header ──
+  rrect(10, 10, W-20, 42, 6, '#0d0d1a', '#1e1e3a');
+  ctx.fillStyle = '#3a7abf'; ctx.font = 'bold 11px Courier New'; ctx.textAlign = 'left';
+  ctx.fillText('FLOOR ' + (floorIdx+1) + '  ROOM ' + (roomIdx+1) + '/' + FLOORS[floorIdx].length, 22, 36);
+  ctx.fillStyle = '#f1c40f'; ctx.textAlign = 'right';
+  ctx.fillText('SCORE: ' + score, W-22, 36);
+
+  // ── Player panel ──
+  const pX = 20, pY = 66;
+  rrect(pX, pY, 200, 130, 8, '#0d0d1a', '#1e1e3a');
+
+  // Hexagon avatar
+  ctx.save();
+  ctx.translate(pX + 42, pY + 52);
+  ctx.fillStyle = flashRed > 0.15 ? '#ff4444' : '#2980b9';
+  ctx.shadowColor = flashRed > 0.15 ? '#ff0000' : '#2980b9';
+  ctx.shadowBlur = 14;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI/3)*i - Math.PI/6;
+    if (i===0) ctx.moveTo(Math.cos(a)*26, Math.sin(a)*26);
+    else        ctx.lineTo(Math.cos(a)*26, Math.sin(a)*26);
+  }
+  ctx.closePath(); ctx.fill(); ctx.shadowBlur = 0;
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Courier New'; ctx.textAlign = 'center';
+  ctx.fillText('AI', 0, 4);
+  ctx.restore();
+
+  ctx.fillStyle = '#aaaacc'; ctx.font = '10px Courier New'; ctx.textAlign = 'left';
+  ctx.fillText('AGENT-7', pX + 80, pY + 16);
+  hpBar(pX + 8, pY + 90, 184, 18, player.hp, player.maxHp, 'HP');
+  if (player.block > 0) {
+    ctx.fillStyle = '#2980b9'; ctx.font = 'bold 10px Courier New'; ctx.textAlign = 'left';
+    ctx.fillText('🛡 BLOCK: ' + player.block, pX + 8, pY + 124);
+  }
+
+  // ── Energy ──
+  rrect(W/2 - 42, 66, 84, 50, 6, '#0d0d1a', '#1e1e3a');
+  ctx.fillStyle = '#f39c12'; ctx.font = 'bold 20px Courier New'; ctx.textAlign = 'center';
+  ctx.fillText(energy + '/' + MAX_ENERGY, W/2, 97);
+  ctx.fillStyle = '#555577'; ctx.font = '9px Courier New';
+  ctx.fillText('ENERGY', W/2, 110);
+
+  // ── Enemy panel ──
+  const eX = W - 220, eY = 66;
+  const eShakeOff = eShake > 0 ? (Math.random()-0.5)*5 : 0;
+  rrect(eX + eShakeOff, eY, 200, 130, 8, '#0d0d1a', '#1e1e3a');
+
+  // Enemy avatar
+  ctx.save();
+  ctx.translate(eX + 160 + eShakeOff, eY + 52);
+  ctx.fillStyle = enemy.color;
+  ctx.shadowColor = enemy.color;
+  ctx.shadowBlur = 12;
+  if (enemy.isBoss) {
+    // 8-pointed star for boss
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const a = (Math.PI/4)*i;
+      const r = i%2===0 ? 28 : 14;
+      if (i===0) ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r);
+      else        ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+    }
+    ctx.closePath();
+  } else {
+    ctx.beginPath(); ctx.arc(0, 0, 26, 0, Math.PI*2);
+  }
+  ctx.fill(); ctx.shadowBlur = 0;
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 9px Courier New'; ctx.textAlign = 'center';
+  ctx.fillText(enemy.name.substring(0,5), 0, 3);
+  ctx.restore();
+
+  ctx.fillStyle = '#aaaacc'; ctx.font = '10px Courier New'; ctx.textAlign = 'right';
+  ctx.fillText(enemy.name, eX + 190, eY + 16);
+  hpBar(eX + 8 + eShakeOff, eY + 90, 184, 18, enemy.hp, enemy.maxHp, 'HP');
+  if (enemy.block > 0) {
+    ctx.fillStyle = '#8e44ad'; ctx.font = 'bold 10px Courier New'; ctx.textAlign = 'right';
+    ctx.fillText('🛡 ' + enemy.block, eX + 192, eY + 124);
+  }
+
+  // Intent badge
+  if (intent && !locked) {
+    const iLabel = intent.type === 'attack'
+      ? '⚔ ATK ' + intent.val
+      : '🛡 BLK ' + intent.val;
+    ctx.fillStyle = intent.type === 'attack' ? '#c0392b' : '#2980b9';
+    ctx.font = 'bold 10px Courier New'; ctx.textAlign = 'center';
+    ctx.fillText(iLabel, eX + 100 + eShakeOff, eY + 140);
+  }
+
+  // ── Progress dots ──
+  const dotBaseX = W/2 - 70, dotY = 218;
+  let dotI = 0;
+  for (let f = 0; f < FLOORS.length; f++) {
+    for (let r = 0; r < FLOORS[f].length; r++) {
+      const dx = dotBaseX + dotI * 18;
+      const done = f < floorIdx || (f === floorIdx && r < roomIdx);
+      const cur  = f === floorIdx && r === roomIdx;
+      ctx.fillStyle = done ? '#2ecc71' : cur ? '#3a7abf' : '#333344';
+      ctx.shadowColor = cur ? '#3a7abf' : 'none';
+      ctx.shadowBlur = cur ? 8 : 0;
+      ctx.beginPath(); ctx.arc(dx, dotY, cur ? 6 : 4, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+      // separator between floors
+      if (r === FLOORS[f].length - 1 && f < FLOORS.length - 1) {
+        ctx.strokeStyle = '#333344'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(dx+7, dotY); ctx.lineTo(dx+11, dotY); ctx.stroke();
+      }
+      dotI++;
+    }
+  }
+
+  // ── Message ──
+  if (msgTimer > 0) {
+    const a = Math.min(1, msgTimer / 0.4);
+    ctx.fillStyle = `rgba(255,255,80,${a})`;
+    ctx.font = 'bold 12px Courier New'; ctx.textAlign = 'center';
+    ctx.fillText(msg, W/2, 240);
+  }
+
+  // ── End Turn button ──
+  const etY = H - 160;
+  btnEnd = button(W/2 - 55, etY, 110, 30, '[ END TURN ]', !locked);
+
+  // ── Hand ──
+  const cW = 82, cH = 112;
+  const visCards = Math.min(hand.length, 7);
+  const gap = Math.min(90, (W - 60) / Math.max(1, visCards));
+  const startX = (W - (gap * (visCards-1) + cW)) / 2;
+  const cY = H - cH - 18;
+  cardRects = [];
+
+  for (let i = 0; i < visCards; i++) {
+    const card = hand[i];
+    const cx = startX + i * gap;
+    const cy = cY - (selCard === i ? 14 : 0);
+    const canPlay = card.cost <= energy && !locked;
+    cardRects.push({ x: cx, y: cy, w: cW, h: cH, i });
+
+    rrect(cx, cy, cW, cH, 6,
+      selCard === i ? '#1e1e38' : canPlay ? '#13132a' : '#0c0c18',
+      selCard === i ? '#ffffff' : canPlay ? card.color : '#2a2a3a',
+      selCard === i ? 2 : 1.5);
+
+    ctx.globalAlpha = canPlay ? 1 : 0.4;
+
+    // cost pip
+    ctx.fillStyle = card.cost === 0 ? '#9b59b6' : card.cost === 1 ? '#f39c12' : '#e74c3c';
+    ctx.font = 'bold 13px Courier New'; ctx.textAlign = 'left';
+    ctx.fillText(card.cost, cx + 7, cy + 15);
+
+    // name
+    ctx.fillStyle = card.color; ctx.font = 'bold 7px Courier New'; ctx.textAlign = 'center';
+    const parts = card.name.split(' ');
+    if (parts.length === 1) {
+      ctx.fillText(card.name, cx + cW/2, cy + 32);
+    } else {
+      ctx.fillText(parts[0], cx + cW/2, cy + 26);
+      ctx.fillText(parts.slice(1).join(' '), cx + cW/2, cy + 36);
+    }
+
+    // icon
+    ctx.font = '22px serif'; ctx.textAlign = 'center';
+    ctx.fillText(card.type==='attack' ? '⚔' : card.type==='defense' ? '🛡' : '⚡', cx + cW/2, cy + 68);
+
+    // desc
+    ctx.fillStyle = '#8888aa'; ctx.font = '7px Courier New';
+    ctx.fillText(card.desc, cx + cW/2, cy + 88);
+
+    ctx.globalAlpha = 1;
+  }
+
+  // deck / discard
+  ctx.fillStyle = '#333355'; ctx.font = '10px Courier New';
+  ctx.textAlign = 'left';  ctx.fillText('DECK:' + deck.length, 12, H - 5);
+  ctx.textAlign = 'right'; ctx.fillText('DISC:' + discard.length, W - 12, H - 5);
+}
+
+function drawEndScreen(win) {
+  ctx.fillStyle = '#070710'; ctx.fillRect(0, 0, W, H);
+
+  ctx.shadowColor = win ? '#2ecc71' : '#e74c3c';
+  ctx.shadowBlur = 30;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 48px Courier New'; ctx.textAlign = 'center';
+  ctx.fillText(win ? 'ESCAPED' : 'TERMINATED', W/2, 190);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 22px Courier New';
+  ctx.fillText('SCORE: ' + score, W/2, 240);
+
+  ctx.fillStyle = win ? '#2ecc71' : '#e74c3c';
+  ctx.font = '13px Courier New';
+  ctx.fillText(win ? 'You cracked the core. Network purged.' : 'The corruption consumed your signal.', W/2, 278);
+
+  btnRetry = button(W/2 - 90, 315, 180, 44, '[ RUN AGAIN ]', true);
+}
+
+// ── MAIN LOOP ─────────────────────────────────────────────────────────────────
+let lastT = 0;
+function loop(ts) {
+  const dt = Math.min((ts - lastT) / 1000, 0.1);
+  lastT = ts;
+
+  // Tick timers
+  if (flashRed > 0) flashRed = Math.max(0, flashRed - dt * 2);
+  if (eShake > 0)   eShake   = Math.max(0, eShake   - dt * 4);
+  if (msgTimer > 0) msgTimer = Math.max(0, msgTimer - dt);
+
+  // Draw
+  if (phase === 'title')  drawTitle();
+  else if (phase === 'combat') drawCombat();
+  else if (phase === 'win')  drawEndScreen(true);
+  else if (phase === 'lose') drawEndScreen(false);
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ── INPUT ─────────────────────────────────────────────────────────────────────
+function hitTest(rect, x, y) {
+  return rect && x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+}
+
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (W / rect.width);
+  const my = (e.clientY - rect.top)  * (H / rect.height);
+
+  if (phase === 'title') {
+    if (hitTest(btnStart, mx, my)) startGame();
+    return;
+  }
+
+  if (phase === 'win' || phase === 'lose') {
+    if (hitTest(btnRetry, mx, my)) { phase = 'title'; btnRetry = null; }
+    return;
+  }
+
+  if (phase === 'combat') {
+    // End turn
+    if (!locked && hitTest(btnEnd, mx, my)) { endTurn(); return; }
+
+    // Card clicks
+    for (const cr of cardRects) {
+      if (hitTest(cr, mx, my)) {
+        if (selCard === cr.i) {
+          // second click = play it
+          playCard(cr.i);
+        } else {
+          selCard = cr.i;
+        }
+        return;
+      }
+    }
+    // Click elsewhere = deselect
+    selCard = -1;
+  }
+});
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (W / rect.width);
+  const my = (e.clientY - rect.top)  * (H / rect.height);
+
+  if (phase === 'combat') {
+    let hover = false;
+    for (const cr of cardRects) {
+      if (hitTest(cr, mx, my)) { hover = true; break; }
+    }
+    if (!hover && hitTest(btnEnd, mx, my)) hover = true;
+    canvas.style.cursor = hover ? 'pointer' : 'default';
+  } else {
+    const anyBtn = hitTest(btnStart, mx, my) || hitTest(btnRetry, mx, my);
+    canvas.style.cursor = anyBtn ? 'pointer' : 'default';
+  }
+});
+</script>
+</body>
+</html>

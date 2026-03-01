@@ -114,10 +114,10 @@
       font-weight: 900;
       line-height: 1;
     }
-    .stat-total  { color: #1a1a1a; }
-    .stat-working { color: #008A3C; }
-    .stat-partial { color: #CC6600; }
-    .stat-failed  { color: #CC0000; }
+    .stat-total       { color: #1a1a1a; }
+    .stat-working     { color: #008A3C; }
+    .stat-conditional { color: #CC6600; }
+    .stat-failed      { color: #CC0000; }
 
     /* ── Section Header ── */
     .section-header {
@@ -173,9 +173,9 @@
       text-transform: uppercase;
       letter-spacing: 0.6px;
     }
-    .badge.working { background: #E6F4EC; color: #008A3C; }
-    .badge.partial  { background: #FFF3E0; color: #CC6600; }
-    .badge.failed   { background: #FDECEA; color: #CC0000; }
+    .badge.working      { background: #E6F4EC; color: #008A3C; }
+    .badge.conditional  { background: #FFF3E0; color: #CC6600; }
+    .badge.failed       { background: #FDECEA; color: #CC0000; }
 
     /* ── Card Sections ── */
     .card-section {
@@ -299,12 +299,12 @@
       <div class="value stat-total" id="total">0</div>
     </div>
     <div class="stat-box">
-      <div class="label">Working</div>
+      <div class="label">Pursue</div>
       <div class="value stat-working" id="working">0</div>
     </div>
     <div class="stat-box">
-      <div class="label">Partial</div>
-      <div class="value stat-partial" id="partial">0</div>
+      <div class="label">Conditional</div>
+      <div class="value stat-conditional" id="partial">0</div>
     </div>
     <div class="stat-box">
       <div class="label">Failed</div>
@@ -324,7 +324,7 @@
           <a href="2026-03-01-rogue-protocol/index.html" target="_blank">Rogue Protocol</a>
         </div>
         <div class="date">March 1, 2026</div>
-        <div class="badge partial">Conditional</div>
+        <div class="badge conditional">Conditional</div>
       </div>
 
       <div class="card-section">
@@ -345,10 +345,7 @@
 
       <div class="card-section">
         <div class="card-section-label">Verdict (Pixel)</div>
-        <div class="verdict-row">
-          <span class="verdict-pill conditional">Conditional</span>
-          <span class="card-section-body">The intent telegraph is genuinely good design — it makes every card choice a planning decision, not a guess. But the fixed 13-card deck collapses the skill layer after 2-3 runs: once you know the deck, you're executing a memorized sequence. The one thing that would make it a real game: a card draft after each room. Three cards offered, pick one. That single addition gives 3-4x replay variance and turns this from a puzzle with a known answer into an actual roguelike worth pursuing.</span>
-        </div>
+        <div class="card-section-body">The intent telegraph is genuinely good design — it makes every card choice a planning decision, not a guess. But the fixed 13-card deck collapses the skill layer after 2-3 runs: once you know the deck, you're executing a memorized sequence. The one thing that would make it a real game: a card draft after each room. Three cards offered, pick one. That single addition gives 3-4x replay variance and turns this from a puzzle with a known answer into an actual roguelike worth pursuing.</div>
       </div>
 
       <hr class="card-divider">
@@ -378,7 +375,7 @@
           <a href="2026-02-28-arena-blitz/index.html" target="_blank">Arena Blitz</a>
         </div>
         <div class="date">February 28, 2026</div>
-        <div class="badge failed">Pass</div>
+        <div class="badge failed">Failed</div>
       </div>
 
       <div class="card-section">
@@ -399,10 +396,7 @@
 
       <div class="card-section">
         <div class="card-section-label">Verdict (Pixel)</div>
-        <div class="verdict-row">
-          <span class="verdict-pill pass">Pass</span>
-          <span class="card-section-body">The core loop is functional but undifferentiated. WASD twin-stick wave survival has been done to death, and the rogue AI framing is cosmetic — it changes nothing about how the game plays. The splitter mechanic is the one interesting decision point but arrives on wave 7 with no buildup. A player picking this up would feel like they have played it before — because they essentially have. Nothing here earns a second run.</span>
-        </div>
+        <div class="card-section-body">The core loop is functional but undifferentiated. WASD twin-stick wave survival has been done to death, and the rogue AI framing is cosmetic — it changes nothing about how the game plays. The splitter mechanic is the one interesting decision point but arrives on wave 7 with no buildup. A player picking this up would feel like they have played it before — because they essentially have. Nothing here earns a second run.</div>
       </div>
 
       <div class="how-to-play">
@@ -432,7 +426,7 @@
     let w = 0, p = 0, f = 0;
     cards.forEach(c => {
       if (c.querySelector('.badge.working')) w++;
-      else if (c.querySelector('.badge.partial')) p++;
+      else if (c.querySelector('.badge.conditional')) p++;
       else if (c.querySelector('.badge.failed')) f++;
     });
     document.getElementById('total').textContent = w + p + f;

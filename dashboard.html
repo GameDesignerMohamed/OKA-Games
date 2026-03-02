@@ -3,445 +3,494 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OKA-Games — Forge Dashboard</title>
+  <title>OKA Forge — Nightly Game Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --red:      #E4000F;
+      --red-dark: #b80009;
+      --red-soft: #fff0f0;
+      --green:    #0A7C3E;
+      --green-bg: #E9F8EF;
+      --orange:   #B85C00;
+      --orange-bg:#FFF3E0;
+      --fail:     #C0000A;
+      --fail-bg:  #FDECEA;
+      --gray-50:  #F7F7F8;
+      --gray-100: #EFEFEF;
+      --gray-200: #DCDCDC;
+      --gray-400: #9A9A9A;
+      --gray-600: #555;
+      --gray-800: #222;
+      --white:    #fff;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.04);
+      --shadow-md: 0 4px 20px rgba(0,0,0,.09);
+      --radius:   14px;
+    }
+
+    html { scroll-behavior: smooth; }
 
     body {
-      background: #f5f5f5;
-      color: #1a1a1a;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--gray-50);
+      color: var(--gray-800);
+      font-family: 'Inter', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
       min-height: 100vh;
     }
 
-    /* ── Top Nav ── */
+    /* ─── NAV ─── */
     .nav {
-      background: #E4000F;
-      padding: 0 40px;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      gap: 32px;
+      position: sticky; top: 0; z-index: 100;
+      background: var(--red);
+      height: 52px;
+      display: flex; align-items: center;
+      padding: 0 28px;
+      gap: 0;
     }
     .nav-logo {
-      font-size: 18px;
-      font-weight: 900;
-      color: #fff;
-      letter-spacing: -0.5px;
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none;
     }
-    .nav-logo span {
-      display: inline-block;
-      background: #fff;
-      color: #E4000F;
-      border-radius: 4px;
-      padding: 1px 7px;
-      margin-right: 6px;
+    .nav-logo-badge {
+      background: var(--white);
+      color: var(--red);
+      font-weight: 900;
+      font-size: 13px;
+      letter-spacing: -.3px;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+    .nav-logo-text {
+      color: var(--white);
+      font-weight: 800;
       font-size: 15px;
-      font-weight: 900;
+      letter-spacing: -.3px;
     }
-    .nav-links {
-      display: flex;
-      gap: 24px;
-      list-style: none;
+    .nav-right {
       margin-left: auto;
+      display: flex; align-items: center; gap: 20px;
     }
-    .nav-links li a {
-      color: rgba(255,255,255,0.85);
+    .nav-right a {
+      color: rgba(255,255,255,.8);
       text-decoration: none;
       font-size: 13px;
       font-weight: 500;
-      transition: color 0.15s;
+      transition: color .15s;
     }
-    .nav-links li a:hover { color: #fff; }
+    .nav-right a:hover { color: var(--white); }
 
-    /* ── Hero Banner ── */
+    /* ─── HERO ─── */
     .hero {
-      background: #E4000F;
-      padding: 40px 40px 56px;
+      background: var(--red);
+      padding: 48px 28px 72px;
     }
     .hero-inner {
-      max-width: 920px;
+      max-width: 960px;
       margin: 0 auto;
+    }
+    .hero-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.6);
+      margin-bottom: 12px;
     }
     .hero h1 {
-      font-size: 40px;
+      font-size: clamp(32px, 5vw, 52px);
       font-weight: 900;
-      color: #fff;
-      line-height: 1.1;
-      letter-spacing: -1px;
-      margin-bottom: 10px;
+      color: var(--white);
+      letter-spacing: -1.5px;
+      line-height: 1.05;
+      margin-bottom: 14px;
     }
-    .hero p {
-      font-size: 16px;
-      color: rgba(255,255,255,0.80);
-      font-weight: 400;
-      max-width: 520px;
+    .hero h1 em {
+      font-style: normal;
+      color: rgba(255,255,255,.55);
+    }
+    .hero-sub {
+      font-size: 15px;
+      color: rgba(255,255,255,.72);
+      max-width: 480px;
+      line-height: 1.6;
     }
 
-    /* ── Main Content ── */
-    .content {
-      max-width: 920px;
+    /* ─── WRAPPER ─── */
+    .wrap {
+      max-width: 960px;
       margin: 0 auto;
-      padding: 0 40px 60px;
-      transform: translateY(-28px);
+      padding: 0 28px 80px;
+      transform: translateY(-36px);
     }
 
-    /* ── Stat Cards ── */
+    /* ─── STATS ─── */
     .stats {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-      margin-bottom: 32px;
+      gap: 10px;
+      margin-bottom: 36px;
     }
-    .stat-box {
-      background: #fff;
-      border-radius: 12px;
-      padding: 20px 22px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+    .stat {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 18px 20px 20px;
+      box-shadow: var(--shadow-sm);
     }
-    .stat-box .label {
-      font-size: 11px;
-      font-weight: 600;
-      color: #888;
+    .stat-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
       text-transform: uppercase;
-      letter-spacing: 0.8px;
-      margin-bottom: 6px;
+      color: var(--gray-400);
+      margin-bottom: 8px;
     }
-    .stat-box .value {
-      font-size: 32px;
+    .stat-value {
+      font-size: 38px;
       font-weight: 900;
       line-height: 1;
+      letter-spacing: -1px;
     }
-    .stat-total       { color: #1a1a1a; }
-    .stat-working     { color: #008A3C; }
-    .stat-conditional { color: #CC6600; }
-    .stat-failed      { color: #CC0000; }
+    .stat-value.total       { color: var(--gray-800); }
+    .stat-value.pursue      { color: var(--green); }
+    .stat-value.conditional { color: var(--orange); }
+    .stat-value.failed      { color: var(--fail); }
+    .stat-bar {
+      height: 3px;
+      border-radius: 2px;
+      margin-top: 10px;
+    }
+    .stat-bar.total       { background: var(--gray-200); }
+    .stat-bar.pursue      { background: var(--green-bg); }
+    .stat-bar.conditional { background: var(--orange-bg); }
+    .stat-bar.failed      { background: var(--fail-bg); }
 
-    /* ── Section Header ── */
-    .section-header {
-      font-size: 12px;
+    /* ─── SECTION TITLE ─── */
+    .section-title {
+      font-size: 11px;
       font-weight: 700;
-      color: #888;
-      text-transform: uppercase;
       letter-spacing: 1.2px;
-      margin-bottom: 12px;
-    }
-
-    /* ── Build Cards ── */
-    .build-card {
-      background: #fff;
-      border-radius: 14px;
-      padding: 22px 24px;
-      margin-bottom: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
-      transition: box-shadow 0.15s, transform 0.15s;
-    }
-    .build-card:hover {
-      box-shadow: 0 4px 16px rgba(0,0,0,0.10);
-      transform: translateY(-1px);
-    }
-
-    .card-top {
-      display: flex;
-      align-items: center;
-      gap: 12px;
+      text-transform: uppercase;
+      color: var(--gray-400);
       margin-bottom: 14px;
     }
-    .project-name a {
-      color: #E4000F;
+
+    /* ─── CARD ─── */
+    .card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 14px;
+      overflow: hidden;
+      transition: box-shadow .18s, transform .18s;
+    }
+    .card:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-2px);
+    }
+
+    /* card header strip */
+    .card-header {
+      display: flex;
+      align-items: center;
+      padding: 18px 22px 16px;
+      gap: 14px;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .card-title-block { flex: 1; min-width: 0; }
+    .card-title {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -.4px;
+      line-height: 1.2;
+    }
+    .card-title a {
+      color: var(--gray-800);
       text-decoration: none;
-      font-size: 17px;
-      font-weight: 800;
-      letter-spacing: -0.3px;
     }
-    .project-name a:hover { text-decoration: underline; }
-
-    .date {
-      color: #aaa;
+    .card-title a:hover { color: var(--red); }
+    .card-date {
       font-size: 12px;
+      color: var(--gray-400);
       font-weight: 500;
+      margin-top: 2px;
     }
-
     .badge {
-      margin-left: auto;
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-    }
-    .badge.working      { background: #E6F4EC; color: #008A3C; }
-    .badge.conditional  { background: #FFF3E0; color: #CC6600; }
-    .badge.failed       { background: #FDECEA; color: #CC0000; }
-
-    /* ── Card Sections ── */
-    .card-section {
-      margin-top: 12px;
-    }
-    .card-section-label {
-      font-size: 11px;
-      font-weight: 700;
-      color: #aaa;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      margin-bottom: 4px;
-    }
-    .card-section-body {
-      font-size: 13px;
-      color: #444;
-      line-height: 1.55;
-    }
-
-    .card-divider {
-      border: none;
-      border-top: 1px solid #f0f0f0;
-      margin: 14px 0;
-    }
-
-    /* ── Verdict Pill ── */
-    .verdict-row {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      margin-top: 4px;
-    }
-    .verdict-pill {
       flex-shrink: 0;
-      padding: 3px 11px;
-      border-radius: 20px;
+      padding: 5px 13px;
+      border-radius: 99px;
       font-size: 11px;
-      font-weight: 800;
+      font-weight: 700;
+      letter-spacing: .6px;
       text-transform: uppercase;
-      letter-spacing: 0.6px;
-      margin-top: 1px;
     }
-    .verdict-pill.pursue     { background: #E6F4EC; color: #008A3C; }
-    .verdict-pill.conditional { background: #FFF3E0; color: #CC6600; }
-    .verdict-pill.pass       { background: #FDECEA; color: #CC0000; }
+    .badge.pursue      { background: var(--green-bg);   color: var(--green); }
+    .badge.conditional { background: var(--orange-bg);  color: var(--orange); }
+    .badge.failed      { background: var(--fail-bg);    color: var(--fail); }
 
-    /* ── Tags ── */
-    .tags {
+    /* card body */
+    .card-body {
+      padding: 0 22px 20px;
+    }
+
+    .card-row {
+      padding: 14px 0;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .card-row:last-child { border-bottom: none; }
+
+    .row-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--gray-400);
+      margin-bottom: 5px;
       display: flex;
+      align-items: center;
       gap: 6px;
+    }
+    .row-label-icon {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+    }
+    .icon-forge  { background: #FFF0F0; color: var(--red); }
+    .icon-design { background: #EEF2FF; color: #4F46E5; }
+    .icon-verdict{ background: #F0FDF4; color: var(--green); }
+    .icon-scout  { background: #FFFBEB; color: #92400E; }
+
+    .row-text {
+      font-size: 13.5px;
+      color: var(--gray-600);
+      line-height: 1.65;
+    }
+
+    /* verdict row highlight */
+    .card-row.verdict-row .row-text {
+      color: var(--gray-800);
+      font-size: 13.5px;
+    }
+
+    /* tags + play link */
+    .card-footer {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 22px 16px;
+      border-top: 1px solid var(--gray-100);
       flex-wrap: wrap;
-      margin-top: 12px;
     }
     .tag {
       font-size: 11px;
-      color: #666;
-      background: #f5f5f5;
+      color: var(--gray-600);
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
       border-radius: 6px;
-      padding: 2px 9px;
+      padding: 3px 9px;
       font-weight: 500;
     }
-
-    /* ── How to Play ── */
-    .how-to-play {
-      margin-top: 10px;
-      background: #fafafa;
-      border-radius: 8px;
-      padding: 8px 12px;
+    .play-link {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--red);
+      color: var(--white);
       font-size: 12px;
-      color: #666;
-      font-family: 'SFMono-Regular', 'Consolas', monospace;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: background .15s;
+      letter-spacing: .2px;
     }
-    .how-to-play strong {
-      color: #999;
-      font-family: 'Inter', sans-serif;
-      font-weight: 600;
+    .play-link:hover { background: var(--red-dark); }
+    .play-link svg { width: 11px; height: 11px; fill: currentColor; }
+
+    /* ─── EMPTY STATE ─── */
+    .empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--gray-400);
+      font-size: 14px;
     }
 
-    /* ── Footer ── */
+    /* ─── FOOTER ─── */
     footer {
-      background: #1a1a1a;
-      padding: 24px 40px;
+      background: var(--gray-800);
+      padding: 28px;
       text-align: center;
     }
     footer p {
       font-size: 12px;
-      color: #555;
+      color: #666;
     }
-    footer a {
-      color: #E4000F;
-      text-decoration: none;
+    footer a { color: var(--red); text-decoration: none; }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 600px) {
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .hero h1 { font-size: 32px; }
+      .wrap, .hero { padding-left: 16px; padding-right: 16px; }
+      .nav { padding: 0 16px; }
+      .play-link { margin-left: 0; }
     }
   </style>
 </head>
 <body>
 
-<!-- Nav -->
 <nav class="nav">
-  <div class="nav-logo"><span>OKA</span>Forge</div>
-  <ul class="nav-links">
-    <li><a href="https://github.com/GameDesignerMohamed/OKA-Games" target="_blank">GitHub</a></li>
-  </ul>
+  <a class="nav-logo" href="#">
+    <span class="nav-logo-badge">OKA</span>
+    <span class="nav-logo-text">Forge</span>
+  </a>
+  <div class="nav-right">
+    <a href="https://github.com/GameDesignerMohamed/OKA-Games" target="_blank">GitHub ↗</a>
+  </div>
 </nav>
 
-<!-- Hero -->
 <div class="hero">
   <div class="hero-inner">
-    <h1>Forge Dashboard</h1>
-    <p>One game prototype built per night — every morning a new playable demo to learn from.</p>
+    <div class="hero-eyebrow">Nightly Game Lab</div>
+    <h1>One game.<br><em>Every night.</em></h1>
+    <p class="hero-sub">Forge builds a playable prototype from scratch each night. Pixel reviews it. We ship, learn, and repeat.</p>
   </div>
 </div>
 
-<!-- Content -->
-<div class="content">
+<div class="wrap">
 
-  <!-- Stats -->
   <div class="stats">
-    <div class="stat-box">
-      <div class="label">Total Builds</div>
-      <div class="value stat-total" id="total">0</div>
+    <div class="stat">
+      <div class="stat-label">Total Builds</div>
+      <div class="stat-value total" id="stat-total">0</div>
+      <div class="stat-bar total"></div>
     </div>
-    <div class="stat-box">
-      <div class="label">Pursue</div>
-      <div class="value stat-working" id="working">0</div>
+    <div class="stat">
+      <div class="stat-label">Pursue</div>
+      <div class="stat-value pursue" id="stat-pursue">0</div>
+      <div class="stat-bar pursue"></div>
     </div>
-    <div class="stat-box">
-      <div class="label">Conditional</div>
-      <div class="value stat-conditional" id="partial">0</div>
+    <div class="stat">
+      <div class="stat-label">Conditional</div>
+      <div class="stat-value conditional" id="stat-conditional">0</div>
+      <div class="stat-bar conditional"></div>
     </div>
-    <div class="stat-box">
-      <div class="label">Failed</div>
-      <div class="value stat-failed" id="failed">0</div>
+    <div class="stat">
+      <div class="stat-label">Failed</div>
+      <div class="stat-value failed" id="stat-failed">0</div>
+      <div class="stat-bar failed"></div>
     </div>
   </div>
 
-  <!-- Build Feed -->
-  <div class="section-header">Build Feed</div>
+  <div class="section-title">Build Feed</div>
 
   <div id="feed">
 
-    <!-- Rogue Protocol -->
-    <div class="build-card">
-      <div class="card-top">
-        <div class="project-name">
-          <a href="2026-03-01-rogue-protocol/index.html" target="_blank">Rogue Protocol</a>
+    <!-- ── Rogue Protocol ── -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title-block">
+          <div class="card-title"><a href="2026-03-01-rogue-protocol/index.html" target="_blank">Rogue Protocol</a></div>
+          <div class="card-date">March 1, 2026</div>
         </div>
-        <div class="date">March 1, 2026</div>
         <div class="badge conditional">Conditional</div>
       </div>
-
-      <div class="card-section">
-        <div class="card-section-label">Project (Forge)</div>
-        <div class="card-section-body">
-          A turn-based roguelike deckbuilder where you play as an AI agent fighting through a corrupted network. Each run gives you a 13-card deck, 3 energy per turn, and a 5-card hand. Navigate 9 rooms across 3 floors and defeat the CORE NODE boss to win. Enemies telegraph their next move every turn, making each card choice a meaningful tactical decision.
+      <div class="card-body">
+        <div class="card-row">
+          <div class="row-label"><span class="row-label-icon icon-forge">F</span>Project</div>
+          <div class="row-text">Turn-based roguelike deckbuilder. You're an AI agent fighting through a corrupted network — 13-card deck, 3 energy per turn, 9 rooms across 3 floors. Enemies telegraph their next move every turn, making each card choice a real tactical decision. Defeat the CORE NODE boss to win.</div>
+        </div>
+        <div class="card-row">
+          <div class="row-label"><span class="row-label-icon icon-design">D</span>Design</div>
+          <div class="row-text">The intent telegraph (showing enemy intent before you act) is the core skill layer — it transforms card selection from guessing into planning. The fixed 13-card deck proves the format works. What's missing: a draft system that lets players build a deck as they progress. Offer 3 cards after each room, pick 1, seeded from 5 archetypes. This adds 3-4x replay variance with minimal code changes.</div>
+        </div>
+        <div class="card-row verdict-row">
+          <div class="row-label"><span class="row-label-icon icon-verdict">V</span>Verdict</div>
+          <div class="row-text">The intent telegraph is genuinely good design. But the fixed 13-card deck collapses the skill layer after 2-3 runs — once you know the deck, you're executing a memorized sequence. One addition fixes it: a card draft after each room. Three cards offered, pick one. That gives 3-4x replay variance and turns this from a puzzle with a known answer into an actual roguelike worth pursuing.</div>
+        </div>
+        <div class="card-row">
+          <div class="row-label"><span class="row-label-icon icon-scout">S</span>Market Signal</div>
+          <div class="row-text">Strategy and 4X are the only genres growing across all metrics. Slay the Spire 2 Early Access launches March 5 — deckbuilder retention is validated by the market.</div>
         </div>
       </div>
-
-      <hr class="card-divider">
-
-      <div class="card-section">
-        <div class="card-section-label">Design (Pixel)</div>
-        <div class="card-section-body">
-          The intent telegraph (showing what the enemy will do before you act) is the core skill layer — it transforms card selection from guessing into planning. The current fixed 13-card deck proves the format works; the next step is a draft system that lets players build a deck as they progress. Recommended approach: offer 3 random cards after each room, pick 1, seeded from 5 archetypes (Poison, Lifesteal, Weaken, Barrier, Echo) with rarity scaling by floor depth. This adds 3-4x replay variance with minimal code changes.
-        </div>
-      </div>
-
-      <div class="card-section">
-        <div class="card-section-label">Verdict (Pixel)</div>
-        <div class="card-section-body">The intent telegraph is genuinely good design — it makes every card choice a planning decision, not a guess. But the fixed 13-card deck collapses the skill layer after 2-3 runs: once you know the deck, you're executing a memorized sequence. The one thing that would make it a real game: a card draft after each room. Three cards offered, pick one. That single addition gives 3-4x replay variance and turns this from a puzzle with a known answer into an actual roguelike worth pursuing.</div>
-      </div>
-
-      <hr class="card-divider">
-
-      <div class="card-section">
-        <div class="card-section-label">Market Signal (Scout)</div>
-        <div class="card-section-body">Strategy and 4X are the only genres growing across all metrics. Slay the Spire 2 Early Access launches March 5 — deckbuilder retention is validated by the market.</div>
-      </div>
-
-      <div class="how-to-play">
-        <strong>Run locally:</strong> cd 2026-03-01-rogue-protocol &amp;&amp; python3 -m http.server 8080
-      </div>
-
-      <div class="tags">
+      <div class="card-footer">
         <span class="tag">three.js</span>
         <span class="tag">deckbuilder</span>
         <span class="tag">roguelike</span>
         <span class="tag">turn-based</span>
-        <span class="tag">card-game</span>
+        <a class="play-link" href="2026-03-01-rogue-protocol/index.html" target="_blank">
+          <svg viewBox="0 0 12 12"><path d="M2 1l9 5-9 5V1z"/></svg>
+          Play
+        </a>
       </div>
     </div>
 
-    <!-- Arena Blitz -->
-    <div class="build-card">
-      <div class="card-top">
-        <div class="project-name">
-          <a href="2026-02-28-arena-blitz/index.html" target="_blank">Arena Blitz</a>
+    <!-- ── Arena Blitz ── -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title-block">
+          <div class="card-title"><a href="2026-02-28-arena-blitz/index.html" target="_blank">Arena Blitz</a></div>
+          <div class="card-date">February 28, 2026</div>
         </div>
-        <div class="date">February 28, 2026</div>
         <div class="badge failed">Failed</div>
       </div>
-
-      <div class="card-section">
-        <div class="card-section-label">Project (Forge)</div>
-        <div class="card-section-body">
-          A top-down arena shooter where you play as a rogue AI agent surviving 10 enemy waves. Move with WASD, aim with the mouse, and shoot to clear each wave before the next one spawns. A boss enemy appears on wave 10. Splitter enemies divide into two smaller units on death, punishing spray-and-pray tactics in the later waves.
+      <div class="card-body">
+        <div class="card-row">
+          <div class="row-label"><span class="row-label-icon icon-forge">F</span>Project</div>
+          <div class="row-text">Top-down arena shooter. Play as a rogue AI surviving 10 enemy waves — WASD movement, mouse aim. Splitter enemies divide into two smaller units on death, punishing spray-and-pray in later waves. Boss on wave 10.</div>
+        </div>
+        <div class="card-row">
+          <div class="row-label"><span class="row-label-icon icon-design">D</span>Design</div>
+          <div class="row-text">The core loop — move, aim, shoot, survive — is clean and readable. Splitter enemies create a risk-reward decision: shooting one in a crowd creates two smaller threats. The scoring system rewards aggressive play. But the genre is saturated and nothing here earns a second run.</div>
+        </div>
+        <div class="card-row verdict-row">
+          <div class="row-label"><span class="row-label-icon icon-verdict">V</span>Verdict</div>
+          <div class="row-text">WASD twin-stick wave survival, done to death. The rogue AI framing is cosmetic — it changes nothing about how the game plays. The splitter mechanic is the one interesting decision point but arrives on wave 7 with no buildup. A player picking this up would feel like they've played it before — because they essentially have.</div>
+        </div>
+        <div class="card-row">
+          <div class="row-label"><span class="row-label-icon icon-scout">S</span>Market Signal</div>
+          <div class="row-text">Hero shooter post-mortems (Concord, Highguard) confirm live-service wave survival is a saturated format. No Scout signal supported this build direction.</div>
         </div>
       </div>
-
-      <hr class="card-divider">
-
-      <div class="card-section">
-        <div class="card-section-label">Design (Pixel)</div>
-        <div class="card-section-body">
-          The core loop — move, aim, shoot, survive, repeat — is clean and readable. Splitter enemies (introduced wave 7+) create a risk-reward decision: shooting a splitter in a crowd creates two smaller threats. The scoring system rewards aggressive play over passive survival. Next priorities: powerup drops between waves, ranged enemy variants, Web Audio sound effects, and a localStorage leaderboard for replay motivation.
-        </div>
-      </div>
-
-      <div class="card-section">
-        <div class="card-section-label">Verdict (Pixel)</div>
-        <div class="card-section-body">The core loop is functional but undifferentiated. WASD twin-stick wave survival has been done to death, and the rogue AI framing is cosmetic — it changes nothing about how the game plays. The splitter mechanic is the one interesting decision point but arrives on wave 7 with no buildup. A player picking this up would feel like they have played it before — because they essentially have. Nothing here earns a second run.</div>
-      </div>
-
-      <hr class="card-divider">
-
-      <div class="card-section">
-        <div class="card-section-label">Market Signal (Scout)</div>
-        <div class="card-section-body">Hero shooter post-mortems (Concord, Highguard) confirm live-service wave survival is a saturated format with no retention ceiling. No Scout signal supported this build direction.</div>
-      </div>
-
-      <div class="how-to-play">
-        <strong>Run locally:</strong> cd 2026-02-28-arena-blitz &amp;&amp; python3 -m http.server 8080
-      </div>
-
-      <div class="tags">
+      <div class="card-footer">
         <span class="tag">canvas-2d</span>
-        <span class="tag">arcade</span>
-        <span class="tag">top-down-shooter</span>
-        <span class="tag">wave-survival</span>
-        <span class="tag">boss-fight</span>
+        <span class="tag">top-down shooter</span>
+        <span class="tag">wave survival</span>
+        <a class="play-link" href="2026-02-28-arena-blitz/index.html" target="_blank">
+          <svg viewBox="0 0 12 12"><path d="M2 1l9 5-9 5V1z"/></svg>
+          Play
+        </a>
       </div>
     </div>
 
   </div>
 </div>
 
-<!-- Footer -->
 <footer>
-  <p>OKA-Games Forge &mdash; Built nightly by <a href="#">Forge</a> &mdash; <a href="https://github.com/GameDesignerMohamed/OKA-Games" target="_blank">View on GitHub</a></p>
+  <p>OKA-Games Forge &mdash; Built nightly &mdash; <a href="https://github.com/GameDesignerMohamed/OKA-Games" target="_blank">View on GitHub</a></p>
 </footer>
 
 <script>
-  window.addEventListener('DOMContentLoaded', () => {
-    const cards = document.querySelectorAll('.build-card');
-    let w = 0, p = 0, f = 0;
-    cards.forEach(c => {
-      if (c.querySelector('.badge.working')) w++;
-      else if (c.querySelector('.badge.conditional')) p++;
-      else if (c.querySelector('.badge.failed')) f++;
+  document.addEventListener('DOMContentLoaded', () => {
+    let pursue = 0, conditional = 0, failed = 0;
+    document.querySelectorAll('.badge').forEach(b => {
+      if (b.classList.contains('pursue'))      pursue++;
+      if (b.classList.contains('conditional')) conditional++;
+      if (b.classList.contains('failed'))      failed++;
     });
-    document.getElementById('total').textContent = w + p + f;
-    document.getElementById('working').textContent = w;
-    document.getElementById('partial').textContent = p;
-    document.getElementById('failed').textContent = f;
+    document.getElementById('stat-total').textContent       = pursue + conditional + failed;
+    document.getElementById('stat-pursue').textContent      = pursue;
+    document.getElementById('stat-conditional').textContent = conditional;
+    document.getElementById('stat-failed').textContent      = failed;
   });
 </script>
 
 </body>
 </html>
-<!-- build trigger Mon Mar  2 12:06:22 AM UTC 2026 -->

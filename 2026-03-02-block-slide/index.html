@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Block Slide</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0d0d0d;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  font-family: 'Courier New', monospace;
+  color: #eee;
+  overflow: hidden;
+  user-select: none;
+}
+#header {
+  display: flex;
+  gap: 32px;
+  margin-bottom: 14px;
+  font-size: 14px;
+}
+.stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.stat-label { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 2px; }
+.stat-value { font-size: 20px; color: #fff; font-weight: bold; }
+#canvas-wrap { position: relative; }
+canvas { display: block; cursor: pointer; border-radius: 6px; }
+#flash-overlay {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; background: white; opacity: 0; border-radius: 6px;
+}
+#footer { margin-top: 12px; font-size: 11px; color: #444; letter-spacing: 1px; }
+#msg-overlay {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.85); border-radius: 6px;
+  pointer-events: none; opacity: 0; transition: opacity 0.2s;
+}
+#msg-overlay.visible { opacity: 1; pointer-events: all; }
+#msg-title { font-size: 28px; font-weight: bold; letter-spacing: 3px; margin-bottom: 10px; }
+#msg-sub { font-size: 13px; color: #aaa; margin-bottom: 20px; letter-spacing: 1px; text-align: center; line-height: 1.8; }
+#msg-btn {
+  background: #fff; color: #000; border: none; padding: 10px 28px;
+  font-family: 'Courier New', monospace; font-size: 13px; font-weight: bold;
+  letter-spacing: 2px; cursor: pointer; border-radius: 3px;
+}
+#msg-btn:hover { background: #ddd; }
+</style>
+</head>
+<body>
+<div id="header">
+  <div class="stat"><span class="stat-label">Level</span><span class="stat-value" id="lvl-el">1</span></div>
+  <div class="stat"><span class="stat-label">Time</span><span class="stat-value" id="time-el">60</span></div>
+  <div class="stat"><span class="stat-label">Moves</span><span class="stat-value" id="moves-el">0</span></div>
+  <div class="stat"><span class="stat-label">Par</span><span class="stat-value" id="par-el">—</span></div>
+  <div class="stat"><span class="stat-label">Score</span><span class="stat-value" id="score-el">0</span></div>
+  <div class="stat"><span class="stat-label">Best</span><span class="stat-value" id="best-el">—</span></div>
+</div>
+<div id="canvas-wrap">
+  <canvas id="gc"></canvas>
+  <div id="flash-overlay"></div>
+  <div id="msg-overlay">
+    <div id="msg-title">BLOCK SLIDE</div>
+    <div id="msg-sub">Click a block, then use arrow keys to slide it<br>Match each block to its target slot</div>
+    <button id="msg-btn">PLAY</button>
+  </div>
+</div>
+<div id="footer">CLICK BLOCK → ARROW KEYS TO SLIDE → FILL THE SLOTS</div>
+
+<script>
+// ── TOP SCOPE DECLARATIONS (no TDZ bugs) ────────────────────
+let canvas, ctx;
+let gsState = 'start'; // start | playing | timeout | clear | win
+let curLevel = 0;
+let gridCols, gridRows, cellSize;
+let blocks, targets;
+let selBlock = null;
+let moves = 0;
+let timeLeft = 60;
+let totalScore = 0;
+let timerIv = null;
+let animList = [];
+let pulseList = [];
+let shakeX = 0, shakeY = 0, shakeTimer = null;
+let lastTs = 0;
+let rafId = null;
+
+// DOM
+let lvlEl, timeEl, movesEl, parEl, scoreEl, bestEl;
+let flashEl, msgOverlay, msgTitle, msgSub, msgBtn;
+
+// Audio
+let ac = null;
+
+// ── COLORS ─────────────────────────────────────────────────
+const C = {
+  red:    '#e05050',
+  blue:   '#4e9de0',
+  green:  '#50c878',
+  yellow: '#e0c050',
+  purple: '#9a50e0'
+};
+
+// ── LEVELS ─────────────────────────────────────────────────
+const LEVELS = [
+  { cols:3, rows:3, time:60, par:2,
+    blocks:  [{id:'A',c:'red',   x:0,y:0},{id:'B',c:'blue',  x:2,y:2}],
+    targets: [{id:'A',c:'red',   x:2,y:0},{id:'B',c:'blue',  x:0,y:2}] },
+
+  { cols:3, rows:3, time:55, par:3,
+    blocks:  [{id:'A',c:'green', x:0,y:1},{id:'B',c:'yellow',x:2,y:1}],
+    targets: [{id:'A',c:'green', x:2,y:2},{id:'B',c:'yellow',x:0,y:0}] },
+
+  { cols:4, rows:4, time:55, par:4,
+    blocks:  [{id:'A',c:'red',   x:0,y:0},{id:'B',c:'blue',  x:3,y:0},{id:'C',c:'green', x:1,y:3}],
+    targets: [{id:'A',c:'red',   x:3,y:3},{id:'B',c:'blue',  x:0,y:3},{id:'C',c:'green', x:2,y:0}] },
+
+  { cols:4, rows:4, time:50, par:5,
+    blocks:  [{id:'A',c:'purple',x:0,y:0},{id:'B',c:'yellow',x:3,y:3},{id:'C',c:'red',   x:2,y:1}],
+    targets: [{id:'A',c:'purple',x:3,y:0},{id:'B',c:'yellow',x:0,y:2},{id:'C',c:'red',   x:1,y:3}] },
+
+  { cols:4, rows:4, time:50, par:6,
+    blocks:  [{id:'A',c:'red',   x:0,y:0},{id:'B',c:'blue',  x:3,y:0},{id:'C',c:'green', x:0,y:3},{id:'D',c:'yellow',x:3,y:3}],
+    targets: [{id:'A',c:'red',   x:3,y:3},{id:'B',c:'blue',  x:0,y:3},{id:'C',c:'green', x:3,y:0},{id:'D',c:'yellow',x:0,y:0}] },
+
+  { cols:5, rows:5, time:45, par:7,
+    blocks:  [{id:'A',c:'red',   x:0,y:0},{id:'B',c:'blue',  x:4,y:0},{id:'C',c:'green', x:0,y:4},{id:'D',c:'purple',x:4,y:4}],
+    targets: [{id:'A',c:'red',   x:4,y:4},{id:'B',c:'blue',  x:0,y:4},{id:'C',c:'green', x:4,y:0},{id:'D',c:'purple',x:2,y:2}] },
+
+  { cols:5, rows:5, time:45, par:8,
+    blocks:  [{id:'A',c:'red',   x:0,y:0},{id:'B',c:'blue',  x:4,y:2},{id:'C',c:'green', x:2,y:4},{id:'D',c:'yellow',x:0,y:4},{id:'E',c:'purple',x:4,y:0}],
+    targets: [{id:'A',c:'red',   x:4,y:4},{id:'B',c:'blue',  x:0,y:2},{id:'C',c:'green', x:2,y:0},{id:'D',c:'yellow',x:3,y:3},{id:'E',c:'purple',x:1,y:1}] },
+
+  { cols:5, rows:5, time:40, par:10,
+    blocks:  [{id:'A',c:'red',   x:0,y:0},{id:'B',c:'blue',  x:4,y:0},{id:'C',c:'green', x:0,y:2},{id:'D',c:'yellow',x:4,y:2},{id:'E',c:'purple',x:1,y:4},{id:'F',c:'red',   x:3,y:4}],
+    targets: [{id:'A',c:'red',   x:4,y:0},{id:'B',c:'blue',  x:0,y:4},{id:'C',c:'green', x:4,y:4},{id:'D',c:'yellow',x:0,y:0},{id:'E',c:'purple',x:2,y:2},{id:'F',c:'red',   x:2,y:0}] },
+
+  { cols:6, rows:6, time:35, par:12,
+    blocks:  [{id:'A',c:'red',   x:0,y:0},{id:'B',c:'blue',  x:5,y:0},{id:'C',c:'green', x:0,y:5},{id:'D',c:'yellow',x:5,y:5},{id:'E',c:'purple',x:2,y:2},{id:'F',c:'red',   x:3,y:3},{id:'G',c:'blue',  x:1,y:3}],
+    targets: [{id:'A',c:'red',   x:5,y:5},{id:'B',c:'blue',  x:0,y:5},{id:'C',c:'green', x:5,y:0},{id:'D',c:'yellow',x:0,y:0},{id:'E',c:'purple',x:3,y:1},{id:'F',c:'red',   x:1,y:4},{id:'G',c:'blue',  x:4,y:2}] },
+
+  { cols:6, rows:6, time:30, par:14,
+    blocks:  [{id:'A',c:'red',   x:0,y:0},{id:'B',c:'blue',  x:5,y:0},{id:'C',c:'green', x:0,y:5},{id:'D',c:'yellow',x:5,y:5},{id:'E',c:'purple',x:2,y:1},{id:'F',c:'red',   x:3,y:4},{id:'G',c:'blue',  x:1,y:2},{id:'H',c:'green', x:4,y:3}],
+    targets: [{id:'A',c:'red',   x:5,y:5},{id:'B',c:'blue',  x:0,y:5},{id:'C',c:'green', x:5,y:0},{id:'D',c:'yellow',x:0,y:0},{id:'E',c:'purple',x:3,y:2},{id:'F',c:'red',   x:2,y:3},{id:'G',c:'blue',  x:4,y:1},{id:'H',c:'green', x:1,y:4}] }
+];
+
+// ── AUDIO ───────────────────────────────────────────────────
+function initAC() {
+  if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+}
+function playTone(freq, type, dur, vol) {
+  initAC();
+  const o = ac.createOscillator();
+  const g = ac.createGain();
+  o.connect(g); g.connect(ac.destination);
+  o.type = type || 'sine';
+  o.frequency.value = freq;
+  g.gain.setValueAtTime(vol || 0.25, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+  o.start(); o.stop(ac.currentTime + dur);
+}
+function sDing() { playTone(880, 'sine', 0.25, 0.3); }
+function sWall() { playTone(110, 'square', 0.08, 0.15); }
+function sClear() {
+  [523,659,784,1047].forEach((f,i) => setTimeout(() => playTone(f,'sine',0.2,0.25), i*80));
+}
+function sWarn() { playTone(220, 'sine', 0.15, 0.2); }
+
+// ── SHAKE ────────────────────────────────────────────────────
+function shake() {
+  if (shakeTimer) clearTimeout(shakeTimer);
+  shakeX = (Math.random()-0.5)*6; shakeY = (Math.random()-0.5)*6;
+  shakeTimer = setTimeout(() => { shakeX=0; shakeY=0; shakeTimer=null; }, 80);
+}
+
+// ── FLASH ────────────────────────────────────────────────────
+function flash(col, ms) {
+  flashEl.style.background = col || 'white';
+  flashEl.style.opacity = '0.45';
+  flashEl.style.transition = 'none';
+  requestAnimationFrame(() => {
+    flashEl.style.transition = `opacity ${ms||300}ms ease-out`;
+    flashEl.style.opacity = '0';
+  });
+}
+
+// ── GRID HELPERS ─────────────────────────────────────────────
+function blockAt(x, y, skipId) {
+  return blocks.find(b => b.x===x && b.y===y && b.id!==skipId) || null;
+}
+function targetAt(x, y) {
+  return targets.find(t => t.x===x && t.y===y) || null;
+}
+
+// ── ANIMATION ────────────────────────────────────────────────
+function anim(block, fx, fy, tx, ty) {
+  animList.push({ block, fx, fy, tx, ty, p:0, dur:130 });
+}
+function updateAnims(dt) {
+  animList.forEach(a => { a.p = Math.min(1, a.p + dt/a.dur); });
+  animList = animList.filter(a => a.p < 1);
+}
+function blockPx(block) {
+  const a = animList.find(a => a.block===block);
+  if (!a) return { px: block.x*cellSize, py: block.y*cellSize };
+  const t = 1 - Math.pow(1-a.p, 3); // ease-out
+  return { px: (a.fx + (a.tx-a.fx)*t)*cellSize, py: (a.fy + (a.ty-a.fy)*t)*cellSize };
+}
+
+// ── PULSES ───────────────────────────────────────────────────
+function addPulse(x, y, col) { pulseList.push({ x, y, col, p:0 }); }
+function updatePulses(dt) {
+  pulseList.forEach(a => { a.p = Math.min(1, a.p + dt/400); });
+  pulseList = pulseList.filter(a => a.p < 1);
+}
+
+// ── CANVAS SETUP ─────────────────────────────────────────────
+function setupCanvas() {
+  const lvl = LEVELS[curLevel];
+  gridCols = lvl.cols; gridRows = lvl.rows;
+  const maxSz = Math.min(window.innerWidth - 32, window.innerHeight - 170, 560);
+  cellSize = Math.floor(maxSz / Math.max(gridCols, gridRows));
+  canvas.width  = gridCols * cellSize;
+  canvas.height = gridRows * cellSize;
+  const w = canvas.width + 'px';
+  const h = canvas.height + 'px';
+  document.getElementById('canvas-wrap').style.cssText = `position:relative;width:${w};height:${h}`;
+  flashEl.style.cssText = `position:absolute;top:0;left:0;width:${w};height:${h};pointer-events:none;opacity:0;border-radius:6px`;
+  msgOverlay.style.cssText = `position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);border-radius:6px;pointer-events:none;opacity:0;transition:opacity 0.2s`;
+}
+
+// ── LOAD LEVEL ───────────────────────────────────────────────
+function loadLevel(idx) {
+  const lvl = LEVELS[idx];
+  curLevel = idx;
+  moves = 0; timeLeft = lvl.time;
+  selBlock = null; animList = []; pulseList = [];
+
+  blocks  = lvl.blocks.map(b => ({...b, matched:false}));
+  targets = lvl.targets.map(t => ({...t}));
+
+  setupCanvas();
+  lvlEl.textContent   = curLevel+1;
+  movesEl.textContent = 0;
+  parEl.textContent   = lvl.par;
+  timeEl.textContent  = timeLeft;
+  timeEl.style.color  = '#e55';
+  scoreEl.textContent = totalScore;
+  const best = localStorage.getItem('bs_best');
+  bestEl.textContent  = best || '—';
+}
+
+// ── TIMER ────────────────────────────────────────────────────
+function startTimer() {
+  clearInterval(timerIv);
+  timerIv = setInterval(() => {
+    if (gsState !== 'playing') return;
+    timeLeft--;
+    timeEl.textContent = timeLeft;
+    if (timeLeft <= 10) { timeEl.style.color = '#ff2222'; sWarn(); }
+    if (timeLeft <= 0) onTimeout();
+  }, 1000);
+}
+function stopTimer() { clearInterval(timerIv); }
+
+function onTimeout() {
+  gsState = 'timeout'; stopTimer();
+  flash('#ff0000', 400);
+  setTimeout(() => showMsg('TIME\'S UP!', `Level ${curLevel+1} — try again!`, 'RETRY', () => {
+    loadLevel(curLevel); gsState = 'playing'; startTimer(); hideMsg();
+  }), 450);
+}
+
+// ── SLIDE ────────────────────────────────────────────────────
+function slide(block, dx, dy) {
+  if (animList.length > 0) return; // wait for anims
+  const fx = block.x, fy = block.y;
+  let cx = fx, cy = fy;
+
+  while (true) {
+    const nx = cx+dx, ny = cy+dy;
+    if (nx<0||nx>=gridCols||ny<0||ny>=gridRows) break;
+    if (blockAt(nx, ny, block.id)) break;
+    cx=nx; cy=ny;
+  }
+
+  if (cx===fx && cy===fy) { shake(); sWall(); return; }
+
+  moves++;
+  movesEl.textContent = moves;
+  anim(block, fx, fy, cx, cy);
+  block.x = cx; block.y = cy;
+
+  // Check match after anim
+  setTimeout(() => {
+    const t = targetAt(block.x, block.y);
+    if (t && t.c===block.c && t.id===block.id) {
+      block.matched = true;
+      addPulse(block.x, block.y, block.c);
+      sDing();
+    } else {
+      block.matched = false;
+    }
+    checkClear();
+  }, 140);
+}
+
+// ── CHECK CLEAR ──────────────────────────────────────────────
+function checkClear() {
+  if (!blocks.every(b => { const t=targetAt(b.x,b.y); return t&&t.c===b.c&&t.id===b.id; })) return;
+
+  gsState = 'clear'; stopTimer(); selBlock = null;
+
+  const lvl = LEVELS[curLevel];
+  const spd = Math.max(0, timeLeft) * 10;
+  const eff = moves <= lvl.par ? (lvl.par - moves + 1) * 50 : 0;
+  const ls  = 500 + spd + eff;
+  totalScore += ls;
+  scoreEl.textContent = totalScore;
+
+  const prev = parseInt(localStorage.getItem('bs_best')||'0');
+  if (totalScore > prev) { localStorage.setItem('bs_best', totalScore); bestEl.textContent = totalScore; }
+
+  sClear(); flash('#ffffff', 500);
+
+  setTimeout(() => {
+    if (curLevel+1 >= LEVELS.length) {
+      showMsg('YOU WIN! 🎉', `All 10 levels complete!\nFinal score: ${totalScore}`, 'PLAY AGAIN', () => {
+        totalScore = 0; scoreEl.textContent = 0;
+        loadLevel(0); gsState = 'playing'; startTimer(); hideMsg();
+      });
+    } else {
+      showMsg(`LEVEL ${curLevel+1} CLEAR!`,
+        `+${ls} pts (Speed: +${spd}, Efficiency: +${eff})\nTotal: ${totalScore}`,
+        'NEXT', () => { loadLevel(curLevel+1); gsState='playing'; startTimer(); hideMsg(); });
+    }
+  }, 600);
+}
+
+// ── MESSAGE ──────────────────────────────────────────────────
+function showMsg(title, sub, btnTxt, cb) {
+  msgTitle.textContent = title;
+  msgSub.innerHTML = sub.replace(/\n/g,'<br>');
+  msgBtn.textContent = btnTxt;
+  msgBtn.onclick = cb;
+  msgOverlay.style.opacity = '1';
+  msgOverlay.style.pointerEvents = 'all';
+}
+function hideMsg() {
+  msgOverlay.style.opacity = '0';
+  msgOverlay.style.pointerEvents = 'none';
+}
+
+// ── INPUT ────────────────────────────────────────────────────
+function handleClick(e) {
+  if (gsState !== 'playing' || animList.length > 0) return;
+  initAC();
+  const r = canvas.getBoundingClientRect();
+  const cx = Math.floor((e.clientX - r.left) / cellSize);
+  const cy = Math.floor((e.clientY - r.top)  / cellSize);
+  if (cx<0||cx>=gridCols||cy<0||cy>=gridRows) { selBlock=null; return; }
+  const b = blockAt(cx, cy);
+  selBlock = (b && selBlock===b) ? null : (b || null);
+}
+
+document.addEventListener('keydown', e => {
+  if (gsState!=='playing'||!selBlock||animList.length>0) return;
+  const dir = {ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]}[e.key];
+  if (dir) { e.preventDefault(); slide(selBlock, dir[0], dir[1]); }
+});
+
+// ── RENDER ───────────────────────────────────────────────────
+function draw(ts) {
+  rafId = requestAnimationFrame(draw);
+  const dt = ts - lastTs; lastTs = ts;
+  if (dt > 100) { lastTs = ts; return; } // skip big gaps
+
+  updateAnims(dt);
+  updatePulses(dt);
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
+
+  // Grid bg
+  ctx.fillStyle = '#181818';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Grid lines
+  ctx.strokeStyle = '#252525';
+  ctx.lineWidth = 1;
+  for (let c=0; c<=gridCols; c++) {
+    ctx.beginPath();
+    ctx.moveTo(c*cellSize, 0);
+    ctx.lineTo(c*cellSize, gridRows*cellSize);
+    ctx.stroke();
+  }
+  for (let r=0; r<=gridRows; r++) {
+    ctx.beginPath();
+    ctx.moveTo(0, r*cellSize);
+    ctx.lineTo(gridCols*cellSize, r*cellSize);
+    ctx.stroke();
+  }
+
+  const pad = Math.floor(cellSize * 0.14);
+  const sz  = cellSize - pad*2;
+  const rad = Math.max(4, Math.floor(sz*0.18));
+
+  // Draw targets (ghost slots)
+  targets.forEach(t => {
+    const px = t.x*cellSize + pad;
+    const py = t.y*cellSize + pad;
+    const col = C[t.c];
+    const isMatched = blocks.some(b => b.x===t.x && b.y===t.y && b.id===t.id && b.c===t.c);
+
+    ctx.save();
+    ctx.globalAlpha = isMatched ? 0.25 : 0.55;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4,3]);
+    roundRect(ctx, px, py, sz, sz, rad);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Corner marks
+    ctx.globalAlpha = isMatched ? 0.15 : 0.4;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2;
+    const m = 5;
+    [[px,py],[px+sz,py],[px,py+sz],[px+sz,py+sz]].forEach(([cx,cy]) => {
+      const sx = cx < px+sz/2 ? 1 : -1;
+      const sy = cy < py+sz/2 ? 1 : -1;
+      ctx.beginPath(); ctx.moveTo(cx, cy+sy*m); ctx.lineTo(cx, cy); ctx.lineTo(cx+sx*m, cy); ctx.stroke();
+    });
+    ctx.restore();
+  });
+
+  // Draw pulses
+  pulseList.forEach(p => {
+    const t = 1 - Math.pow(1-p.p, 2);
+    const alpha = (1-t)*0.7;
+    const expand = t * cellSize * 0.5;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = C[p.col];
+    ctx.lineWidth = 2;
+    const px = p.x*cellSize + pad - expand/2;
+    const py = p.y*cellSize + pad - expand/2;
+    const psz = sz + expand;
+    roundRect(ctx, px, py, psz, psz, rad);
+    ctx.stroke();
+    ctx.restore();
+  });
+
+  // Draw blocks
+  blocks.forEach(b => {
+    const { px: bpx, py: bpy } = blockPx(b);
+    const bx = bpx + pad;
+    const by = bpy + pad;
+    const col = C[b.c];
+    const isSel = (selBlock === b);
+
+    ctx.save();
+
+    // Glow for selected
+    if (isSel) {
+      ctx.shadowColor = col;
+      ctx.shadowBlur = 16;
+    }
+
+    // Fill
+    ctx.fillStyle = col;
+    ctx.globalAlpha = 0.9;
+    roundRect(ctx, bx, by, sz, sz, rad);
+    ctx.fill();
+
+    // Shine
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = '#fff';
+    roundRect(ctx, bx + sz*0.15, by + sz*0.08, sz*0.55, sz*0.22, rad*0.5);
+    ctx.fill();
+
+    // Darker bottom
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = '#000';
+    roundRect(ctx, bx, by + sz*0.6, sz, sz*0.4, rad);
+    ctx.fill();
+
+    ctx.globalAlpha = 1;
+
+    // Label (block id)
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.font = `bold ${Math.floor(sz*0.38)}px Courier New`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(b.id, bx + sz/2, by + sz/2);
+
+    // Selection ring
+    if (isSel) {
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2.5;
+      ctx.globalAlpha = 0.9;
+      roundRect(ctx, bx-3, by-3, sz+6, sz+6, rad+2);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  });
+
+  ctx.restore();
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h);
+  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r);
+  ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+}
+
+// ── INIT ─────────────────────────────────────────────────────
+function init() {
+  canvas    = document.getElementById('gc');
+  ctx       = canvas.getContext('2d');
+  flashEl   = document.getElementById('flash-overlay');
+  msgOverlay = document.getElementById('msg-overlay');
+  msgTitle  = document.getElementById('msg-title');
+  msgSub    = document.getElementById('msg-sub');
+  msgBtn    = document.getElementById('msg-btn');
+  lvlEl     = document.getElementById('lvl-el');
+  timeEl    = document.getElementById('time-el');
+  movesEl   = document.getElementById('moves-el');
+  parEl     = document.getElementById('par-el');
+  scoreEl   = document.getElementById('score-el');
+  bestEl    = document.getElementById('best-el');
+
+  canvas.addEventListener('click', handleClick);
+
+  totalScore = 0;
+  loadLevel(0);
+
+  // Show start message
+  showMsg('BLOCK SLIDE', 'Click a block, then use arrow keys to slide it\nMatch each block to its target slot\n\n10 levels — beat the clock!', 'PLAY', () => {
+    gsState = 'playing';
+    startTimer();
+    hideMsg();
+  });
+
+  rafId = requestAnimationFrame(draw);
+}
+
+window.addEventListener('load', init);
+</script>
+</body>
+</html>

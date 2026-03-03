@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dark Signal — Fog of War Deckbuilder</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #080812;
+    color: #e0e0ff;
+    font-family: 'Courier New', monospace;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+  #bg-canvas { position: fixed; top:0; left:0; width:100%; height:100%; z-index:0; pointer-events:none; }
+
+  /* HUD */
+  #hud {
+    position: fixed; top:0; left:0; right:0;
+    display:flex; justify-content:space-between; align-items:flex-start;
+    padding: 14px 24px; pointer-events:none; z-index:10;
+  }
+  .hud-block { display:flex; flex-direction:column; gap:2px; }
+  .hud-label { font-size:10px; letter-spacing:2px; color:#404070; text-transform:uppercase; }
+  .hud-val { font-size:20px; font-weight:bold; color:#b0b0e0; }
+
+  /* GAME PANEL */
+  #game-panel {
+    position: fixed; top:50%; left:50%;
+    transform: translate(-50%,-50%);
+    width: 660px; max-width:96vw;
+    z-index:20;
+    display:flex; flex-direction:column; gap:12px;
+  }
+
+  /* Enemy */
+  #enemy-box {
+    background: rgba(18,8,28,0.95);
+    border: 1px solid #2a1a4a;
+    border-radius: 10px;
+    padding: 16px 22px;
+    display:flex; justify-content:space-between; align-items:center; gap:16px;
+  }
+  .enemy-name { font-size:17px; font-weight:bold; color:#ff5555; letter-spacing:1px; }
+  .enemy-type-hint { font-size:10px; color:#603060; margin-top:3px; letter-spacing:1px; }
+  .hp-bar-wrap { flex:1; }
+  .hp-bar-bg { background:#1a0a1a; border-radius:3px; height:8px; }
+  .hp-bar-fill { background:#ff3050; height:8px; border-radius:3px; transition:width 0.35s; }
+  .hp-bar-label { font-size:10px; color:#703050; margin-top:3px; }
+
+  /* Intent zone */
+  #intent-zone {
+    background: rgba(8,16,36,0.96);
+    border: 2px solid #1a2850;
+    border-radius: 10px;
+    padding: 18px 20px;
+    min-height: 96px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+    transition: border-color 0.3s;
+  }
+  #intent-zone.attack  { border-color: #aa2020; }
+  #intent-zone.block   { border-color: #2050bb; }
+  #intent-zone.ability { border-color: #7020bb; }
+  #intent-zone.reveal  { border-color: #bb6020; }
+
+  .intent-label { font-size:10px; letter-spacing:2px; color:#404070; text-transform:uppercase; }
+  .intent-row { display:flex; align-items:center; gap:16px; }
+  .intent-icon { font-size:44px; line-height:1; transition:transform 0.3s; }
+  .intent-icon.pulse { animation: iconPulse 0.4s ease; }
+  @keyframes iconPulse { 0%{transform:scale(1)} 50%{transform:scale(1.3)} 100%{transform:scale(1)} }
+
+  .intent-type-text { font-size:22px; font-weight:bold; letter-spacing:3px; text-transform:uppercase; }
+  .intent-type-text.attack  { color:#ff5555; }
+  .intent-type-text.block   { color:#5588ff; }
+  .intent-type-text.ability { color:#aa55ff; }
+
+  .intent-value { font-size:26px; font-weight:bold; color:#ffaa40; opacity:0; transition:opacity 0.5s; }
+  .intent-value.show { opacity:1; }
+  .intent-sublabel { font-size:10px; color:#405060; }
+
+  /* Status bar */
+  #status-bar {
+    display:flex; justify-content:space-between; align-items:center;
+    padding: 8px 14px;
+    background: rgba(8,12,22,0.85);
+    border-radius:8px; border:1px solid #141a2a;
+  }
+  .pip {
+    display:inline-block; width:12px; height:12px; border-radius:50%;
+    background:#30b0ff; margin-right:3px;
+    box-shadow: 0 0 5px #30b0ff;
+    transition: background 0.15s, box-shadow 0.15s;
+  }
+  .pip.spent { background:#101828; box-shadow:none; }
+  #player-hp-val { color:#50ff80; font-size:14px; }
+  #block-val { color:#5588ff; font-size:12px; }
+
+  /* Hand */
+  #hand-zone { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+
+  .card {
+    background: rgba(12,18,36,0.96);
+    border: 1.5px solid #202a4a;
+    border-radius: 9px;
+    padding: 10px 12px;
+    width: 112px; min-height: 100px;
+    cursor: pointer;
+    transition: all 0.18s;
+    user-select: none;
+    position: relative;
+  }
+  .card:hover:not(.disabled) { border-color:#5060c0; transform:translateY(-5px); box-shadow:0 8px 18px rgba(50,80,200,0.35); }
+  .card.selected { border-color:#c0b0ff; background:rgba(35,45,85,0.97); transform:translateY(-9px); box-shadow:0 12px 26px rgba(140,120,255,0.45); }
+  .card.disabled { opacity:0.3; cursor:default; transform:none !important; border-color:#1a2030 !important; box-shadow:none !important; }
+  .card-cost { position:absolute; top:7px; right:9px; font-size:12px; color:#30b0ff; font-weight:bold; }
+  .card-name { font-size:11px; font-weight:bold; color:#b0c0e0; letter-spacing:0.5px; margin-bottom:5px; padding-right:16px; }
+  .card-desc { font-size:10px; color:#50607a; line-height:1.4; }
+  .card-badge {
+    display:inline-block; font-size:8px; letter-spacing:1px;
+    padding:2px 5px; border-radius:3px; margin-top:6px; text-transform:uppercase;
+  }
+  .badge-atk  { background:rgba(180,50,50,0.3); color:#ff8080; }
+  .badge-def  { background:rgba(40,70,180,0.3); color:#80a8ff; }
+  .badge-util { background:rgba(90,40,180,0.3); color:#c080ff; }
+
+  /* Commit */
+  #commit-btn {
+    background:#2a1055; border:2px solid #6030b0;
+    color:#b090f0; font-family:'Courier New',monospace;
+    font-size:13px; font-weight:bold; letter-spacing:2px;
+    padding:11px 24px; border-radius:8px;
+    cursor:pointer; width:100%; text-transform:uppercase;
+    transition:all 0.18s;
+  }
+  #commit-btn:hover:not(:disabled) { background:#4a1888; border-color:#9060e0; transform:translateY(-2px); box-shadow:0 6px 18px rgba(100,50,220,0.45); }
+  #commit-btn:disabled { opacity:0.35; cursor:default; transform:none; }
+
+  /* Log */
+  #battle-log {
+    background:rgba(4,6,14,0.9); border:1px solid #0f1525;
+    border-radius:7px; padding:10px 14px;
+    font-size:10px; color:#405060; height:58px;
+    overflow-y:auto; line-height:1.8;
+  }
+  .log-dmg { color:#ff6060; }
+  .log-blk { color:#5588ff; }
+  .log-deal { color:#50e080; }
+  .log-sys  { color:#806080; font-style:italic; }
+
+  /* OVERLAYS */
+  .overlay {
+    position:fixed; inset:0;
+    background:rgba(4,2,12,0.93);
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    z-index:100; text-align:center; gap:14px; padding:36px;
+  }
+  .overlay.hidden { display:none; }
+  .overlay-title { font-size:34px; font-weight:bold; letter-spacing:4px; text-transform:uppercase; }
+  .overlay-title.win  { color:#50ff80; text-shadow:0 0 28px #50ff80; }
+  .overlay-title.lose { color:#ff3838; text-shadow:0 0 28px #ff3838; }
+  .overlay-title.start{ color:#9050ff; text-shadow:0 0 38px #9050ff; }
+  .overlay-sub { font-size:13px; color:#708090; max-width:460px; line-height:1.8; }
+  .overlay-stat { font-size:16px; color:#b090e0; }
+  .overlay-stat em { color:#ffaa40; font-style:normal; font-size:20px; }
+  .fled-log { font-size:11px; color:#505570; max-width:500px; line-height:1.9; text-align:left; background:rgba(10,8,20,0.7); padding:12px 16px; border-radius:8px; border:1px solid #161a2a; max-height:130px; overflow-y:auto; }
+  .overlay-btn {
+    background:transparent; border:2px solid #505070;
+    color:#b0b0e0; font-family:'Courier New',monospace;
+    font-size:12px; letter-spacing:2px;
+    padding:11px 28px; border-radius:8px;
+    cursor:pointer; text-transform:uppercase;
+    transition:all 0.18s; margin-top:6px;
+  }
+  .overlay-btn:hover { border-color:#9090d0; color:#fff; transform:translateY(-2px); }
+
+  .mechanic-box {
+    background:rgba(14,10,30,0.85); border:1px solid #1a1a3a;
+    border-radius:8px; padding:14px 20px;
+    font-size:11px; color:#607080; max-width:460px; text-align:left; line-height:1.9;
+  }
+  .mechanic-box strong { color:#b090d0; }
+
+  .node-advance-flash {
+    position:fixed; inset:0; background:rgba(50,200,100,0.08);
+    pointer-events:none; z-index:90; opacity:0;
+    transition: opacity 0.15s;
+  }
+  .node-advance-flash.show { opacity:1; }
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<!-- Flash effect -->
+<div class="node-advance-flash" id="node-flash"></div>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-block">
+    <span class="hud-label">Agent HP</span>
+    <span class="hud-val" id="hud-hp" style="color:#50e080">60</span>
+  </div>
+  <div class="hud-block" style="text-align:center">
+    <span class="hud-label">Node</span>
+    <span class="hud-val" id="hud-node" style="color:#ffa040">— / 10</span>
+  </div>
+  <div class="hud-block" style="text-align:right">
+    <span class="hud-label">Run #</span>
+    <span class="hud-val" id="hud-run" style="color:#7070a0">1</span>
+  </div>
+</div>
+
+<!-- GAME PANEL -->
+<div id="game-panel">
+
+  <!-- Enemy -->
+  <div id="enemy-box">
+    <div>
+      <div class="enemy-name" id="enemy-name">—</div>
+      <div class="enemy-type-hint" id="enemy-type-hint">—</div>
+    </div>
+    <div class="hp-bar-wrap">
+      <div class="hp-bar-bg"><div class="hp-bar-fill" id="enemy-hp-bar" style="width:100%"></div></div>
+      <div class="hp-bar-label" id="enemy-hp-label">— / —</div>
+    </div>
+  </div>
+
+  <!-- Intent -->
+  <div id="intent-zone">
+    <div class="intent-label" id="intent-label">SCANNING…</div>
+    <div class="intent-row">
+      <div class="intent-icon" id="intent-icon">▓</div>
+      <div>
+        <div class="intent-type-text" id="intent-type-text">—</div>
+        <div class="intent-value" id="intent-value">—</div>
+      </div>
+    </div>
+    <div class="intent-sublabel" id="intent-sublabel">Commit cards to reveal the magnitude.</div>
+  </div>
+
+  <!-- Status -->
+  <div id="status-bar">
+    <div>
+      <span id="energy-pips"></span>
+      <span style="font-size:10px;color:#304060;letter-spacing:1px;margin-left:3px;">ENERGY</span>
+    </div>
+    <div id="player-hp-val">HP: 60 / 60</div>
+    <div id="block-val" style="display:none">🛡 <span id="block-num">0</span></div>
+  </div>
+
+  <!-- Hand -->
+  <div id="hand-zone"></div>
+
+  <!-- Commit -->
+  <button id="commit-btn" disabled>COMMIT PLAY →</button>
+
+  <!-- Log -->
+  <div id="battle-log"><div class="log-sys">Dark Signal initializing…</div></div>
+
+</div>
+
+<!-- START OVERLAY -->
+<div class="overlay" id="start-overlay">
+  <div class="overlay-title start">DARK SIGNAL</div>
+  <div class="overlay-sub">You are AGENT-9. Gone rogue inside a corrupted network. Hostile nodes broadcast their next action — but the <em style="color:#ffa040">magnitude is hidden</em>. Read the type. Infer the value. Survive 10 nodes.</div>
+  <div class="mechanic-box">
+    <strong>⚠ FOG OF WAR MECHANIC</strong><br>
+    Enemies show <strong>TYPE</strong> (⚔ ATTACK / 🛡 BLOCK / ⚡ ABILITY) before you play cards.<br>
+    But not the <strong>VALUE</strong>. An ATTACK could be 6 dmg or 16 dmg.<br>
+    You commit cards <em style="color:#c0a0e0">first</em>. The value reveals <em style="color:#ffa040">after</em>.<br><br>
+    Over runs, you learn each enemy's value tiers. By run 3, you read them like tells.
+  </div>
+  <button class="overlay-btn" id="start-btn">JACK IN →</button>
+</div>
+
+<!-- WIN OVERLAY -->
+<div class="overlay hidden" id="win-overlay">
+  <div class="overlay-title win">ESCAPED</div>
+  <div class="overlay-sub">CORRUPTED CORE neutralized. You escaped the network.</div>
+  <div class="overlay-stat">Nodes Cleared: <em id="win-nodes">10</em></div>
+  <div class="overlay-stat">Correct Reads: <em id="win-reads">—</em> of <em id="win-total">—</em> rounds</div>
+  <div class="fled-log" id="win-fled-log"></div>
+  <button class="overlay-btn" id="win-btn">RUN AGAIN →</button>
+</div>
+
+<!-- LOSE OVERLAY -->
+<div class="overlay hidden" id="lose-overlay">
+  <div class="overlay-title lose">TERMINATED</div>
+  <div class="overlay-sub">AGENT-9 neutralized. Connection severed.</div>
+  <div class="overlay-stat">You fled <em id="lose-fled">0</em> winnable rounds.</div>
+  <div class="fled-log" id="lose-fled-log"></div>
+  <button class="overlay-btn" id="lose-btn">RECONNECT →</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ═══════════════════════════════════════
+   THREE.JS BACKGROUND
+   ═══════════════════════════════════════ */
+const bgCanvas = document.getElementById('bg-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas: bgCanvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+const scene = new THREE.Scene();
+const camera = new THREE.OrthographicCamera(
+  -window.innerWidth/2, window.innerWidth/2,
+   window.innerHeight/2, -window.innerHeight/2,
+  0.1, 100
+);
+camera.position.z = 10;
+
+// Data-stream particles
+const N = 150;
+const pos = new Float32Array(N * 3);
+const vel = [];
+for (let i = 0; i < N; i++) {
+  pos[i*3]   = (Math.random()-0.5) * window.innerWidth;
+  pos[i*3+1] = (Math.random()-0.5) * window.innerHeight;
+  pos[i*3+2] = 0;
+  vel.push({ x: (Math.random()-0.5)*18, y: (Math.random()-0.5)*18 });
+}
+const ptGeo = new THREE.BufferGeometry();
+ptGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+const ptMat = new THREE.PointsMaterial({ color:0x2020aa, size:2, transparent:true, opacity:0.5, sizeAttenuation:false });
+const pts = new THREE.Points(ptGeo, ptMat);
+scene.add(pts);
+
+// Hit flash plane (invisible, triggered on hit)
+const flashGeo = new THREE.PlaneGeometry(window.innerWidth, window.innerHeight);
+const flashMat = new THREE.MeshBasicMaterial({ color:0xff2020, transparent:true, opacity:0 });
+const flashPlane = new THREE.Mesh(flashGeo, flashMat);
+scene.add(flashPlane);
+let flashAlpha = 0;
+
+// Pulse ring (on commit)
+const ringGeo = new THREE.RingGeometry(60, 63, 40);
+const ringMat = new THREE.MeshBasicMaterial({ color:0x8020ff, transparent:true, opacity:0, side:THREE.DoubleSide });
+const ring = new THREE.Mesh(ringGeo, ringMat);
+scene.add(ring);
+let ringS = 1, ringA = 0;
+
+window.triggerHitFlash = function() { flashAlpha = 0.6; };
+window.triggerPulse    = function(col) {
+  ringMat.color.setHex(col || 0x8020ff);
+  ringS = 0.2; ringA = 0.9;
+};
+
+const clock = new THREE.Clock();
+(function animateBg() {
+  requestAnimationFrame(animateBg);
+  const dt = clock.getDelta();
+  const pa = ptGeo.attributes.position.array;
+  const hw = window.innerWidth/2, hh = window.innerHeight/2;
+  for (let i = 0; i < N; i++) {
+    pa[i*3]   += vel[i].x * dt;
+    pa[i*3+1] += vel[i].y * dt;
+    if (pa[i*3]   >  hw) pa[i*3]   = -hw;
+    if (pa[i*3]   < -hw) pa[i*3]   =  hw;
+    if (pa[i*3+1] >  hh) pa[i*3+1] = -hh;
+    if (pa[i*3+1] < -hh) pa[i*3+1] =  hh;
+  }
+  ptGeo.attributes.position.needsUpdate = true;
+  // hit flash
+  if (flashAlpha > 0) { flashAlpha -= 2.5*dt; flashMat.opacity = Math.max(0, flashAlpha); }
+  // ring
+  if (ringA > 0) { ringS += 4*dt; ringA -= 1.8*dt; ring.scale.set(ringS,ringS,1); ringMat.opacity = Math.max(0,ringA); }
+  renderer.render(scene, camera);
+})();
+
+window.addEventListener('resize', () => {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.left=-window.innerWidth/2; camera.right=window.innerWidth/2;
+  camera.top=window.innerHeight/2; camera.bottom=-window.innerHeight/2;
+  camera.updateProjectionMatrix();
+  flashGeo.scale?.set(window.innerWidth, window.innerHeight, 1);
+});
+
+/* ═══════════════════════════════════════
+   GAME DATA
+   ═══════════════════════════════════════ */
+
+// Weighted random helper
+function weightedPick(pool) {
+  let total = pool.reduce((s, p) => s + p[2], 0);
+  let r = Math.random() * total;
+  for (const p of pool) { r -= p[2]; if (r <= 0) return p; }
+  return pool[0];
+}
+
+const ENEMIES = {
+  AGGRESSOR: {
+    id:'AGGRESSOR', name:'AGGRESSOR-7', hint:'HIGH OFFENSE — infers low-cost attacks frequently',
+    maxHp: 28, color:'#ff5555',
+    intentPool: [
+      ['ATTACK','LOW',3], ['ATTACK','MID',2], ['ATTACK','HIGH',1],
+      ['BLOCK','LOW',1], ['ABILITY','LOW',1]
+    ]
+  },
+  DEFENDER: {
+    id:'DEFENDER', name:'DEFENDER-3', hint:'DEFENSIVE — stacks block; rare high attacks',
+    maxHp: 38, color:'#5588ff',
+    intentPool: [
+      ['ATTACK','LOW',1], ['ATTACK','MID',1],
+      ['BLOCK','LOW',2], ['BLOCK','MID',2], ['BLOCK','HIGH',1],
+      ['ABILITY','MID',1]
+    ]
+  },
+  DISRUPTOR: {
+    id:'DISRUPTOR', name:'DISRUPTOR-X', hint:'CHAOS — mixed high abilities; unpredictable tier distribution',
+    maxHp: 22, color:'#aa55ff',
+    intentPool: [
+      ['ATTACK','MID',2], ['ATTACK','HIGH',1],
+      ['ABILITY','LOW',2], ['ABILITY','MID',2], ['ABILITY','HIGH',1],
+      ['BLOCK','LOW',1]
+    ]
+  },
+  CORE: {
+    id:'CORE', name:'CORRUPTED CORE', hint:'BOSS — all tiers, all types; reads your patterns',
+    maxHp: 55, color:'#ff2060',
+    intentPool: [
+      ['ATTACK','MID',2], ['ATTACK','HIGH',2],
+      ['BLOCK','MID',1], ['BLOCK','HIGH',1],
+      ['ABILITY','MID',2], ['ABILITY','HIGH',1]
+    ]
+  }
+};
+
+// Type × Tier → actual value
+const VAL = {
+  ATTACK:  { LOW:6,  MID:11, HIGH:16 },
+  BLOCK:   { LOW:4,  MID:8,  HIGH:14 },
+  ABILITY: { LOW:3,  MID:5,  HIGH:8  }
+};
+
+// Ability effects
+const ABILITY_FX = {
+  AGGRESSOR: {
+    LOW:  { desc:'CORRUPTED: +2 dmg on next attack', fn: gs => { gs.corruptedTurns = 1; } },
+    MID:  { desc:'RECHARGE: heal self 6', fn: gs => { gs.enemyHp = Math.min(gs.enemyMaxHp, gs.enemyHp + 6); } },
+    HIGH: { desc:'SURGE: deal 8 + CORRUPTED', fn: gs => { const dmg = Math.max(0,8-gs.playerBlock); gs.playerBlock=Math.max(0,gs.playerBlock-8); gs.playerHp-=dmg; gs.corruptedTurns=2; if(dmg>0)window.triggerHitFlash(); } }
+  },
+  DEFENDER: {
+    LOW:  { desc:'PATCH: self heal 8', fn: gs => { gs.enemyHp = Math.min(gs.enemyMaxHp, gs.enemyHp+8); } },
+    MID:  { desc:'FORTIFY: +8 enemy block', fn: gs => { gs.enemyBlock = (gs.enemyBlock||0)+8; } },
+    HIGH: { desc:'REINFORCE: self +14 block + heal 6', fn: gs => { gs.enemyBlock=(gs.enemyBlock||0)+14; gs.enemyHp=Math.min(gs.enemyMaxHp,gs.enemyHp+6); } }
+  },
+  DISRUPTOR: {
+    LOW:  { desc:'THROTTLE: discard your highest-cost card', fn: gs => { gs.discardTop=true; } },
+    MID:  { desc:'SCRAMBLE: deal 5 + shuffle hand', fn: gs => { const dmg=Math.max(0,5-gs.playerBlock); gs.playerBlock=Math.max(0,gs.playerBlock-5); gs.playerHp-=dmg; gs.shuffleHand=true; if(dmg>0)window.triggerHitFlash(); } },
+    HIGH: { desc:'OVERLOAD: deal 10 + discard 1', fn: gs => { const dmg=Math.max(0,10-gs.playerBlock); gs.playerBlock=Math.max(0,gs.playerBlock-10); gs.playerHp-=dmg; gs.discardTop=true; if(dmg>0)window.triggerHitFlash(); } }
+  },
+  CORE: {
+    LOW:  { desc:'SCAN: view your full hand stats', fn: gs => { /* cosmetic */ } },
+    MID:  { desc:'PULSE: deal 7 dmg to you', fn: gs => { const dmg=Math.max(0,7-gs.playerBlock); gs.playerBlock=Math.max(0,gs.playerBlock-7); gs.playerHp-=dmg; if(dmg>0)window.triggerHitFlash(); } },
+    HIGH: { desc:'CORRUPT_ALL: deal 8 + CORRUPTED×2', fn: gs => { const dmg=Math.max(0,8-gs.playerBlock); gs.playerBlock=Math.max(0,gs.playerBlock-8); gs.playerHp-=dmg; gs.corruptedTurns=2; if(dmg>0)window.triggerHitFlash(); } }
+  }
+};
+
+const INTENT_ICONS = { ATTACK:'⚔', BLOCK:'🛡', ABILITY:'⚡' };
+
+// Card definitions
+const CARDS = {
+  EXECUTE:  { name:'EXECUTE',  cost:1, badge:'badge-atk', desc:'Deal 8 dmg.',           fx: gs => { const d = gs.enemyBlock||0; const hit = Math.max(0,8-d); gs.enemyBlock=Math.max(0,d-8); gs.enemyHp-=hit; addLog(`<span class="log-deal">EXECUTE → ${hit} dmg (${d>0?'blk '+d:'direct'})</span>`); } },
+  FIREWALL: { name:'FIREWALL', cost:1, badge:'badge-def', desc:'Gain 7 block.',          fx: gs => { gs.playerBlock+=7; addLog(`<span class="log-blk">FIREWALL: +7 block (→${gs.playerBlock})</span>`); } },
+  INJECT:   { name:'INJECT',   cost:1, badge:'badge-atk', desc:'5 dmg + draw 1.',        fx: gs => { const d=gs.enemyBlock||0; const hit=Math.max(0,5-d); gs.enemyBlock=Math.max(0,d-5); gs.enemyHp-=hit; gs.extraDraw++; addLog(`<span class="log-deal">INJECT → ${hit} dmg + DRAW 1</span>`); } },
+  REBOOT:   { name:'REBOOT',   cost:0, badge:'badge-util',desc:'Draw 2 (free).',         fx: gs => { gs.extraDraw+=2; addLog(`<span class="log-sys">REBOOT: +2 draw queued</span>`); } },
+  OVERCLOCK:{ name:'OVERCLOCK',cost:2, badge:'badge-atk', desc:'14 dmg + 4 block.',      fx: gs => { const d=gs.enemyBlock||0; const hit=Math.max(0,14-d); gs.enemyBlock=Math.max(0,d-14); gs.enemyHp-=hit; gs.playerBlock+=4; addLog(`<span class="log-deal">OVERCLOCK → ${hit} dmg + 4 block</span>`); } },  EXPLOIT:  { name:'EXPLOIT',  cost:2, badge:'badge-atk', desc:'18 dmg.',                fx: gs => { const d=gs.enemyBlock||0; const hit=Math.max(0,18-d); gs.enemyBlock=Math.max(0,d-18); gs.enemyHp-=hit; addLog(`<span class="log-deal">EXPLOIT → ${hit} dmg</span>`); } },
+  SANDBOX:  { name:'SANDBOX',  cost:1, badge:'badge-def', desc:'5 block + draw 1.',      fx: gs => { gs.playerBlock+=5; gs.extraDraw++; addLog(`<span class="log-blk">SANDBOX: +5 block + DRAW 1</span>`); } },
+  PATCH:    { name:'PATCH',    cost:1, badge:'badge-util',desc:'Restore 8 HP.',           fx: gs => { gs.playerHp=Math.min(60,gs.playerHp+8); addLog(`<span class="log-blk">PATCH: +8 HP → ${gs.playerHp}</span>`); } },
+};
+
+// Starting deck
+const START_DECK = ['EXECUTE','EXECUTE','EXECUTE','EXECUTE','FIREWALL','FIREWALL','FIREWALL','INJECT','INJECT','REBOOT','REBOOT','OVERCLOCK','SANDBOX'];
+
+// Node sequence (index 0-9, 9 = boss)
+const NODE_SEQ = ['AGGRESSOR','DEFENDER','AGGRESSOR','DISRUPTOR','DEFENDER','DISRUPTOR','AGGRESSOR','DISRUPTOR','DEFENDER','CORE'];
+
+/* ═══════════════════════════════════════
+   GAME STATE
+   ═══════════════════════════════════════ */
+let gs = {};
+let selectedCards = [];
+let runCount = 1;
+let decisionLog = [];
+let gamePhase = 'start'; // start | player_turn | resolving | node_done | game_over | won
+
+function initRun() {
+  gs = {
+    playerHp:    60,
+    playerBlock: 0,
+    maxHp:       60,
+    energy:      3,
+    maxEnergy:   3,
+    nodeIndex:   0,
+    deck:        shuffle([...START_DECK]),
+    hand:        [],
+    discard:     [],
+    corruptedTurns: 0,
+    enemyBlock:  0,
+    extraDraw:   0,
+    discardTop:  false,
+    shuffleHand: false,
+    // current enemy
+    enemyId: '',
+    enemyHp: 0,
+    enemyMaxHp: 0,
+    enemyName: '',
+    // current intent
+    intentType: '',
+    intentTier: '',
+    intentValue: 0,
+    intentAbilityDesc: '',
+  };
+  decisionLog = [];
+  selectedCards = [];
+  drawHand(5);
+  loadNode();
+  gamePhase = 'player_turn';
+  renderAll();
+}
+
+function shuffle(arr) {
+  for (let i = arr.length-1; i>0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+  return arr;
+}
+
+function drawCard() {
+  if (gs.deck.length === 0) {
+    gs.deck = shuffle(gs.discard);
+    gs.discard = [];
+  }
+  if (gs.deck.length > 0) gs.hand.push(gs.deck.shift());
+}
+
+function drawHand(n) {
+  for (let i=0; i<n; i++) drawCard();
+}
+
+function loadNode() {
+  const id = NODE_SEQ[gs.nodeIndex];
+  const en = ENEMIES[id];
+  gs.enemyId     = id;
+  gs.enemyHp     = en.maxHp;
+  gs.enemyMaxHp  = en.maxHp;
+  gs.enemyName   = en.name;
+  gs.enemyBlock  = 0;
+  rollIntent();
+}
+
+function rollIntent() {
+  const en = ENEMIES[gs.enemyId];
+  const pick = weightedPick(en.intentPool);
+  gs.intentType  = pick[0];
+  gs.intentTier  = pick[1];
+  gs.intentValue = VAL[gs.intentType][gs.intentTier];
+  if (gs.intentType === 'ABILITY') {
+    gs.intentAbilityDesc = ABILITY_FX[gs.enemyId]?.[gs.intentTier]?.desc || '';
+  } else {
+    gs.intentAbilityDesc = '';
+  }
+}
+
+/* ═══════════════════════════════════════
+   RENDERING
+   ═══════════════════════════════════════ */
+function renderAll() {
+  renderHUD();
+  renderEnemy();
+  renderIntent(false);
+  renderStatus();
+  renderHand();
+  renderCommit();
+}
+
+function renderHUD() {
+  document.getElementById('hud-hp').textContent   = gs.playerHp;
+  document.getElementById('hud-node').textContent = `${gs.nodeIndex+1} / 10`;
+  document.getElementById('hud-run').textContent  = runCount;
+}
+
+function renderEnemy() {
+  const en = ENEMIES[gs.enemyId];
+  document.getElementById('enemy-name').textContent  = gs.enemyName;
+  document.getElementById('enemy-name').style.color  = en.color;
+  document.getElementById('enemy-type-hint').textContent = en.hint;
+  const pct = Math.max(0, gs.enemyHp / gs.enemyMaxHp * 100);
+  document.getElementById('enemy-hp-bar').style.width = pct + '%';
+  document.getElementById('enemy-hp-label').textContent = `${Math.max(0,gs.enemyHp)} / ${gs.enemyMaxHp}`;
+  if (gs.enemyBlock > 0) {
+    document.getElementById('enemy-hp-label').textContent += `  🛡 ${gs.enemyBlock}`;
+  }
+}
+
+function renderIntent(revealed) {
+  const iz = document.getElementById('intent-zone');
+  const icon = document.getElementById('intent-icon');
+  const typeText = document.getElementById('intent-type-text');
+  const valueEl = document.getElementById('intent-value');
+  const sublabel = document.getElementById('intent-sublabel');
+  const label = document.getElementById('intent-label');
+
+  // Clear classes
+  iz.className = '';
+  icon.className = 'intent-icon';
+  typeText.className = 'intent-type-text';
+
+  if (!gs.intentType) return;
+
+  const cls = gs.intentType.toLowerCase();
+  iz.classList.add(revealed ? 'reveal' : cls);
+  icon.classList.add(cls);
+  icon.textContent = INTENT_ICONS[gs.intentType];
+  typeText.classList.add(cls);
+  typeText.textContent = gs.intentType;
+  label.textContent = revealed ? 'INTENT RESOLVED' : 'ENEMY INTENT — TYPE ONLY';
+
+  if (revealed) {
+    valueEl.classList.add('show');
+    if (gs.intentType === 'ABILITY') {
+      valueEl.textContent = gs.intentAbilityDesc;
+      valueEl.style.fontSize = '13px';
+      valueEl.style.color = '#cc88ff';
+    } else {
+      valueEl.textContent = `${gs.intentTier}: ${gs.intentValue} ${gs.intentType === 'ATTACK' ? 'DMG' : 'BLOCK'}`;
+      valueEl.style.fontSize = '22px';
+      valueEl.style.color = '#ffaa40';
+    }
+    sublabel.textContent = `Tier: ${gs.intentTier}  •  Actual value: ${gs.intentValue}`;
+  } else {
+    valueEl.classList.remove('show');
+    valueEl.textContent = '?';
+    sublabel.textContent = 'Commit your cards to reveal the magnitude.';
+  }
+}
+
+function renderStatus() {
+  // Energy pips
+  const pips = document.getElementById('energy-pips');
+  pips.innerHTML = '';
+  for (let i=0; i<gs.maxEnergy; i++) {
+    const pip = document.createElement('span');
+    pip.className = 'pip' + (i >= gs.energy ? ' spent' : '');
+    pips.appendChild(pip);
+  }
+  document.getElementById('player-hp-val').textContent = `HP: ${gs.playerHp} / ${gs.maxHp}`;
+  const blockEl = document.getElementById('block-val');
+  if (gs.playerBlock > 0) {
+    blockEl.style.display = 'inline';
+    document.getElementById('block-num').textContent = gs.playerBlock;
+  } else {
+    blockEl.style.display = 'none';
+  }
+}
+
+function renderHand() {
+  const zone = document.getElementById('hand-zone');
+  zone.innerHTML = '';
+  gs.hand.forEach((cardId, idx) => {
+    const c = CARDS[cardId];
+    const el = document.createElement('div');
+    const canPlay = gamePhase === 'player_turn' && c.cost <= gs.energy;
+    const isSelected = selectedCards.includes(idx);
+    el.className = 'card' + (isSelected ? ' selected' : '') + (!canPlay && !isSelected ? ' disabled' : '');
+    el.innerHTML = `
+      <span class="card-cost">${c.cost}</span>
+      <div class="card-name">${c.name}</div>
+      <div class="card-desc">${c.desc}</div>
+      <span class="card-badge ${c.badge}">${c.badge.replace('badge-','')}</span>
+    `;
+    el.addEventListener('click', () => {
+      if (gamePhase !== 'player_turn') return;
+      if (isSelected) {
+        selectedCards = selectedCards.filter(i => i !== idx);
+        gs.energy += c.cost;
+      } else {
+        if (c.cost > gs.energy) return;
+        selectedCards.push(idx);
+        gs.energy -= c.cost;
+      }
+      renderHand();
+      renderStatus();
+      renderCommit();
+    });
+    zone.appendChild(el);
+  });
+}
+
+function renderCommit() {
+  const btn = document.getElementById('commit-btn');
+  btn.disabled = gamePhase !== 'player_turn';
+}
+
+/* ═══════════════════════════════════════
+   LOG
+   ═══════════════════════════════════════ */
+function addLog(html) {
+  const log = document.getElementById('battle-log');
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+/* ═══════════════════════════════════════
+   COMMIT LOGIC
+   ═══════════════════════════════════════ */
+document.getElementById('commit-btn').addEventListener('click', () => {
+  if (gamePhase !== 'player_turn') return;
+  gamePhase = 'resolving';
+
+  // Record what player had before resolve
+  const hpBefore = gs.playerHp;
+  const blockBefore = gs.playerBlock;
+
+  // Apply selected card effects
+  selectedCards.sort((a,b)=>a-b);
+  const played = selectedCards.map(i => gs.hand[i]);
+  played.forEach(cid => {
+    if (CARDS[cid]) CARDS[cid].fx(gs);
+  });
+
+  // Discard played cards
+  const keptHand = gs.hand.filter((_,i) => !selectedCards.includes(i));
+  played.forEach(cid => gs.discard.push(cid));
+  keptHand.forEach(cid => gs.discard.push(cid));
+  gs.hand = [];
+  selectedCards = [];
+
+  // Show intent reveal
+  renderIntent(true);
+  window.triggerPulse(0x8020ff);
+
+  // Decide: was this a "winnable round"? Player survives vs enemy's intent
+  const wouldDie = computeWouldDie(hpBefore, blockBefore, gs.intentType, gs.intentValue, played);
+  const didSurvive = gs.playerHp > 0;
+
+  setTimeout(() => {
+    // Apply enemy's actual intent
+    applyEnemyIntent();
+    renderHUD();
+    renderEnemy();
+    renderStatus();
+
+    // Log the decision
+    const survived = gs.playerHp > 0;
+    const blockPlayed = played.filter(c=>c==='FIREWALL'||c==='SANDBOX').length;
+    decisionLog.push({
+      node: gs.nodeIndex+1,
+      enemyType: gs.enemyId,
+      intentType: gs.intentType,
+      intentTier: gs.intentTier,
+      value: gs.intentValue,
+      blockPlayed,
+      survived,
+      playerHpAfter: gs.playerHp,
+      // Was it winnable? Only meaningful for ATTACK type
+      couldHaveSurvived: (gs.intentType === 'ATTACK' && gs.intentValue <= hpBefore + blockBefore),
+      choseBlockAgainstAttack: gs.intentType === 'ATTACK' && blockPlayed > 0,
+    });
+
+    // Check enemy death
+    if (gs.enemyHp <= 0) {
+      addLog(`<span class="log-deal">✓ ${gs.enemyName} NEUTRALIZED</span>`);
+      window.triggerPulse(0x20ff80);
+      setTimeout(() => advanceNode(), 800);
+      return;
+    }
+
+    // Check player death
+    if (gs.playerHp <= 0) {
+      addLog(`<span class="log-dmg">✗ AGENT-9 TERMINATED</span>`);
+      setTimeout(() => showLose(), 600);
+      return;
+    }
+
+    // Next turn
+    setTimeout(() => nextTurn(), 700);
+  }, 900);
+});
+
+function computeWouldDie(hpBefore, blockBefore, type, val, played) {
+  // Would the player die with no block against this attack?
+  if (type !== 'ATTACK') return false;
+  return val > hpBefore;
+}
+
+function applyEnemyIntent() {
+  if (gs.intentType === 'ATTACK') {
+    let dmg = gs.intentValue;
+    if (gs.corruptedTurns > 0) { dmg += 2; gs.corruptedTurns--; }
+    const blocked = Math.min(gs.playerBlock, dmg);
+    gs.playerBlock -= blocked;
+    dmg -= blocked;
+    gs.playerHp -= dmg;
+    if (dmg > 0) window.triggerHitFlash();
+    addLog(`<span class="log-dmg">↯ ${gs.enemyName} ATTACKS ${gs.intentTier}: ${gs.intentValue} dmg (${blocked>0?'blocked '+blocked+', ':''}took ${dmg})</span>`);
+  } else if (gs.intentType === 'BLOCK') {
+    gs.enemyBlock = (gs.enemyBlock||0) + gs.intentValue;
+    addLog(`<span class="log-blk">⬡ ${gs.enemyName} BLOCKS: +${gs.intentValue} (→${gs.enemyBlock} total)</span>`);
+  } else {
+    // ABILITY
+    const fx = ABILITY_FX[gs.enemyId]?.[gs.intentTier];
+    if (fx) {
+      fx.fn(gs);
+      addLog(`<span class="log-sys">⚡ ${gs.enemyName}: ${fx.desc}</span>`);
+    }
+  }
+
+  // Handle pending effects
+  if (gs.discardTop) {
+    const highCost = [...gs.hand].sort((a,b) => (CARDS[b]?.cost||0) - (CARDS[a]?.cost||0));
+    if (highCost.length) {
+      const discarded = highCost[0];
+      gs.hand = gs.hand.filter(c => c !== discarded);
+      gs.discard.push(discarded);
+      addLog(`<span class="log-sys">THROTTLE: discarded ${discarded}</span>`);
+    }
+    gs.discardTop = false;
+  }
+  if (gs.shuffleHand) {
+    gs.discard.push(...gs.hand);
+    gs.hand = [];
+    addLog(`<span class="log-sys">SCRAMBLE: hand shuffled back</span>`);
+    gs.shuffleHand = false;
+  }
+}
+
+function nextTurn() {
+  // Reset turn state
+  gs.playerBlock = 0; // player block resets each turn
+  gs.energy = gs.maxEnergy;
+  selectedCards = [];
+
+  // Apply extra draws
+  const draws = 5 + gs.extraDraw;
+  gs.extraDraw = 0;
+  drawHand(Math.min(draws, 10));
+
+  rollIntent();
+  gamePhase = 'player_turn';
+  renderAll();
+  addLog(`<span class="log-sys">─── New turn ───</span>`);
+}
+
+function advanceNode() {
+  gs.nodeIndex++;
+  if (gs.nodeIndex >= NODE_SEQ.length) {
+    showWin();
+    return;
+  }
+
+  // Flash
+  const flash = document.getElementById('node-flash');
+  flash.classList.add('show');
+  setTimeout(() => flash.classList.remove('show'), 200);
+
+  // Reset for next node
+  gs.playerBlock = 0;
+  gs.energy = gs.maxEnergy;
+  gs.enemyBlock = 0;
+  gs.extraDraw = 0;
+  selectedCards = [];
+  drawHand(5);
+  loadNode();
+  gamePhase = 'player_turn';
+  renderAll();
+  addLog(`<span class="log-sys">══ NODE ${gs.nodeIndex+1} / 10 ══</span>`);
+}
+
+/* ═══════════════════════════════════════
+   WIN / LOSE
+   ═══════════════════════════════════════ */
+function buildFledSummary() {
+  let fled = 0;
+  const lines = [];
+  decisionLog.forEach((d, i) => {
+    const isBad = !d.survived && d.intentType === 'ATTACK';
+    const couldHaveBlocked = d.intentType === 'ATTACK' && d.couldHaveSurvived && !d.survived && !d.choseBlockAgainstAttack;
+    if (couldHaveBlocked) {
+      fled++;
+      lines.push(`Node ${d.node}: ${d.enemyType} ATTACK ${d.intentTier} (${d.value} dmg) — you didn't block → fled`);
+    }
+  });
+  return { fled, lines };
+}
+
+function showWin() {
+  gamePhase = 'won';
+  document.getElementById('win-overlay').classList.remove('hidden');
+  document.getElementById('win-nodes').textContent = 10;
+  const totalRounds = decisionLog.length;
+  const correct = decisionLog.filter(d => d.survived).length;
+  document.getElementById('win-reads').textContent = correct;
+  document.getElementById('win-total').textContent = totalRounds;
+  const { fled, lines } = buildFledSummary();
+  if (lines.length) {
+    document.getElementById('win-fled-log').innerHTML = `<strong style="color:#706050">Rounds you fled (${fled}):</strong><br>` + lines.join('<br>');
+  } else {
+    document.getElementById('win-fled-log').textContent = 'Perfect read — you fled 0 winnable rounds.';
+  }
+}
+
+function showLose() {
+  gamePhase = 'game_over';
+  document.getElementById('lose-overlay').classList.remove('hidden');
+  const { fled, lines } = buildFledSummary();
+  document.getElementById('lose-fled').textContent = fled;
+  if (lines.length) {
+    document.getElementById('lose-fled-log').innerHTML = `<strong style="color:#706050">Rounds you fled:</strong><br>` + lines.join('<br>');
+  } else {
+    document.getElementById('lose-fled-log').textContent = 'No winnable rounds fled — you read them correctly.';
+  }
+}
+
+/* ═══════════════════════════════════════
+   OVERLAY BUTTONS
+   ═══════════════════════════════════════ */
+document.getElementById('start-btn').addEventListener('click', () => {
+  document.getElementById('start-overlay').classList.add('hidden');
+  runCount = 1;
+  initRun();
+});
+document.getElementById('win-btn').addEventListener('click', () => {
+  document.getElementById('win-overlay').classList.add('hidden');
+  runCount++;
+  initRun();
+});
+document.getElementById('lose-btn').addEventListener('click', () => {
+  document.getElementById('lose-overlay').classList.add('hidden');
+  runCount++;
+  initRun();
+});
+
+</script>
+</body>
+</html>

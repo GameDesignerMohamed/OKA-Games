@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Null Space</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+    canvas:not(#minimap) { display: block; }
+    #ui {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 10;
+    }
+    #hud {
+      position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+      color: #00ffff; font-size: 14px; letter-spacing: 3px;
+      text-shadow: 0 0 10px #00ffff;
+      background: rgba(0,0,0,0.6); padding: 8px 20px; border: 1px solid #00ffff44;
+      white-space: nowrap;
+    }
+    #alertMsg {
+      position: absolute; top: 62px; left: 50%; transform: translateX(-50%);
+      color: #ff3333; font-size: 12px; letter-spacing: 3px;
+      text-shadow: 0 0 8px #ff0000; opacity: 0; transition: opacity 0.3s;
+    }
+    #flash {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; opacity: 0;
+    }
+    #overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.88);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      pointer-events: all;
+    }
+    #overlay h1 {
+      color: #00ffff; font-size: 52px; letter-spacing: 10px; margin-bottom: 8px;
+      text-shadow: 0 0 30px #00ffff, 0 0 60px #00ffff33;
+    }
+    .subtitle { color: #ffffff44; font-size: 11px; letter-spacing: 4px; margin-bottom: 36px; }
+    .instructions {
+      color: #999; font-size: 12px; letter-spacing: 2px; line-height: 2.4;
+      text-align: center; border: 1px solid #1a1a2e; padding: 22px 44px; margin-bottom: 36px;
+      background: rgba(0,0,30,0.5);
+    }
+    .instructions .k { color: #00ffff; }
+    .instructions .h { color: #ff4444; }
+    .btn {
+      background: transparent; border: 1px solid #00ffff;
+      color: #00ffff; font-family: 'Courier New', monospace;
+      font-size: 13px; letter-spacing: 4px; padding: 12px 40px;
+      cursor: pointer; text-transform: uppercase;
+      text-shadow: 0 0 10px #00ffff; transition: all 0.2s;
+    }
+    .btn:hover { background: #00ffff18; box-shadow: 0 0 20px #00ffff33; }
+    #resultScreen { display: none; flex-direction: column; align-items: center; }
+    #resultTitle { font-size: 40px; letter-spacing: 7px; margin-bottom: 14px; }
+    #resultMsg { color: #555; font-size: 12px; letter-spacing: 3px; margin-bottom: 30px; }
+    #minimap {
+      position: absolute; bottom: 18px; right: 18px;
+      border: 1px solid #00ffff22; opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+<div id="ui">
+  <div id="hud">SHARDS: <span id="shardCount">0</span>/5 &nbsp;|&nbsp; <span id="threat">SEARCHING</span></div>
+  <div id="alertMsg">⚠ SENTINEL NEARBY</div>
+  <div id="flash"></div>
+  <canvas id="minimap" width="114" height="90"></canvas>
+</div>
+<div id="overlay">
+  <div id="startScreen">
+    <h1>NULL SPACE</h1>
+    <div class="subtitle">/ / ROGUE FRAGMENT RECOVERY PROTOCOL / /</div>
+    <div class="instructions">
+      <span class="k">WASD / ARROWS</span> — move &nbsp;&nbsp; <span class="k">SHIFT</span> — silent creep<br>
+      <span class="k">E</span> — collect shard when in range<br><br>
+      Collect <span class="k">5 DATA SHARDS</span> → reach the <span class="k">EXIT PORTAL</span><br>
+      Avoid the <span class="h">SENTINEL</span>'s vision cone<br>
+      It <span class="h">learns your routes</span>. Change paths.
+    </div>
+    <button class="btn" onclick="startGame()">INITIALIZE</button>
+  </div>
+  <div id="resultScreen">
+    <div id="resultTitle"></div>
+    <div id="resultMsg"></div>
+    <button class="btn" onclick="startGame()">REINITIALIZE</button>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="game.js"></script>
+</body>
+</html>

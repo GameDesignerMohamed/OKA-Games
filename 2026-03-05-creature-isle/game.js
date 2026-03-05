@@ -134,7 +134,9 @@ sun.shadow.camera.far = 60;
 sun.shadow.camera.left = -15; sun.shadow.camera.right = 15;
 sun.shadow.camera.top = 15; sun.shadow.camera.bottom = -15;
 scene.add(sun);
-scene.add(Object.assign(new THREE.DirectionalLight(0x5566ff, 0.6), { position: new THREE.Vector3(-8, 4, -8) }));
+const fillLight = new THREE.DirectionalLight(0x5566ff, 0.6);
+fillLight.position.set(-8, 4, -8);
+scene.add(fillLight);
 
 // ─── CONSTANTS ───────────────────────────────────────────────────
 const GRID_SIZE = 8;

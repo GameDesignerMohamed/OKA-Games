@@ -140,11 +140,11 @@ function sfx(type){
 // ── SCENE ────────────────────────────────────────────────────────
 function initScene(){
   scene=new THREE.Scene();
-  scene.fog=new THREE.FogExp2(0x000000,0.085);
+  scene.fog=new THREE.FogExp2(0x000000,0.02);
   scene.background=new THREE.Color(0x000000);
   const asp=window.innerWidth/window.innerHeight,fr=13;
   camera=new THREE.OrthographicCamera(-fr*asp,fr*asp,fr,-fr,0.1,200);
-  camera.position.set(0,60,0);camera.lookAt(0,0,0);
+  camera.position.set(0,25,0);camera.lookAt(0,0,0);
   renderer=new THREE.WebGLRenderer({antialias:true});
   renderer.setSize(window.innerWidth,window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
@@ -154,7 +154,7 @@ function initScene(){
   composer.addPass(new RenderPass(scene,camera));
   const bloom=new UnrealBloomPass(new THREE.Vector2(window.innerWidth,window.innerHeight),1.5,0.38,0.80);
   composer.addPass(bloom);
-  scene.add(new THREE.AmbientLight(0x000511,0.5));
+  scene.add(new THREE.AmbientLight(0x001122,0.8));
   clock=new THREE.Clock();
   window.addEventListener('resize',()=>{
     const asp=window.innerWidth/window.innerHeight,fr=13;

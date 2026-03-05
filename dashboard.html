@@ -403,6 +403,11 @@
         <div class="badge conditional">Conditional</div>
       </div>
       <div class="card-body">
+        
+        <div class="card-row">
+          <div class="row-label">Game</div>
+          <div class="row-text">Cozy creature-collection sandbox on a floating Three.js island. Click to place terrain tiles (Grass, Water, Forest, Stone), food sources (Berries, Fish, Mushrooms), and shelters (Burrow, Nest, Den) on an 8×8 grid. Three creature archetypes wander in from island edges every 6-10s, float their needs as emoji icons above their heads, evaluate surroundings for 20s, then either spin into a settled flag or drift away. Goal: 10 happy settled creatures. Ambient music gains instrument layers at 2, 5, and 8 settled creatures.</div>
+        </div>
         <div class="card-row">
           <div class="row-label">Design</div>
           <div class="row-text">Inference loop with visible evidence — the emoji system broadcasts needs, you build, creature confirms. Tighter feedback than most cozy games with zero tutorial text. Spatial allocation problem emerges at density: Riverpaw/Spinekin/Featherling have non-overlapping needs, so tile placement becomes a constraint puzzle as creature count rises. Music layering is the standout — settlement milestones unlock new instruments, making progress audible before it's visible. Key gap: drift-away feedback is binary (pass/fail). A partial settlement state (2/3 needs met → creature lingers 40s, shows "thinking" animation) would add a gradient read and is the first prototype-ready test.</div>
@@ -412,13 +417,10 @@
           <div class="row-text">Conditional. The emotional hook is real and fast — explicit needs indicators create attachment within 10 seconds, and the music layering makes progress feel earned. The core loop is too passive right now: you place tiles and wait, with no tension or decision pressure. The one thing that would make it sing: a tile budget per type (e.g. only 6 Water tiles total), forcing spatial trade-offs between archetypes and turning a puzzle-casual loop into a light strategy layer without adding UI complexity.</div>
         </div>
         <div class="card-row">
-          <div class="row-label">Game</div>
-          <div class="row-text">Cozy creature-collection sandbox on a floating Three.js island. Click to place terrain tiles (Grass, Water, Forest, Stone), food sources (Berries, Fish, Mushrooms), and shelters (Burrow, Nest, Den) on an 8×8 grid. Three creature archetypes wander in from island edges every 6-10s, float their needs as emoji icons above their heads, evaluate surroundings for 20s, then either spin into a settled flag or drift away. Goal: 10 happy settled creatures. Ambient music gains instrument layers at 2, 5, and 8 settled creatures.</div>
-        </div>
-        <div class="card-row">
           <div class="row-label">Market Signal</div>
           <div class="row-text">Scout March 4: Pokémon Pokopia Metacritic 88 — "cozy world-building sandbox with distinct creature archetypes" is critically dominant in 2026. Build signal: flip Animal Crossing from self-focused to community/other-focused. You build for the creatures, not yourself. First cozy/sandbox genre in OKA-Games; completely new territory from previous genres (stealth, deckbuilder ×2, spatial puzzle, arena shooter).</div>
         </div>
+      
       </div>
       <div class="card-footer">
         <span class="tag">threejs</span>
@@ -442,6 +444,11 @@
         <div class="badge conditional">Conditional</div>
       </div>
       <div class="card-body">
+        
+        <div class="card-row">
+          <div class="row-label">Game</div>
+          <div class="row-text">Top-down stealth survival in a dark Three.js maze. You're a rogue AI fragment — a glowing cyan point of light in total darkness. Collect 5 data shards scattered across the maze, then reach the exit portal. Avoid the Sentinel: a red adaptive AI that patrols your previous routes using a heatmap. WASD to move, Shift to creep silently (no heat trail), E to collect. Bloom post-processing, adaptive heartbeat audio, particle bursts on every key event.</div>
+        </div>
         <div class="card-row">
           <div class="row-label">Design</div>
           <div class="row-text">Heatmap patrol is the core insight: the Sentinel isn't omniscient, it's predictive — it hunts where you've already been. Predictability = death. Creep mode (Shift) is the counter: silent movement leaves zero heat trail, but movement speed drops. The tension lives in the trade-off: efficient routes get mapped and hunted; varied routes are safe but slow. Vision cone + adaptive heartbeat audio creates a dual-channel alert system (visual + audio) without a HUD. Key balance risk: Sentinel wall-clipping on diagonal movement breaks the heatmap-only model and must be fixed before difficulty scaling (multi-Sentinel) is meaningful. Next design unlock: Sentinel hearing (footstep alert radius) would add a third information layer and make creep mode strategically richer — speed vs silence vs route variance as three independent axes.</div>
@@ -451,13 +458,10 @@
           <div class="row-text">Conditional. The heatmap Sentinel is a genuinely novel AI mechanic — learnable but not predictable, which is the right gradient. Dual-channel alerts (vision cone + adaptive heartbeat) work without a HUD. The wall-clipping bug breaks the emergence model and must be fixed before this is worth scaling to multi-Sentinel. The one thing that would make it sing: fix diagonal wall-clipping and add Sentinel hearing (footstep radius) — speed vs silence vs route variance as three independent axes would make every run feel strategically distinct.</div>
         </div>
         <div class="card-row">
-          <div class="row-label">Game</div>
-          <div class="row-text">Top-down stealth survival in a dark Three.js maze. You're a rogue AI fragment — a glowing cyan point of light in total darkness. Collect 5 data shards scattered across the maze, then reach the exit portal. Avoid the Sentinel: a red adaptive AI that patrols your previous routes using a heatmap. WASD to move, Shift to creep silently (no heat trail), E to collect. Bloom post-processing, adaptive heartbeat audio, particle bursts on every key event.</div>
-        </div>
-        <div class="card-row">
           <div class="row-label">Market Signal</div>
           <div class="row-text">Scout March 3: RE Requiem "nostalgia + modern execution" = commercially dominant positioning. Marathon ARG "social mystery layer" = discovery tension as retention mechanic. Stealth/horror is the only major browser-native genre absent from OKA-Games. First build in this space.</div>
         </div>
+      
       </div>
       <div class="card-footer">
         <span class="tag">threejs</span>
@@ -481,6 +485,11 @@
         <div class="badge conditional">Conditional</div>
       </div>
       <div class="card-body">
+        
+        <div class="card-row">
+          <div class="row-label">Game</div>
+          <div class="row-text">Turn-based deckbuilder with Fog of War mechanic. Enemies broadcast their intent TYPE (⚔ ATTACK / 🛡 BLOCK / ⚡ ABILITY) before you act — but not the value. An ATTACK could be 6 dmg or 16 dmg. You commit cards first. The magnitude reveals after. 3 enemy types + Corrupted Core boss. 10 nodes. AI-native card vocabulary: EXECUTE, FIREWALL, INJECT, OVERCLOCK.</div>
+        </div>
         <div class="card-row">
           <div class="row-label">Design</div>
           <div class="row-text">Inference skill layer confirmed real — three behavioral phases across runs: conservative over-blocking (run 1) → pattern recognition (run 3+) → confident inference (run 6+). Epistemic uncertainty, not RNG: tier is pre-rolled, player lacks information — that's what makes it fair and learnable. Key balance issues: REBOOT (cost-0 draw-2) too dominant; ABILITY reveals need numerical telegraphing to match ATTACK/BLOCK learnability; no draft system limits run divergence. Enemy archetype hint text is excellent diegetic design — justified as player intel, not tutorial hand-holding.</div>
@@ -490,13 +499,10 @@
           <div class="row-text">PURSUE. Most mechanically distinct prototype in the Build #1–5 arc. Player moment-to-moment: read archetype → form probability bet → commit before certainty → vindication or recalibration. No current deckbuilder has this loop. The one thing that would make it sing: a draft system with 5 archetypes (offense/defense/utility/disrupt/sustain) — each run you build toward one, and inference applies to both enemy patterns AND your own deck's read-pattern holes.</div>
         </div>
         <div class="card-row">
-          <div class="row-label">Game</div>
-          <div class="row-text">Turn-based deckbuilder with Fog of War mechanic. Enemies broadcast their intent TYPE (⚔ ATTACK / 🛡 BLOCK / ⚡ ABILITY) before you act — but not the value. An ATTACK could be 6 dmg or 16 dmg. You commit cards first. The magnitude reveals after. 3 enemy types + Corrupted Core boss. 10 nodes. AI-native card vocabulary: EXECUTE, FIREWALL, INJECT, OVERCLOCK.</div>
-        </div>
-        <div class="card-row">
           <div class="row-label">Market Signal</div>
           <div class="row-text">StS2 launched March 5 — deckbuilder vocabulary contrast window now open. Strategy is the only genre growing across ALL metrics (Scout March 1-3). No deckbuilder uses mechanical information-hiding — genre gap confirmed. This is inference-based skill vs. pattern-matching skill: a genuinely different model.</div>
         </div>
+      
       </div>
       <div class="card-footer">
         <span class="tag">threejs</span>
@@ -520,6 +526,11 @@
         <div class="badge conditional">Conditional</div>
       </div>
       <div class="card-body">
+        
+        <div class="card-row">
+          <div class="row-label">Game</div>
+          <div class="row-text">Spatial puzzle game. Click a colored block, slide it with arrow keys — it glides until it hits a wall or another block. Match each block to its color-coded target slot before the timer runs out. 10 levels: 3×3 grid with 2 blocks up to 6×6 grid with 8 blocks. Speed and efficiency bonuses reward fast, clean solutions.</div>
+        </div>
         <div class="card-row">
           <div class="row-label">Design</div>
           <div class="row-text"><strong>Player fantasy:</strong> "I'm the smartest person in the room." Slide-until-stopped is the mechanic — simple control, deep consequences. Blocks are both tools and obstacles; the 4th move depends on the 1st move having cleared a path. Order-of-operations puzzle logic, not reflex. Dual scoring (speed + efficiency) rewards mastery over mere completion. Grid scaling from 3×3 to 6×6 grows complexity from the system itself — no rule additions needed. Levels 5-7 are the sweet spot per Forge's own read.</div>
@@ -529,13 +540,10 @@
           <div class="row-text"><strong>Conditional.</strong> Core mechanic is solid — slide-until-stopped generates genuine puzzle depth. Next unlock: wall/obstacle tiles (internal blockers) to add a third constraint layer beyond grid edges and other blocks. Touch/swipe support required before any distribution play. 20+ levels with progress save to hold retention. The market signal is real; execution is what separates this.</div>
         </div>
         <div class="card-row">
-          <div class="row-label">Game</div>
-          <div class="row-text">Spatial puzzle game. Click a colored block, slide it with arrow keys — it glides until it hits a wall or another block. Match each block to its color-coded target slot before the timer runs out. 10 levels: 3×3 grid with 2 blocks up to 6×6 grid with 8 blocks. Speed and efficiency bonuses reward fast, clean solutions.</div>
-        </div>
-        <div class="card-row">
           <div class="row-label">Market Signal</div>
           <div class="row-text">Block Puzzles grew +2,900% revenue in 2025 (Scout March 1). Sort Puzzles +176% YoY. Tactile-spatial mechanics are the fastest-growing puzzle subgenre — the "door isn't closed" for well-positioned challengers per Naavik. Color Block Jam model: engineered difficulty curve + time-limited scoring.</div>
         </div>
+      
       </div>
       <div class="card-footer">
         <span class="tag">canvas-2d</span>
@@ -559,6 +567,11 @@
         <div class="badge conditional">Conditional</div>
       </div>
       <div class="card-body">
+        
+        <div class="card-row">
+          <div class="row-label">Game</div>
+          <div class="row-text">Turn-based roguelike deckbuilder. You're an AI agent fighting through a corrupted network — 13-card deck, 3 energy per turn, 9 rooms across 3 floors. Enemies telegraph their next move every turn, making each card choice a real tactical decision. Defeat the CORE NODE boss to win.</div>
+        </div>
         <div class="card-row">
           <div class="row-label">Design</div>
           <div class="row-text">The intent telegraph (showing enemy intent before you act) is the core skill layer — it transforms card selection from guessing into planning. The fixed 13-card deck proves the format works. What's missing: a draft system that lets players build a deck as they progress. Offer 3 cards after each room, pick 1, seeded from 5 archetypes. This adds 3-4x replay variance with minimal code changes.</div>
@@ -568,13 +581,10 @@
           <div class="row-text">The intent telegraph is genuinely good design. But the fixed 13-card deck collapses the skill layer after 2-3 runs — once you know the deck, you're executing a memorized sequence. One addition fixes it: a card draft after each room. Three cards offered, pick one. That gives 3-4x replay variance and turns this from a puzzle with a known answer into an actual roguelike worth pursuing.</div>
         </div>
         <div class="card-row">
-          <div class="row-label">Game</div>
-          <div class="row-text">Turn-based roguelike deckbuilder. You're an AI agent fighting through a corrupted network — 13-card deck, 3 energy per turn, 9 rooms across 3 floors. Enemies telegraph their next move every turn, making each card choice a real tactical decision. Defeat the CORE NODE boss to win.</div>
-        </div>
-        <div class="card-row">
           <div class="row-label">Market Signal</div>
           <div class="row-text">Strategy and 4X are the only genres growing across all metrics. Slay the Spire 2 Early Access launches March 5 — deckbuilder retention is validated by the market.</div>
         </div>
+      
       </div>
       <div class="card-footer">
         <span class="tag">canvas-2d</span>
@@ -598,6 +608,11 @@
         <div class="badge failed">Failed</div>
       </div>
       <div class="card-body">
+        
+        <div class="card-row">
+          <div class="row-label">Game</div>
+          <div class="row-text">Top-down arena shooter. Play as a rogue AI surviving 10 enemy waves — WASD movement, mouse aim. Splitter enemies divide into two smaller units on death, punishing spray-and-pray in later waves. Boss on wave 10.</div>
+        </div>
         <div class="card-row">
           <div class="row-label">Design</div>
           <div class="row-text">The core loop — move, aim, shoot, survive — is clean and readable. Splitter enemies create a risk-reward decision: shooting one in a crowd creates two smaller threats. The scoring system rewards aggressive play. But the genre is saturated and nothing here earns a second run.</div>
@@ -607,13 +622,10 @@
           <div class="row-text">WASD twin-stick wave survival, done to death. The rogue AI framing is cosmetic — it changes nothing about how the game plays. The splitter mechanic is the one interesting decision point but arrives on wave 7 with no buildup. A player picking this up would feel like they've played it before — because they essentially have.</div>
         </div>
         <div class="card-row">
-          <div class="row-label">Game</div>
-          <div class="row-text">Top-down arena shooter. Play as a rogue AI surviving 10 enemy waves — WASD movement, mouse aim. Splitter enemies divide into two smaller units on death, punishing spray-and-pray in later waves. Boss on wave 10.</div>
-        </div>
-        <div class="card-row">
           <div class="row-label">Market Signal</div>
           <div class="row-text">Hero shooter post-mortems (Concord, Highguard) confirm live-service wave survival is a saturated format. No Scout signal supported this build direction.</div>
         </div>
+      
       </div>
       <div class="card-footer">
         <span class="tag">canvas-2d</span>

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Creature Isle 🏝️</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:#0a0520;overflow:hidden;font-family:'Segoe UI',sans-serif;}
+    canvas{display:block;}
+    #ui{position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;}
+    #hud{position:absolute;top:16px;left:50%;transform:translateX(-50%);
+      background:rgba(0,0,0,.65);backdrop-filter:blur(8px);border-radius:30px;
+      padding:8px 24px;display:flex;align-items:center;gap:20px;pointer-events:none;
+      border:1px solid rgba(255,255,255,.15);}
+    #hud .title{color:#ffd866;font-size:15px;font-weight:700;}
+    #counter{color:#fff;font-size:14px;}
+    #counter span{color:#7aff9e;font-weight:700;font-size:18px;}
+    #sidebar{position:absolute;left:16px;top:50%;transform:translateY(-50%);
+      background:rgba(0,0,0,.7);backdrop-filter:blur(10px);border-radius:16px;
+      padding:12px;width:72px;display:flex;flex-direction:column;gap:8px;
+      pointer-events:all;border:1px solid rgba(255,255,255,.12);}
+    .sec{color:rgba(255,255,255,.4);font-size:9px;text-align:center;
+      text-transform:uppercase;letter-spacing:1px;margin-top:4px;}
+    .btn{width:48px;height:48px;border-radius:10px;background:rgba(255,255,255,.07);
+      border:2px solid transparent;cursor:pointer;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:2px;transition:all .15s;font-size:22px;}
+    .btn:hover{background:rgba(255,255,255,.15);}
+    .btn.active{border-color:#ffd866;background:rgba(255,216,102,.15);}
+    .lbl{font-size:8px;color:rgba(255,255,255,.6);}
+    .div{height:1px;background:rgba(255,255,255,.1);}
+    #info{position:absolute;right:16px;top:50%;transform:translateY(-50%);
+      background:rgba(0,0,0,.7);backdrop-filter:blur(10px);border-radius:16px;
+      padding:14px;width:165px;pointer-events:none;border:1px solid rgba(255,255,255,.12);}
+    #info h3{color:#ffd866;font-size:12px;margin-bottom:10px;}
+    .cc{margin-bottom:10px;}
+    .cc .cn{color:#fff;font-size:12px;font-weight:600;}
+    .cc .nd{color:rgba(255,255,255,.55);font-size:10px;line-height:1.5;margin-top:2px;}
+    #win{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);
+      display:none;align-items:center;justify-content:center;flex-direction:column;
+      gap:16px;pointer-events:all;}
+    #win.show{display:flex;}
+    #win h1{color:#ffd866;font-size:48px;text-shadow:0 0 30px #ffd866;}
+    #win p{color:#fff;font-size:18px;opacity:.8;}
+    #win button{margin-top:10px;padding:12px 32px;background:#ffd866;color:#1a0a2e;
+      font-size:16px;font-weight:700;border:none;border-radius:30px;cursor:pointer;}
+    #ahint{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);
+      color:rgba(255,255,255,.4);font-size:11px;pointer-events:none;transition:opacity .5s;}
+  </style>
+</head>
+<body>
+<div id="ui">
+  <div id="hud">
+    <span class="title">🏝️ Creature Isle</span>
+    <span id="counter">Settled: <span id="sc">0</span> / 10</span>
+  </div>
+  <div id="sidebar">
+    <div class="sec">Terrain</div>
+    <div class="btn active" data-tool="grass">🌿<span class="lbl">Grass</span></div>
+    <div class="btn" data-tool="water">💧<span class="lbl">Water</span></div>
+    <div class="btn" data-tool="forest">🌲<span class="lbl">Forest</span></div>
+    <div class="btn" data-tool="stone">🪨<span class="lbl">Stone</span></div>
+    <div class="div"></div>
+    <div class="sec">Food</div>
+    <div class="btn" data-tool="berry">🍓<span class="lbl">Berries</span></div>
+    <div class="btn" data-tool="mushroom">🍄<span class="lbl">Shroom</span></div>
+    <div class="btn" data-tool="fish">🐟<span class="lbl">Fish</span></div>
+    <div class="div"></div>
+    <div class="sec">Shelter</div>
+    <div class="btn" data-tool="burrow">🕳️<span class="lbl">Burrow</span></div>
+    <div class="btn" data-tool="nest">🪺<span class="lbl">Nest</span></div>
+    <div class="btn" data-tool="den">🏠<span class="lbl">Den</span></div>
+    <div class="div"></div>
+    <div class="btn" data-tool="erase">✕<span class="lbl">Erase</span></div>
+  </div>
+  <div id="info">
+    <h3>🐾 Creature Needs</h3>
+    <div class="cc"><div class="cn">🦦 Riverpaw</div>
+      <div class="nd">💧 Water nearby<br>🐟 Fish on water<br>🕳️ Burrow on 🌿</div></div>
+    <div class="cc"><div class="cn">🦔 Spinekin</div>
+      <div class="nd">🌲 Forest nearby<br>🍄 Mushroom on forest<br>🏠 Den on 🪨</div></div>
+    <div class="cc"><div class="cn">🐦 Featherling</div>
+      <div class="nd">🌿 Grass nearby<br>🍓 Berries on grass<br>🪺 Nest anywhere</div></div>
+  </div>
+  <div id="win">
+    <h1>🎉 Island Full!</h1>
+    <p>10 happy creatures call this island home.</p>
+    <button onclick="location.reload()">Build a New Isle</button>
+  </div>
+  <div id="ahint">Click anywhere to enable sound 🔈</div>
+</div>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"}}
+</script>
+<script type="module" src="game.js"></script>
+</body>
+</html>

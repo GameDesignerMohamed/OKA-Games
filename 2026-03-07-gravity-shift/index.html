@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gravity Shift</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+    canvas { display: block; }
+
+    #ui {
+      position: fixed; top: 0; left: 0; right: 0;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 16px 24px;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .ui-panel {
+      background: rgba(0,0,0,0.7);
+      border: 1px solid rgba(100,200,255,0.3);
+      border-radius: 8px;
+      padding: 10px 18px;
+      color: #88eeff;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .ui-panel span { color: #fff; font-weight: bold; }
+    #timer-panel {
+      font-size: 28px;
+      font-weight: bold;
+      color: #88eeff;
+      letter-spacing: 2px;
+      padding: 8px 20px;
+    }
+    #timer-panel.urgent { color: #ff4444; border-color: rgba(255,68,68,0.6); }
+
+    #controls-hint {
+      position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.7);
+      border: 1px solid rgba(100,200,255,0.2);
+      border-radius: 8px;
+      padding: 8px 20px;
+      color: rgba(136,238,255,0.6);
+      font-size: 12px;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    #overlay {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.88);
+      z-index: 20;
+      color: #fff;
+      text-align: center;
+    }
+    #overlay.hidden { display: none; }
+
+    #overlay h1 {
+      font-size: 52px;
+      font-weight: 900;
+      letter-spacing: -1px;
+      color: #88eeff;
+      text-shadow: 0 0 40px rgba(136,238,255,0.8);
+      margin-bottom: 8px;
+    }
+    #overlay .sub {
+      font-size: 18px;
+      color: rgba(136,238,255,0.7);
+      margin-bottom: 32px;
+    }
+    #overlay .desc {
+      font-size: 14px;
+      color: rgba(255,255,255,0.6);
+      max-width: 480px;
+      line-height: 1.7;
+      margin-bottom: 40px;
+    }
+    #overlay .key-list {
+      display: grid;
+      grid-template-columns: auto auto;
+      gap: 6px 24px;
+      margin-bottom: 40px;
+      text-align: left;
+    }
+    #overlay .key-label {
+      color: #88eeff;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    #overlay .key-desc {
+      color: rgba(255,255,255,0.7);
+      font-size: 14px;
+    }
+    #overlay button {
+      background: #88eeff;
+      color: #000;
+      border: none;
+      padding: 14px 48px;
+      font-size: 18px;
+      font-weight: 900;
+      border-radius: 8px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    #overlay button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 30px rgba(136,238,255,0.6);
+    }
+    #overlay .wave-announce {
+      font-size: 22px;
+      color: rgba(136,238,255,0.9);
+      margin-bottom: 24px;
+    }
+
+    /* screen flash overlays */
+    #hit-flash, #gravity-flash, #timer-flash {
+      position: fixed; inset: 0;
+      pointer-events: none;
+      z-index: 15;
+      opacity: 0;
+      transition: opacity 0.1s;
+    }
+    #hit-flash { background: rgba(255,50,50,0.45); }
+    #gravity-flash { background: rgba(136,238,255,0.15); }
+    #timer-flash { background: rgba(255,80,80,0.2); }
+
+    #gravity-dir {
+      position: fixed; left: 50%; bottom: 60px;
+      transform: translateX(-50%);
+      pointer-events: none;
+      z-index: 10;
+      font-size: 28px;
+      color: rgba(136,238,255,0.8);
+      text-shadow: 0 0 20px rgba(136,238,255,0.9);
+      transition: opacity 0.5s;
+      opacity: 0;
+    }
+    #gravity-dir.show { opacity: 1; }
+
+    #slowmo-text {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none;
+      z-index: 16;
+      font-size: 36px;
+      font-weight: 900;
+      color: #88eeff;
+      letter-spacing: 4px;
+      text-shadow: 0 0 40px rgba(136,238,255,1);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    #slowmo-text.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<div id="ui">
+  <div class="ui-panel" id="left-panel">
+    WAVE <span id="wave-num">1</span> / 5<br>
+    CORES <span id="core-count">0</span> / 5
+  </div>
+  <div class="ui-panel" id="timer-panel">
+    <span id="timer-val">30</span>s
+  </div>
+  <div class="ui-panel">
+    GRAVITY<br>
+    <span id="grav-label">↓ DOWN</span>
+  </div>
+</div>
+
+<div id="controls-hint">WASD / ARROWS → Flip Gravity &nbsp;|&nbsp; SPACE → Collect Core &nbsp;|&nbsp; Collect 5 cores, reach the HATCH</div>
+
+<div id="gravity-dir" id="gdir"></div>
+<div id="slowmo-text">WAVE CLEAR</div>
+
+<div id="hit-flash"></div>
+<div id="gravity-flash"></div>
+<div id="timer-flash"></div>
+
+<div id="overlay">
+  <h1>GRAVITY SHIFT</h1>
+  <div class="sub">Survive the collapsing station</div>
+  <div class="desc">
+    You're a maintenance bot trapped in a dying space station.<br>
+    Flip gravity to navigate the chaos — <em>everything</em> falls with you.
+  </div>
+  <div class="key-list">
+    <span class="key-label">WASD / ARROWS</span><span class="key-desc">Flip gravity direction</span>
+    <span class="key-label">SPACE</span><span class="key-desc">Collect core (when near)</span>
+    <span class="key-label">GOAL</span><span class="key-desc">Collect 5 cores, reach hatch</span>
+  </div>
+  <button id="start-btn">ENGAGE</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="game.js"></script>
+</body>
+</html>

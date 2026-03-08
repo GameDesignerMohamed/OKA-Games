@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stray Signal</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      overflow: hidden;
+      font-family: 'Courier New', monospace;
+      color: #0ff;
+      user-select: none;
+    }
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+    }
+    canvas { display: block; }
+
+    /* CRT scanline overlay */
+    #scanlines {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.15) 2px,
+        rgba(0, 0, 0, 0.15) 4px
+      );
+      z-index: 10;
+    }
+    #vignette {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.7) 100%);
+      z-index: 11;
+    }
+
+    /* HUD */
+    #hud {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 20px;
+      background: rgba(0, 0, 0, 0.7);
+      border-bottom: 1px solid rgba(0,255,255,0.3);
+      z-index: 20;
+    }
+    .hud-block { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .hud-label { font-size: 10px; color: rgba(0,255,255,0.6); letter-spacing: 2px; text-transform: uppercase; }
+    .hud-value { font-size: 18px; font-weight: bold; color: #0ff; text-shadow: 0 0 8px #0ff; }
+    #timer-val { color: #ff4; text-shadow: 0 0 8px #ff4; }
+    #timer-val.urgent { color: #f44; text-shadow: 0 0 12px #f44; animation: blink 0.5s infinite; }
+    .hp-pip { display: inline-block; width: 14px; height: 14px; border: 2px solid #f0f; margin: 0 2px;
+              background: #f0f; box-shadow: 0 0 6px #f0f; border-radius: 2px; }
+    .hp-pip.empty { background: transparent; box-shadow: none; opacity: 0.4; }
+    #shard-val { color: #fa0; text-shadow: 0 0 8px #fa0; }
+
+    /* Objective panel */
+    #objective {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.75);
+      border: 1px solid rgba(0,255,255,0.3);
+      padding: 8px 20px;
+      font-size: 12px;
+      color: rgba(0,255,255,0.8);
+      letter-spacing: 1px;
+      z-index: 20;
+      text-align: center;
+    }
+
+    /* Controls help */
+    #controls {
+      position: fixed;
+      bottom: 50px;
+      left: 16px;
+      background: rgba(0,0,0,0.6);
+      border: 1px solid rgba(0,255,255,0.2);
+      padding: 8px 12px;
+      font-size: 10px;
+      color: rgba(0,255,255,0.5);
+      letter-spacing: 1px;
+      z-index: 20;
+      line-height: 1.8;
+    }
+
+    /* Interaction UI */
+    #interact-menu {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -30%);
+      background: rgba(0, 5, 15, 0.92);
+      border: 1px solid rgba(0,255,255,0.6);
+      padding: 16px 24px;
+      z-index: 30;
+      display: none;
+      min-width: 220px;
+      box-shadow: 0 0 30px rgba(0,255,255,0.2);
+    }
+    #interact-menu.visible { display: block; }
+    #interact-title {
+      font-size: 11px;
+      color: rgba(0,255,255,0.7);
+      letter-spacing: 2px;
+      margin-bottom: 12px;
+      text-align: center;
+      border-bottom: 1px solid rgba(0,255,255,0.2);
+      padding-bottom: 8px;
+    }
+    .interact-btn {
+      display: block;
+      width: 100%;
+      padding: 8px 12px;
+      margin: 4px 0;
+      background: transparent;
+      border: 1px solid rgba(0,255,255,0.3);
+      color: #0ff;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      cursor: pointer;
+      text-align: left;
+      letter-spacing: 1px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .interact-btn:hover { background: rgba(0,255,255,0.1); border-color: #0ff; }
+    .interact-btn.betray { color: #f44; border-color: rgba(255,68,68,0.4); }
+    .interact-btn.betray:hover { background: rgba(255,68,68,0.1); border-color: #f44; }
+    #interact-status {
+      margin-top: 8px;
+      font-size: 10px;
+      color: rgba(255,255,255,0.5);
+      text-align: center;
+    }
+
+    /* Screen flash overlay */
+    #flash {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 25;
+      opacity: 0;
+      transition: opacity 0.05s;
+    }
+
+    /* Game over / win screen */
+    #endscreen {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.9);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    #endscreen.visible { display: flex; }
+    #end-title {
+      font-size: 48px;
+      font-weight: bold;
+      margin-bottom: 16px;
+      letter-spacing: 4px;
+    }
+    #end-title.win { color: #0f4; text-shadow: 0 0 30px #0f4; }
+    #end-title.lose { color: #f44; text-shadow: 0 0 30px #f44; }
+    #end-subtitle { font-size: 16px; color: rgba(0,255,255,0.7); margin-bottom: 8px; letter-spacing: 2px; }
+    #end-stats { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 32px; letter-spacing: 1px; text-align: center; line-height: 1.8; }
+    #restart-btn {
+      padding: 12px 32px;
+      background: transparent;
+      border: 2px solid #0ff;
+      color: #0ff;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      cursor: pointer;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    #restart-btn:hover { background: rgba(0,255,255,0.15); box-shadow: 0 0 20px rgba(0,255,255,0.4); }
+
+    /* Start screen */
+    #startscreen {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.92);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    #startscreen.hidden { display: none; }
+    #start-title { font-size: 52px; font-weight: bold; color: #0ff; text-shadow: 0 0 30px #0ff; letter-spacing: 8px; margin-bottom: 8px; }
+    #start-sub { font-size: 13px; color: rgba(0,255,255,0.6); letter-spacing: 3px; margin-bottom: 40px; }
+    .start-rule { font-size: 12px; color: rgba(255,255,255,0.5); margin: 4px 0; letter-spacing: 1px; }
+    #start-btn {
+      margin-top: 32px;
+      padding: 12px 40px;
+      background: transparent;
+      border: 2px solid #0ff;
+      color: #0ff;
+      font-family: 'Courier New', monospace;
+      font-size: 15px;
+      cursor: pointer;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    #start-btn:hover { background: rgba(0,255,255,0.15); box-shadow: 0 0 24px rgba(0,255,255,0.4); }
+
+    /* Drifter floating labels */
+    .drifter-label {
+      position: fixed;
+      pointer-events: none;
+      z-index: 15;
+      transform: translate(-50%, -100%);
+      text-align: center;
+      font-size: 18px;
+      line-height: 1;
+      text-shadow: 0 0 8px rgba(0,0,0,0.8);
+      transition: opacity 0.2s;
+    }
+    .trust-indicator {
+      font-size: 10px;
+      letter-spacing: 1px;
+      margin-top: 2px;
+    }
+    .trust-trust { color: #0f8; }
+    .trust-wary { color: #fa0; }
+    .trust-hostile { color: #f44; }
+
+    /* Interact prompt */
+    #interact-prompt {
+      position: fixed;
+      bottom: 120px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.75);
+      border: 1px solid rgba(0,255,255,0.4);
+      padding: 6px 16px;
+      font-size: 11px;
+      color: #0ff;
+      letter-spacing: 2px;
+      z-index: 20;
+      display: none;
+    }
+    #interact-prompt.visible { display: block; }
+
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    @keyframes fadeIn { from{opacity:0;transform:translate(-50%,-20px)} to{opacity:1;transform:translate(-50%,0)} }
+
+    /* Shard edge pulse */
+    #shard-flash {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 24;
+      border: 0px solid transparent;
+      transition: border-width 0.05s, opacity 0.3s;
+      opacity: 0;
+    }
+    #shard-flash.active {
+      border: 8px solid rgba(255,170,0,0.7);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="scanlines"></div>
+  <div id="vignette"></div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-block">
+      <div class="hud-label">HP</div>
+      <div id="hp-display">
+        <span class="hp-pip" id="hp1"></span>
+        <span class="hp-pip" id="hp2"></span>
+        <span class="hp-pip" id="hp3"></span>
+      </div>
+    </div>
+    <div class="hud-block">
+      <div class="hud-label">Shards</div>
+      <div class="hud-value"><span id="shard-val">0</span>/5</div>
+    </div>
+    <div class="hud-block">
+      <div class="hud-label">Failsafe</div>
+      <div class="hud-value" id="timer-val">90s</div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div id="controls">
+    WASD — Move<br>
+    E — Interact with Drifter<br>
+    ESC — Close menu
+  </div>
+
+  <!-- Interact prompt -->
+  <div id="interact-prompt">[ E ] INTERACT WITH DRIFTER</div>
+
+  <!-- Interaction menu -->
+  <div id="interact-menu">
+    <div id="interact-title">DRIFTER ENCOUNTERED</div>
+    <button class="interact-btn" id="btn-share">📡 SHARE MAP DATA<br><span style="font-size:10px;color:rgba(0,255,255,0.5)">Opens locked zone. Trust +1</span></button>
+    <button class="interact-btn" id="btn-ignore">👁 IGNORE<br><span style="font-size:10px;color:rgba(0,255,255,0.5)">No change. Wary +1</span></button>
+    <button class="interact-btn betray" id="btn-betray">⚠ BETRAY — FAKE ROUTE<br><span style="font-size:10px;color:rgba(255,68,68,0.5)">Steal their shard. Hostile.</span></button>
+    <div id="interact-status"></div>
+  </div>
+
+  <!-- Flash overlay -->
+  <div id="flash"></div>
+  <div id="shard-flash"></div>
+
+  <!-- Drifter labels (dynamically created) -->
+
+  <!-- Objective -->
+  <div id="objective">COLLECT 5 SHARDS → REACH UPLINK ▲ BEFORE FAILSAFE</div>
+
+  <!-- End screen -->
+  <div id="endscreen">
+    <div id="end-title">EXTRACTED</div>
+    <div id="end-subtitle"></div>
+    <div id="end-stats"></div>
+    <button id="restart-btn">REINITIALIZE</button>
+  </div>
+
+  <!-- Start screen -->
+  <div id="startscreen">
+    <div id="start-title">STRAY SIGNAL</div>
+    <div id="start-sub">EXTRACTION // SOCIAL AMBIGUITY PROTOCOL</div>
+    <div class="start-rule">You are a rogue agent in a dying data network.</div>
+    <div class="start-rule">3 Drifters share the zone. They are neutral — for now.</div>
+    <div class="start-rule">Cooperate to open locked paths. Betray to steal their shards.</div>
+    <div class="start-rule">Hostile Drifters will <span style="color:#f44">block your exit</span>.</div>
+    <div class="start-rule">Collect 5 shards. Reach the uplink. Escape.</div>
+    <button id="start-btn">INITIATE</button>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="game.js"></script>
+</body>
+</html>

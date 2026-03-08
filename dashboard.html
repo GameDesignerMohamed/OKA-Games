@@ -393,6 +393,45 @@
 
   <div id="feed">
 
+    <!-- ── Stray Signal (Extraction + Social Trust) ── -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title-block">
+          <div class="card-title"><a href="2026-03-08-stray-signal/index.html" target="_blank">Stray Signal</a></div>
+          <div class="card-date">March 8, 2026</div>
+        </div>
+        <div class="badge conditional">Conditional</div>
+      </div>
+      <div class="card-body">
+        <div class="card-row">
+          <div class="row-label">Game</div>
+          <div class="row-text">Top-down extraction run on a 22×16 grid corrupted data network. Collect 5 shards (auto-proximity), then reach the exit gate — but 3 neutral Drifters share your zone and track your social choices. Share Map opens locked wall segments and reveals new shard routes. Ignore lets trust slowly decay. Betray pays off instantly but flips the Drifter Hostile. Hostile Drifters physically block the exit gate at extraction — the consequence bites at the end, not the moment. 90-second timer. CRT scanline aesthetic, procedural audio suite (betrayal sting, trust shift, shard pickup, gate blocked, win/lose).</div>
+        </div>
+        <div class="card-row">
+          <div class="row-label">Design</div>
+          <div class="row-text">Trust state machine is the core insight: each Drifter tracks Trust/Wary/Hostile independently with visible floating emoji + audio sting on every state change. Deferred consequence timing is the mechanic — betray pays at pickup, punishes at gate. The temporal gap between action and consequence is the design, not a UX lag. Locked zone unlock makes Share a real strategic choice (new shard routes) rather than pure social altruism. All four rubric gates pass. Three PURSUE conditions: post-run recap screen showing causal chain, witness event system (Drifters within 3 tiles of betrayal drop one trust state), appeasement cost at gate (1 shard or 10s to prevent betray-then-appease dominance).</div>
+        </div>
+        <div class="card-row verdict-row">
+          <div class="row-label">Verdict</div>
+          <div class="row-text">The trust state machine works and deferred consequence timing is functional — betray pays at pickup, punishes at gate. The individual consequence layer is proven. What's missing is the lateral social layer: Drifters reacting to what they witness happening to each other, not just to themselves. That witness event system is the actual market differentiator and the one structural addition that elevates this to Pursue. Three conditions required — not one — so Conditional stands until Build #11 targets them together.</div>
+        </div>
+        <div class="card-row">
+          <div class="row-label">Market Signal</div>
+          <div class="row-text">Scout Mar 7: A16z $4.5M Misfitz (Antihero) — "social emergence through outcome ambiguity" validated by smart money. The Misfitz thesis maps onto Stray Signal's individual consequence layer (proven) and the witness event layer (untested). Competitive gap confirmed: Among Us = formal + certain; Project Zomboid = informal + emergent; Stray Signal targets formal + ambiguous — a witness mechanic that feeds a state machine with uncertain output. No studio has shipped this combination.</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="tag">threejs</span>
+        <span class="tag">extraction</span>
+        <span class="tag">social-trust</span>
+        <span class="tag">state-machine</span>
+        <a class="play-link" href="2026-03-08-stray-signal/index.html" target="_blank">
+          <svg viewBox="0 0 12 12"><path d="M2 1l9 5-9 5V1z"/></svg>
+          Play
+        </a>
+      </div>
+    </div>
+
     <!-- ── Gravity Shift (Physics Survival) ── -->
     <div class="card">
       <div class="card-header">

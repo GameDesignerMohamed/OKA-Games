@@ -746,8 +746,7 @@ function animate() {
     scannerGlow.color.setHex(0x2020ff);
 
     if (scanProgress >= 1.0) {
-      // Resolve
-      gameState = 'resolve';
+      // Resolve — keep state as 'scanning' so resolvePackage timeout can reset to 'playing'
       const { pkg, isProbe } = pendingPackage;
       resolvePackage(pkg, isProbe);
     }

@@ -604,17 +604,6 @@ function playMusicLoop() {
   bassOsc.start();
   musicNodes.push(bassOsc, bassGain);
 
-  // Tension sweep
-  const sweepOsc = audioCtx.createOscillator();
-  const sweepGain = audioCtx.createGain();
-  sweepOsc.type = 'sawtooth';
-  sweepOsc.frequency.value = 110;
-  sweepGain.gain.value = 0.04;
-  sweepOsc.connect(sweepGain);
-  sweepGain.connect(audioCtx.destination);
-  sweepOsc.start();
-  musicNodes.push(sweepOsc, sweepGain);
-
   // Sparse glitch notes at irregular intervals
   const glitchTimes = [0.8, 2.3, 3.7, 5.1, 6.6];
   const glitchNotes = [220, 165, 196, 247, 185];
@@ -636,7 +625,6 @@ function playMusicLoop() {
   musicLoopTimer = setTimeout(() => {
     // Stop current drone nodes and restart
     bassOsc.stop();
-    sweepOsc.stop();
     musicNodes = [];
     playMusicLoop();
   }, (loopDuration - 0.1) * 1000);

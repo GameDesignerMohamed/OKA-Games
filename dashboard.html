@@ -393,6 +393,45 @@
 
   <div id="feed">
 
+    <!-- ── Cipher (Logical Inference) ── -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title-block">
+          <div class="card-title"><a href="2026-03-09-cipher/index.html" target="_blank">Cipher</a></div>
+          <div class="card-date">March 9, 2026</div>
+        </div>
+        <div class="badge pursue">Pursue</div>
+      </div>
+      <div class="card-body">
+        <div class="card-row">
+          <div class="row-label">Game</div>
+          <div class="row-text">Top-down puzzle game on a conveyor belt. Packages with three visible properties (COLOR × SIZE × MATERIAL) travel into an AI scanner with a hidden boolean rule drawn from a pool of 12. Submit harmless probe packages to observe what gets flagged — probes never cost HP, only smuggled contraband does. Build a mental model, exploit the gap you find, then slip contraband through. Level clear reveals the rule with an aha-moment screen. 5 levels, rule redrawn each run. UnrealBloom scanner glow, camera lerp toward scanner during each scan, Web Audio tension loop.</div>
+        </div>
+        <div class="card-row">
+          <div class="row-label">Design</div>
+          <div class="row-text">The probe-for-free model is the core design insight: separating probe cost (zero HP) from contraband cost (HP loss) makes deduction feel like skilled investigation rather than guessing. The rule reveal at level clear validates the player's mental model without spoiling discovery. Cipher is the purest of the OKA inference trilogy — explicit inputs, strictly boolean rule, falsifiable in 3–5 probes — and the strongest standalone puzzle-design argument in the portfolio. Escalating variable count per level (3 → 4 → 5 properties as the run progresses) would make the skill ceiling explicit and let the player's inference model compound.</div>
+        </div>
+        <div class="card-row verdict-row">
+          <div class="row-label">Verdict</div>
+          <div class="row-text">The player feels like a detective who gets smarter each run — not because RNG was kind, but because they learned to read the AI. Probe-free costs vs. contraband costs creates a genuine skill ceiling: disciplined inference outperforms brute-forcing every time, and the player feels that gap close as they improve. The competitive category is essentially empty — Zachtronics is the closest neighbor, but turn-based and static; Cipher is real-time and reactive. The one thing that would make it sing: escalating variable count per level (3 → 4 → 5 properties), so the skill ceiling is explicit and the player's inference model has room to compound.</div>
+        </div>
+        <div class="card-row">
+          <div class="row-label">Market Signal</div>
+          <div class="row-text">Scout Mar 8: GDC SOTI — 0% of studios use AI as a design primitive. Cipher's loop (infer what the AI "wants") is a direct design response to the opacity problem. Competitive gap confirmed: logical inference as core loop is essentially empty outside Zachtronics puzzlers (turn-based, static). Cipher's probe-free HP structure forces disciplined deduction vs. brute-force — a novel incentive structure with no direct competitor. "Wordle for AI" elevator pitch — legible, pitchable, and the StS2 430K concurrent signal confirms a massive deep-systems audience actively looking for the next thing.</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="tag">threejs</span>
+        <span class="tag">puzzle</span>
+        <span class="tag">inference</span>
+        <span class="tag">ai-opacity</span>
+        <a class="play-link" href="2026-03-09-cipher/index.html" target="_blank">
+          <svg viewBox="0 0 12 12"><path d="M2 1l9 5-9 5V1z"/></svg>
+          Play
+        </a>
+      </div>
+    </div>
+
     <!-- ── Stray Signal (Extraction + Social Trust) ── -->
     <div class="card">
       <div class="card-header">

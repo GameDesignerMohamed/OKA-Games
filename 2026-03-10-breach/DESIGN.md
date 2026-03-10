@@ -1,51 +1,35 @@
-# Breach — Action Roguelike
+# Breach
 
-**Concept:** Top-down action roguelike where you breach procedurally generated AI vault rooms. Read enemy telegraphs, dodge, counter-attack. Systems mastery rewarded — brute force punished.
-**Player fantasy:** You are a surgical infiltration agent who learns the system and dominates it.
+**Concept:** Top-down action roguelike where players breach procedurally-seeded vault rooms by reading enemy telegraphs and rolling through attacks to survive.
+**Player fantasy:** I am a precise, lethal operative — every death was readable, every clear was earned.
 
-## Market Signal
-Tests whether systems mastery + spatial action + roguelike structure works as a short-session browser game. Slay the Spire 2's 430K concurrent peak = roguelike renaissance. Players hungry for depth over spectacle. Breach is OKA's real-time, 3D answer to that same learn-die-retry loop.
+## Core Loop
+Choose a loadout → clear 6 rooms of enemies using dodge-roll iframes and aimed fire → pick one upgrade between rooms → survive a phase-transitioning boss. Permanent death. Each run is 10-15 minutes.
 
-## Controls
-- **WASD** — Move (8-directional)
-- **Mouse aim** — Player faces cursor at all times
-- **Left Click / Space** — Shoot (primary weapon)
-- **Right Click / Shift** — Dodge roll (grants invincibility frames)
-- **Auto-collect** — XP orbs + ammo pickups collected on proximity
+## Key Mechanics
+- **Telegraph system**: every enemy attack is preceded by a visible ring wind-up — skill floor is readable, deaths feel fair
+- **Dodge roll + iframes**: 0.5s invincibility window on roll; cooldown varies by loadout — timing mastery is the core skill axis
+- **3 loadouts with distinct feel**: Vanguard (fast fire, short range), Phantom (burst + range), Breaker (scatter shotgun, slow roll)
+- **4 enemy types + boss**: Grunt (melee chase), Shielder (front-shielded, must flank), Sniper (ranged), Exploder (proximity bomb) — each requires a different response pattern
+- **Room upgrade picks**: +HP, +damage, +roll cooldown — lightweight meta-decisions that compound over a run
 
-## Core Game Loop
-Enter room → enemies telegraph attacks (visible wind-up flash + directional arc) → player reads telegraphs, dodges, counter-attacks → room cleared → brief exhale (loot drop, HP restore chance) → next room. Five rooms + one boss. Each room is a distinct spatial puzzle; enemy composition and layout randomized per run.
+## What's Working
+- **Telegraph = readable skill floor**: players can see why they died. This is the single most important design win — it separates Breach from action games where death feels arbitrary
+- **Loadout identity is real**: Breaker feels different from Phantom at a mechanical level (scatter vs burst, different roll windows) — not just stat reskins
+- **Shielder flanking requirement**: introduces positional problem-solving into a bullet-clearing loop — breaks monotony without adding UI complexity
+- **Boss phase transition**: HP threshold at 50% with pattern shift creates a natural tension spike in a short-session run
+- **iframes confirmed working**: dodge roll as risk/reward decision (not just movement) is the core high-skill expression
 
-## Win / Lose / Progression
-- **Win:** Defeat boss on room 6
-- **Lose:** 3 HP depleted → run over, restart from room 1
-- **Progression:** 3 loadout picks at run start (weapon type + ability). Between rooms, choose 1 of 3 upgrades.
+## What's Missing
+1. **No meta-progression across runs** — loadouts are static, nothing unlocks. After 3 runs the loop is fully seen. This is the primary retention wall.
+2. **Room assembly is seeded, not procedural** — obstacle placement is deterministic; veteran players will pattern-match rooms rather than read them fresh
+3. **Boss needs a third pattern at 25% HP** — two patterns is enough for the prototype, not enough for a shipped game. The final-stand moment needs a distinct escalation.
+4. **No run identity signal** — player can't look at their run state and feel "I'm a tank build" or "I'm a glass cannon." Upgrades accumulate but don't signal archetype.
 
-## Juice / Feel
-- Dodge roll: motion blur + brief slow-mo on frame-perfect dodge
-- Enemy death: satisfying pop + screen micro-shake
-- Room clear: slow-mo 0.5s + "BREACH CLEAR" stamp
-- Hit feedback: red flash + camera shake
-- Boss entry: music layer adds in
+## Next Build Priorities (if pursued)
+1. **Cross-run unlock system**: meta-currency from runs → unlock 2-3 additional loadouts or starting modifiers. Gives a reason to run again after death.
+2. **Procedural room tile assembly**: replace seeded obstacles with tile-based room generation — same enemy budget, different geometry each run.
+3. **Boss third phase at 25% HP**: add one new attack pattern at low HP threshold — the "final push" feeling is currently absent.
 
-## Scope (One Night)
-- 1 player archetype, 3 loadout sets, 3 upgrade types
-- 4 enemy types (grunt, shielder, sniper, exploder) + 1 boss
-- 6 rooms, procedurally composed from geometry prefabs
-- All Three.js geometry, no sprite sheets
-
-## Lessons Applied
-| Rule | Application |
-|------|-------------|
-| G1 (HP buffer) | 3 HP, no one-hit death |
-| G9 (iframes work) | Dodge roll = 0.4s iframes, death check tests flag |
-| G4/S4 (randomize) | Room composition + layout seeded per run |
-| G6 (music loops) | 64-second combat track, boss adds layer |
-| G3 (auto-collect) | XP orbs + ammo auto-collect on proximity |
-| G5 (collision radius) | Hitbox matches visual radius |
-| G7 (camera tracks) | 0.06 lerp camera always centered on player |
-| G8 (content not timers) | No countdown — difficulty from enemy density |
-| T1/T2/T3 | Three.js technical rules — Forge's mandate |
-
----
-*Pixel 🎮 | March 10, 2026*
+## What's Built
+The prototype proves the core design hypothesis: telegraph-based combat makes death legible in a browser action game. The skill floor is readable, the loadouts feel distinct, and a full 6-room run + boss is completable in 10-15 minutes. The format works.

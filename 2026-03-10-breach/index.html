@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Breach — Action Roguelike</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+    #c { display: block; width: 100vw; height: 100vh; }
+
+    /* HUD */
+    #hud {
+      position: fixed; top: 0; left: 0; right: 0;
+      display: flex; justify-content: space-between; align-items: flex-start;
+      padding: 14px 20px; pointer-events: none; z-index: 10;
+    }
+    #hp-bar { display: flex; gap: 8px; align-items: center; }
+    .hp-pip {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #ff3a3a; border: 2px solid #ff6060;
+      box-shadow: 0 0 8px #ff3a3a;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    .hp-pip.empty { background: #333; border-color: #555; box-shadow: none; }
+    #room-info { color: #aaa; font-size: 13px; text-align: center; letter-spacing: 1px; }
+    #room-label { font-size: 18px; color: #fff; font-weight: bold; letter-spacing: 3px; }
+    #weapon-info { color: #aaa; font-size: 13px; text-align: right; }
+    #weapon-name { font-size: 16px; color: #4ff; letter-spacing: 2px; }
+    #dodge-bar-wrap { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 10; pointer-events: none; text-align: center; }
+    #dodge-label { color: #888; font-size: 11px; letter-spacing: 2px; margin-bottom: 4px; }
+    #dodge-bar-bg { width: 120px; height: 6px; background: #222; border-radius: 3px; overflow: hidden; }
+    #dodge-bar-fill { height: 100%; background: #4ff; border-radius: 3px; transition: width 0.1s; }
+
+    /* OVERLAYS */
+    #overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 20; text-align: center;
+    }
+    #overlay.hidden { display: none; }
+    #overlay-title { font-size: 48px; color: #fff; letter-spacing: 6px; margin-bottom: 16px; }
+    #overlay-sub { font-size: 18px; color: #888; letter-spacing: 2px; margin-bottom: 32px; }
+    #overlay-btn {
+      background: none; border: 2px solid #4ff; color: #4ff;
+      font-family: inherit; font-size: 16px; letter-spacing: 4px;
+      padding: 12px 40px; cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+    #overlay-btn:hover { background: #4ff; color: #000; }
+
+    /* LOADOUT SELECT */
+    #loadout-screen {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.95);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 25;
+    }
+    #loadout-screen.hidden { display: none; }
+    #loadout-title { font-size: 28px; color: #fff; letter-spacing: 6px; margin-bottom: 8px; }
+    #loadout-sub { color: #888; font-size: 13px; letter-spacing: 2px; margin-bottom: 32px; }
+    #loadout-cards { display: flex; gap: 20px; }
+    .loadout-card {
+      width: 180px; border: 2px solid #333; padding: 20px 16px;
+      cursor: pointer; transition: border-color 0.2s, background 0.2s;
+      text-align: left;
+    }
+    .loadout-card:hover { border-color: #4ff; background: rgba(68,255,255,0.05); }
+    .loadout-card .lc-name { font-size: 18px; color: #4ff; letter-spacing: 2px; margin-bottom: 8px; }
+    .loadout-card .lc-desc { font-size: 12px; color: #888; line-height: 1.5; }
+    .loadout-card .lc-stat { font-size: 11px; color: #aaa; margin-top: 10px; }
+
+    /* UPGRADE SCREEN */
+    #upgrade-screen {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.92);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 25;
+    }
+    #upgrade-screen.hidden { display: none; }
+    #upgrade-title { font-size: 22px; color: #fff; letter-spacing: 5px; margin-bottom: 6px; }
+    #upgrade-sub { color: #888; font-size: 13px; letter-spacing: 2px; margin-bottom: 28px; }
+    #upgrade-cards { display: flex; gap: 16px; }
+    .upgrade-card {
+      width: 160px; border: 2px solid #333; padding: 16px 14px;
+      cursor: pointer; transition: border-color 0.2s, background 0.2s;
+      text-align: left;
+    }
+    .upgrade-card:hover { border-color: #fa4; background: rgba(255,170,68,0.05); }
+    .upgrade-card .uc-name { font-size: 15px; color: #fa4; letter-spacing: 2px; margin-bottom: 6px; }
+    .upgrade-card .uc-desc { font-size: 11px; color: #888; line-height: 1.5; }
+
+    /* ROOM CLEAR STAMP */
+    #room-stamp {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      font-size: 42px; color: #4ff; letter-spacing: 8px; font-weight: bold;
+      pointer-events: none; z-index: 15; opacity: 0;
+      text-shadow: 0 0 20px #4ff;
+      transition: opacity 0.2s;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div id="hp-bar"></div>
+    <div id="room-info">
+      <div id="room-label">ROOM 1 / 6</div>
+      <div id="room-count"></div>
+    </div>
+    <div id="weapon-info">
+      <div id="weapon-name">PULSE BLADE</div>
+    </div>
+  </div>
+
+  <div id="dodge-bar-wrap">
+    <div id="dodge-label">ROLL</div>
+    <div id="dodge-bar-bg"><div id="dodge-bar-fill" style="width:100%"></div></div>
+  </div>
+
+  <!-- ROOM STAMP -->
+  <div id="room-stamp">BREACH CLEAR</div>
+
+  <!-- LOADOUT SELECT -->
+  <div id="loadout-screen">
+    <div id="loadout-title">SELECT LOADOUT</div>
+    <div id="loadout-sub">CHOOSE YOUR APPROACH</div>
+    <div id="loadout-cards">
+      <div class="loadout-card" data-idx="0">
+        <div class="lc-name">VANGUARD</div>
+        <div class="lc-desc">Close-range pulse blade. High damage. Short cooldown roll. Aggressive style.</div>
+        <div class="lc-stat">DMG: ●●●○ | SPD: ●●●○ | ROLL: ●●●●</div>
+      </div>
+      <div class="loadout-card" data-idx="1">
+        <div class="lc-name">PHANTOM</div>
+        <div class="lc-desc">Mid-range burst pistol. 3-shot burst. Longer roll with extra iframes.</div>
+        <div class="lc-stat">DMG: ●●○○ | SPD: ●●●● | ROLL: ●●●○</div>
+      </div>
+      <div class="loadout-card" data-idx="2">
+        <div class="lc-name">BREAKER</div>
+        <div class="lc-desc">Heavy scatter shot. High damage per hit. Slow cooldown. Powerhouse style.</div>
+        <div class="lc-stat">DMG: ●●●● | SPD: ●●○○ | ROLL: ●●○○</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- UPGRADE SELECT -->
+  <div id="upgrade-screen" class="hidden">
+    <div id="upgrade-title">CHOOSE UPGRADE</div>
+    <div id="upgrade-sub">ROOM CLEAR BONUS</div>
+    <div id="upgrade-cards">
+      <div class="upgrade-card" data-upg="hp">
+        <div class="uc-name">+1 SHIELD</div>
+        <div class="uc-desc">Restore 1 HP if missing. Otherwise increase max HP by 1.</div>
+      </div>
+      <div class="upgrade-card" data-upg="dmg">
+        <div class="uc-name">OVERCHARGE</div>
+        <div class="uc-desc">+25% damage on next weapon fire.</div>
+      </div>
+      <div class="upgrade-card" data-upg="roll">
+        <div class="uc-name">PHASE SPRINT</div>
+        <div class="uc-desc">Reduce dodge roll cooldown by 20%.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OVERLAY -->
+  <div id="overlay" class="hidden">
+    <div id="overlay-title">BREACH</div>
+    <div id="overlay-sub">INFILTRATE. READ. ELIMINATE.</div>
+    <button id="overlay-btn">INITIATE RUN</button>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="game.js"></script>
+</body>
+</html>

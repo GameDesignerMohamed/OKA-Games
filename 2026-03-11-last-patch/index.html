@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Last Patch</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0f; overflow: hidden; font-family: 'Courier New', monospace; color: #ccc; }
+  #canvas-container { position: fixed; inset: 0; }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  #hud {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 18px 24px; pointer-events: none; z-index: 10;
+  }
+  .hud-block { display: flex; flex-direction: column; gap: 4px; }
+  .hud-label { font-size: 10px; letter-spacing: 2px; color: #555; text-transform: uppercase; }
+  .hud-val { font-size: 22px; font-weight: bold; letter-spacing: 1px; }
+  #credit-val { color: #4af; }
+  #timer-val { color: #fa4; }
+  #players-val { color: #8f8; }
+
+  #tooltip {
+    position: fixed; pointer-events: none; z-index: 20;
+    background: rgba(0,0,0,0.85); border: 1px solid #333;
+    border-radius: 6px; padding: 10px 14px; font-size: 12px;
+    line-height: 1.6; max-width: 220px; display: none;
+  }
+  #tooltip .t-name { font-size: 14px; font-weight: bold; color: #fff; margin-bottom: 4px; }
+  #tooltip .t-credits { color: #4af; }
+  #tooltip .t-players { color: #8f8; }
+  #tooltip .t-affinity { color: #fa8; }
+
+  #confirm-panel {
+    position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.92); border: 1px solid #f44;
+    border-radius: 8px; padding: 16px 24px; text-align: center;
+    z-index: 30; display: none; min-width: 300px;
+  }
+  #confirm-panel .cp-title { font-size: 13px; color: #f88; margin-bottom: 6px; letter-spacing: 1px; }
+  #confirm-panel .cp-name { font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 10px; }
+  #confirm-panel .cp-keys { font-size: 12px; color: #888; }
+  #confirm-panel span { color: #4af; }
+
+  #msg-panel {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 10px; z-index: 30;
+  }
+  .msg-btn {
+    background: rgba(0,0,0,0.8); border: 1px solid #444;
+    border-radius: 6px; padding: 8px 16px; cursor: pointer;
+    font-family: 'Courier New', monospace; font-size: 12px; color: #aaa;
+    transition: all 0.15s;
+  }
+  .msg-btn:hover { border-color: #8f8; color: #8f8; }
+  .msg-btn:disabled { opacity: 0.3; cursor: default; border-color: #333; color: #555; }
+
+  #log-panel {
+    position: fixed; right: 24px; top: 50%; transform: translateY(-50%);
+    width: 200px; max-height: 40vh; overflow: hidden; z-index: 10;
+    pointer-events: none;
+  }
+  .log-entry {
+    font-size: 11px; color: #666; padding: 3px 0; border-bottom: 1px solid #111;
+    animation: fadeInLog 0.4s ease;
+  }
+  .log-entry.red { color: #f44; }
+  .log-entry.yellow { color: #fa4; }
+  .log-entry.green { color: #8f8; }
+  .log-entry.blue { color: #4af; }
+  @keyframes fadeInLog { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
+
+  #overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.92);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 100; text-align: center; padding: 20px;
+  }
+  #overlay h1 { font-size: 42px; font-weight: bold; margin-bottom: 12px; letter-spacing: 2px; }
+  #overlay .sub { font-size: 16px; color: #888; margin-bottom: 8px; }
+  #overlay .quote { font-size: 13px; color: #555; font-style: italic; margin-bottom: 30px; max-width: 400px; }
+  #start-btn {
+    background: transparent; border: 1px solid #4af; color: #4af;
+    font-family: 'Courier New', monospace; font-size: 14px; letter-spacing: 2px;
+    padding: 12px 32px; cursor: pointer; border-radius: 4px;
+    transition: all 0.2s;
+  }
+  #start-btn:hover { background: #4af; color: #000; }
+  #overlay .controls-hint {
+    margin-top: 24px; font-size: 11px; color: #444; line-height: 1.8;
+  }
+  #overlay.win h1 { color: #8f8; }
+  #overlay.lose h1 { color: #f44; }
+  #overlay.start h1 { color: #4af; }
+
+  #e-hint {
+    position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; color: #444; letter-spacing: 1px; pointer-events: none; z-index: 10;
+  }
+</style>
+</head>
+<body>
+
+<div id="canvas-container"><canvas id="c"></canvas></div>
+
+<div id="hud">
+  <div class="hud-block">
+    <div class="hud-label">Server Credits</div>
+    <div class="hud-val" id="credit-val">1000</div>
+  </div>
+  <div class="hud-block" style="text-align:center;">
+    <div class="hud-label">Shutdown In</div>
+    <div class="hud-val" id="timer-val">5:00</div>
+  </div>
+  <div class="hud-block" style="text-align:right;">
+    <div class="hud-label">Players Online</div>
+    <div class="hud-val" id="players-val">0</div>
+  </div>
+</div>
+
+<div id="tooltip">
+  <div class="t-name" id="tt-name">Feature</div>
+  <div class="t-credits">+<span id="tt-credits">0</span> credits on delete</div>
+  <div class="t-players"><span id="tt-players">0</span> players use this</div>
+  <div class="t-affinity">Loyalty weight: <span id="tt-aff">low</span></div>
+</div>
+
+<div id="confirm-panel">
+  <div class="cp-title">DELETE FEATURE</div>
+  <div class="cp-name" id="cp-name">—</div>
+  <div class="cp-keys">Press <span>Y</span> to confirm · <span>N</span> or ESC to cancel</div>
+</div>
+
+<div id="msg-panel">
+  <button class="msg-btn" id="msg0" onclick="sendMessage(0)">E: "Hang tight"</button>
+  <button class="msg-btn" id="msg1" onclick="sendMessage(1)">E: "Thank you"</button>
+  <button class="msg-btn" id="msg2" onclick="sendMessage(2)">E: "I'm sorry"</button>
+</div>
+<div id="e-hint">Click a feature node to delete it · E to message players</div>
+
+<div id="log-panel"></div>
+
+<div id="overlay" class="start">
+  <h1>Last Patch</h1>
+  <div class="sub">The studio is shutting down. Funding is gone.</div>
+  <div class="quote">"Gang of Dragon's funding has been pulled. We're done."<br>— the call you just got</div>
+  <div class="quote">Players are still online. Keep one alive until the shutdown clock hits zero.</div>
+  <button id="start-btn" onclick="startGame()">START SHIFT</button>
+  <div class="controls-hint">
+    HOVER feature nodes to inspect · CLICK to delete<br>
+    Y/N to confirm · E to message players
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.167.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.167.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="game.js"></script>
+</body>
+</html>

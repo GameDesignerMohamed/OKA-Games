@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FLUX</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+  #canvas-container { position: fixed; inset: 0; }
+  canvas { display: block; width: 100% !important; height: 100% !important; }
+
+  #hud {
+    position: fixed; inset: 0; pointer-events: none;
+    z-index: 10;
+  }
+
+  #score-display {
+    position: absolute; top: 18px; right: 24px;
+    color: #fff; font-size: 28px; font-weight: bold;
+    text-shadow: 0 0 12px rgba(255,255,255,0.8);
+    letter-spacing: 2px;
+  }
+  #score-label {
+    font-size: 11px; letter-spacing: 4px; color: #aaa; display: block; text-align: right; margin-bottom: 2px;
+  }
+
+  #hp-display {
+    position: absolute; top: 18px; left: 24px;
+    display: flex; gap: 8px; align-items: center;
+  }
+  .heart {
+    font-size: 22px;
+    filter: drop-shadow(0 0 6px rgba(255,80,80,0.9));
+    transition: opacity 0.2s;
+  }
+  .heart.empty { opacity: 0.2; filter: none; }
+
+  #timer-display {
+    position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+    color: #fff; font-size: 22px; font-weight: bold;
+    text-shadow: 0 0 10px rgba(255,255,255,0.6);
+    letter-spacing: 3px;
+    transition: color 0.3s;
+  }
+  #timer-display.urgent { color: #ff4444; text-shadow: 0 0 12px rgba(255,0,0,0.9); }
+
+  #weapon-display {
+    position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+    text-align: center;
+  }
+  #weapon-name {
+    color: #fff; font-size: 16px; letter-spacing: 5px; text-transform: uppercase;
+    text-shadow: 0 0 16px currentColor;
+    transition: color 0.3s;
+  }
+  #weapon-hint {
+    color: #666; font-size: 11px; letter-spacing: 2px; margin-top: 4px;
+  }
+
+  #combo-display {
+    position: absolute; top: 70px; right: 24px;
+    color: #ff9900; font-size: 18px; font-weight: bold;
+    text-shadow: 0 0 10px rgba(255,153,0,0.9);
+    opacity: 0; transition: opacity 0.3s;
+    letter-spacing: 2px;
+  }
+
+  #wave-display {
+    position: absolute; top: 70px; left: 24px;
+    color: #88aaff; font-size: 13px; letter-spacing: 3px;
+  }
+
+  #overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 20; color: #fff;
+    transition: opacity 0.4s;
+  }
+  #overlay.hidden { opacity: 0; pointer-events: none; }
+
+  #overlay h1 {
+    font-size: 72px; letter-spacing: 16px; margin-bottom: 8px;
+    text-shadow: 0 0 30px rgba(255,255,255,0.8);
+  }
+  #overlay .tagline {
+    color: #888; font-size: 13px; letter-spacing: 6px; margin-bottom: 48px;
+  }
+  #overlay .score-big {
+    font-size: 48px; font-weight: bold; letter-spacing: 4px;
+    margin-bottom: 8px;
+  }
+  #overlay .weapon-label {
+    font-size: 14px; letter-spacing: 4px; margin-bottom: 40px;
+  }
+  #overlay .prompt {
+    color: #666; font-size: 14px; letter-spacing: 4px;
+    animation: blink 1.2s infinite;
+  }
+  #overlay .next-weapon {
+    color: #aaa; font-size: 12px; letter-spacing: 3px; margin-top: 12px;
+  }
+
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .kill-popup {
+    position: fixed; font-size: 14px; font-weight: bold;
+    pointer-events: none; z-index: 15;
+    animation: popUp 0.5s ease-out forwards;
+  }
+  @keyframes popUp {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-30px); }
+  }
+</style>
+</head>
+<body>
+<div id="canvas-container"></div>
+
+<div id="hud">
+  <div id="score-display">
+    <span id="score-label">SCORE</span>
+    <span id="score-value">0</span>
+  </div>
+  <div id="hp-display">
+    <span class="heart" id="h1">♥</span>
+    <span class="heart" id="h2">♥</span>
+    <span class="heart" id="h3">♥</span>
+  </div>
+  <div id="timer-display">0:45</div>
+  <div id="weapon-display">
+    <div id="weapon-name">BOOMERANG</div>
+    <div id="weapon-hint">click to fire</div>
+  </div>
+  <div id="combo-display" id="combo-text">2× COMBO</div>
+  <div id="wave-display">WAVE 1</div>
+</div>
+
+<div id="overlay">
+  <h1>FLUX</h1>
+  <div class="tagline">weapon mutates every run</div>
+  <div class="score-big" id="final-score">0</div>
+  <div class="weapon-label" id="weapon-used">BOOMERANG</div>
+  <div class="prompt">[ R ] NEXT RUN</div>
+  <div class="next-weapon" id="next-weapon-hint"></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/",
+    "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.webgpu.js"
+  }
+}
+</script>
+<script type="module" src="game.js"></script>
+</body>
+</html>

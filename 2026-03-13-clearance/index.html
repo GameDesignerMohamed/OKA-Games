@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLEARANCE</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+  #canvas-container { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  #hud {
+    position: fixed; top: 0; left: 0; right: 0;
+    pointer-events: none; z-index: 10;
+    padding: 16px 20px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+  }
+  #hud-left { display: flex; flex-direction: column; gap: 6px; }
+  #hud-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+
+  .hud-label { font-size: 11px; color: #888; letter-spacing: 2px; text-transform: uppercase; }
+  .hud-value { font-size: 22px; color: #0ff; letter-spacing: 3px; font-weight: bold; text-shadow: 0 0 10px #0ff; }
+  .hud-value.red { color: #f44; text-shadow: 0 0 10px #f44; animation: pulse-red 0.4s infinite; }
+  @keyframes pulse-red { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  #hp-bar-container { display: flex; gap: 6px; margin-top: 4px; }
+  .hp-pip {
+    width: 18px; height: 18px; border: 2px solid #0ff;
+    background: #0ff; box-shadow: 0 0 8px #0ff;
+    transition: all 0.2s;
+  }
+  .hp-pip.empty { background: transparent; box-shadow: none; border-color: #333; }
+
+  #cl-bar-container {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    width: 400px; pointer-events: none; z-index: 10;
+  }
+  #cl-label {
+    text-align: center; font-size: 11px; color: #888;
+    letter-spacing: 3px; margin-bottom: 6px;
+  }
+  #cl-bar-bg {
+    width: 100%; height: 12px; background: #111;
+    border: 1px solid #333; position: relative; overflow: hidden;
+  }
+  #cl-bar-fill {
+    height: 100%; background: linear-gradient(90deg, #00f, #0ff);
+    box-shadow: 0 0 10px #0ff; transition: width 0.3s ease;
+    width: 0%;
+  }
+  #cl-ticks {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    display: flex; justify-content: space-around;
+    pointer-events: none;
+  }
+  .cl-tick { width: 1px; background: #333; height: 100%; }
+
+  #ability-bar {
+    display: flex; gap: 10px; justify-content: center; margin-top: 10px;
+  }
+  .ability-slot {
+    width: 48px; height: 48px; border: 2px solid #333;
+    background: #000; display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: #555; position: relative;
+    transition: all 0.3s;
+  }
+  .ability-slot.unlocked { border-color: #0ff; color: #0ff; box-shadow: 0 0 12px #0ff; }
+  .ability-slot.active { border-color: #fff; box-shadow: 0 0 20px #fff; animation: ability-pulse 0.5s infinite; }
+  .ability-slot.on-cooldown { border-color: #555; color: #555; }
+  .ability-cooldown-bar {
+    position: absolute; bottom: 0; left: 0; height: 3px;
+    background: #0ff; transition: width 0.1s linear; width: 0%;
+  }
+  @keyframes ability-pulse { 0%,100%{box-shadow:0 0 20px #fff;} 50%{box-shadow:0 0 40px #fff;} }
+  .ability-key {
+    position: absolute; bottom: 2px; right: 3px;
+    font-size: 9px; color: #888; letter-spacing: 0;
+  }
+
+  #wave-display {
+    text-align: center; font-size: 11px; color: #888;
+    letter-spacing: 3px; margin-top: 6px;
+  }
+  #wave-number { color: #0ff; }
+
+  /* Overlays */
+  #overlay {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.85);
+    pointer-events: all;
+    transition: opacity 0.3s;
+  }
+  #overlay.hidden { opacity: 0; pointer-events: none; }
+  #overlay-box {
+    text-align: center; padding: 40px 60px;
+    border: 1px solid #0ff; box-shadow: 0 0 40px rgba(0,255,255,0.2);
+    background: #020202; max-width: 500px;
+  }
+  #overlay-title {
+    font-size: 42px; color: #0ff; letter-spacing: 8px;
+    text-shadow: 0 0 20px #0ff; margin-bottom: 16px;
+  }
+  #overlay-sub {
+    font-size: 13px; color: #888; letter-spacing: 2px; margin-bottom: 8px;
+  }
+  #overlay-score { font-size: 16px; color: #fff; margin-bottom: 24px; }
+  #overlay-btn {
+    font-family: 'Courier New', monospace;
+    font-size: 14px; letter-spacing: 3px;
+    padding: 12px 32px; border: 1px solid #0ff;
+    background: transparent; color: #0ff;
+    cursor: pointer; transition: all 0.2s;
+    pointer-events: all;
+  }
+  #overlay-btn:hover { background: #0ff; color: #000; }
+
+  /* CL unlock flash */
+  #cl-flash {
+    position: fixed; inset: 0; z-index: 90;
+    pointer-events: none;
+    background: radial-gradient(circle, rgba(0,255,255,0.3) 0%, transparent 70%);
+    opacity: 0; transition: opacity 0.05s;
+  }
+  #cl-flash.flash { opacity: 1; }
+
+  /* Wave clear flash */
+  #wave-flash {
+    position: fixed; inset: 0; z-index: 80;
+    pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  #wave-flash.show { opacity: 1; }
+  #wave-flash-text {
+    font-size: 32px; color: #0ff; letter-spacing: 8px;
+    text-shadow: 0 0 30px #0ff;
+  }
+
+  /* Chromatic aberration on CL unlock */
+  #chroma-overlay {
+    position: fixed; inset: 0; z-index: 85;
+    pointer-events: none; opacity: 0;
+    mix-blend-mode: screen;
+    background: linear-gradient(135deg, rgba(255,0,0,0.15) 0%, transparent 50%, rgba(0,0,255,0.15) 100%);
+  }
+
+  /* Unlock notification */
+  #unlock-notif {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    z-index: 95; text-align: center; pointer-events: none;
+    opacity: 0; transition: opacity 0.2s;
+  }
+  #unlock-notif.show { opacity: 1; }
+  #unlock-cl { font-size: 14px; color: #888; letter-spacing: 4px; margin-bottom: 4px; }
+  #unlock-ability { font-size: 28px; color: #0ff; letter-spacing: 6px; text-shadow: 0 0 20px #0ff; }
+
+  /* Kill counter */
+  #kill-counter {
+    font-size: 13px; color: #666; letter-spacing: 2px; margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+<div id="canvas-container"></div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="hud-left">
+    <div class="hud-label">CLEARANCE</div>
+    <div class="hud-value" id="cl-level">LEVEL 0</div>
+    <div id="hp-bar-container">
+      <div class="hp-pip" id="hp-0"></div>
+      <div class="hp-pip" id="hp-1"></div>
+      <div class="hp-pip" id="hp-2"></div>
+    </div>
+  </div>
+  <div id="hud-right">
+    <div class="hud-label">WAVE</div>
+    <div class="hud-value" id="wave-num">1 / 10</div>
+    <div id="kill-counter" id="kills">KILLS: 0</div>
+  </div>
+</div>
+
+<!-- CL progress bar + abilities -->
+<div id="cl-bar-container">
+  <div id="wave-display">WAVE <span id="wave-number">1</span> / 10</div>
+  <div id="cl-label">CLEARANCE LEVEL <span id="cl-number">0</span> / 10</div>
+  <div id="cl-bar-bg">
+    <div id="cl-bar-fill"></div>
+    <div id="cl-ticks">
+      <div class="cl-tick"></div>
+      <div class="cl-tick"></div>
+      <div class="cl-tick"></div>
+      <div class="cl-tick"></div>
+      <div class="cl-tick"></div>
+      <div class="cl-tick"></div>
+      <div class="cl-tick"></div>
+      <div class="cl-tick"></div>
+      <div class="cl-tick"></div>
+    </div>
+  </div>
+  <div id="ability-bar">
+    <div class="ability-slot" id="ab-dash">💨<div class="ability-key">SPC</div><div class="ability-cooldown-bar" id="cd-dash"></div></div>
+    <div class="ability-slot" id="ab-grenade">💣<div class="ability-key">Q</div><div class="ability-cooldown-bar" id="cd-grenade"></div></div>
+    <div class="ability-slot" id="ab-rifle">🔫<div class="ability-key">AUTO</div><div class="ability-cooldown-bar" id="cd-rifle"></div></div>
+    <div class="ability-slot" id="ab-shield">🛡️<div class="ability-key">E</div><div class="ability-cooldown-bar" id="cd-shield"></div></div>
+  </div>
+</div>
+
+<!-- Overlays -->
+<div id="cl-flash"></div>
+<div id="chroma-overlay"></div>
+<div id="wave-flash"><div id="wave-flash-text">WAVE CLEAR</div></div>
+
+<div id="unlock-notif">
+  <div id="unlock-cl">CLEARANCE LEVEL UP</div>
+  <div id="unlock-ability" id="unlock-name">DASH UNLOCKED</div>
+</div>
+
+<div id="overlay">
+  <div id="overlay-box">
+    <div id="overlay-title">CLEARANCE</div>
+    <div id="overlay-sub">OPERATIVE BRIEFING</div>
+    <div id="overlay-score" id="best-score">PERSONAL BEST: CL 0</div>
+    <div style="font-size:11px;color:#555;letter-spacing:2px;margin-bottom:8px;line-height:1.8">
+      SURVIVE 10 WAVES<br>
+      EARN CLEARANCE LEVEL TO UNLOCK ABILITIES<br>
+      REACH EXTRACTION AT CL 10<br><br>
+      WASD: MOVE | MOUSE: AIM + SHOOT<br>
+      SPACE: DASH | Q: GRENADE | E: SHIELD
+    </div>
+    <button id="overlay-btn" onclick="startGame()">[ INITIATE ]</button>
+  </div>
+</div>
+
+<script type="module" src="game.js"></script>
+</body>
+</html>

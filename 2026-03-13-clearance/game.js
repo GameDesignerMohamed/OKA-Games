@@ -85,10 +85,10 @@ const CL_UNLOCKS = [
   null,   // CL10 (extract appears)
 ];
 const UNLOCK_NAMES = {
-  dash: '\u26A1 DASH UNLOCKED',
-  grenade: '\uD83D\uDCA5 GRENADE UNLOCKED',
-  rifle: '\uD83D\uDD2B ASSAULT RIFLE UNLOCKED',
-  shield: '\uD83D\uDEE1 SHIELD UNLOCKED',
+  dash: '⚡ DASH UNLOCKED',
+  grenade: '💥 GRENADE UNLOCKED',
+  rifle: '🔫 ASSAULT RIFLE UNLOCKED',
+  shield: '🛡 SHIELD UNLOCKED',
 };
 
 // ─── SEEDED RNG ────────────────────────────────────────────────────────────
@@ -128,13 +128,18 @@ function init() {
   document.getElementById('canvas-container').appendChild(renderer.domElement);
 
   // Postprocessing
-  composer = new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(
-    new THREE.Vector2(window.innerWidth, window.innerHeight),
-    1.2, 0.4, 0.2
-  );
-  composer.addPass(bloom);
+  try {
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      1.2, 0.4, 0.2
+    );
+    composer.addPass(bloom);
+  } catch(e) {
+    console.warn('Bloom postprocessing failed, using direct render:', e);
+    composer = null;
+  }
 
   // Lights
   ambientLight = new THREE.AmbientLight(0x112233, 0.8);
@@ -191,7 +196,7 @@ function init() {
 
   // Load best CL from localStorage
   bestCL = parseInt(localStorage.getItem('clearance_best') || '0');
-  document.getElementById('best-score').textContent = `PERSONAL BEST: CL ${bestCL}`;
+  document.getElementById('overlay-score').textContent = `PERSONAL BEST: CL ${bestCL}`;
 
   // Start render loop
   let lastTime = performance.now();
@@ -201,7 +206,8 @@ function init() {
     lastTime = now;
     update(dt);
     cameraUpdate(dt);
-    composer.render();
+    if (composer) composer.render();
+    else renderer.render(scene, camera);
   }
   requestAnimationFrame(loop);
 
@@ -1213,7 +1219,7 @@ function onResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  composer.setSize(window.innerWidth, window.innerHeight);
+  if (composer) composer.setSize(window.innerWidth, window.innerHeight);
 }
 
 // ─── RIFLE AUTO-FIRE via mousemove hold ─────────────────────────────────────

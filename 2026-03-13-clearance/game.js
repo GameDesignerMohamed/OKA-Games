@@ -85,10 +85,10 @@ const CL_UNLOCKS = [
   null,   // CL10 (extract appears)
 ];
 const UNLOCK_NAMES = {
-  dash: '⚡ DASH UNLOCKED',
-  grenade: '💥 GRENADE UNLOCKED',
-  rifle: '🔫 ASSAULT RIFLE UNLOCKED',
-  shield: '🛡 SHIELD UNLOCKED',
+  dash: '\u26A1 DASH UNLOCKED',
+  grenade: '\uD83D\uDCA5 GRENADE UNLOCKED',
+  rifle: '\uD83D\uDD2B ASSAULT RIFLE UNLOCKED',
+  shield: '\uD83D\uDEE1 SHIELD UNLOCKED',
 };
 
 // ─── SEEDED RNG ────────────────────────────────────────────────────────────
@@ -187,10 +187,7 @@ function init() {
     mouseY = e.clientY;
     updateMouseWorld();
   });
-  window.addEventListener('click', e => {
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-    if (gameState === 'wave') tryShoot();
-  });
+  // click handling moved to mousedown listener below init()
 
   // Load best CL from localStorage
   bestCL = parseInt(localStorage.getItem('clearance_best') || '0');
@@ -437,12 +434,18 @@ function playDrone(freq, duration, startTime, vol) {
 }
 
 // ─── GAME START ──────────────────────────────────────────────────────────────
-window.startGame = function() {
+function startGame() {
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
   document.getElementById('overlay').classList.add('hidden');
   resetGame();
   startBGM();
-};
+}
+window.startGame = startGame;
+
+document.getElementById('overlay-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  startGame();
+});
 
 function resetGame() {
   // Clear scene objects
@@ -1218,7 +1221,7 @@ let mouseDown = false;
 window.addEventListener('mousedown', e => {
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
   mouseDown = true;
-  if (gameState === 'wave') tryShoot();
+  if (gameState === 'wave' && e.button === 0) tryShoot();
 });
 window.addEventListener('mouseup', () => { mouseDown = false; });
 

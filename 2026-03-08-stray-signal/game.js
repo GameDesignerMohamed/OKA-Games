@@ -119,8 +119,8 @@ function isWalkable(x, y) {
 // ─── THREE.JS SETUP ───────────────────────────────────────────────────────
 function initThree() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x080818);
-  scene.fog = new THREE.FogExp2(0x080818, 0.02);
+  scene.background = new THREE.Color(0x101025);
+  // No fog — was hiding everything
 
   camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 200);
   camera.position.set(GRID_W*TILE/2, 22, GRID_H*TILE/2 + 10);
@@ -131,10 +131,11 @@ function initThree() {
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.NoToneMapping;
   document.getElementById('canvas-container').appendChild(renderer.domElement);
 
   // Lighting
-  const ambient = new THREE.AmbientLight(0x224466, 3.0);
+  const ambient = new THREE.AmbientLight(0x668899, 5.0);
   scene.add(ambient);
 
   const dirLight = new THREE.DirectionalLight(0x88ccff, 3);
@@ -158,10 +159,21 @@ function initThree() {
 
 // ─── WORLD BUILDING ───────────────────────────────────────────────────────
 function buildWorld() {
+  // Re-add lights (cleared by initGame scene reset)
+  scene.add(new THREE.AmbientLight(0x668899, 5.0));
+  const dl = new THREE.DirectionalLight(0x88ccff, 3);
+  dl.position.set(10, 20, 10);
+  scene.add(dl);
+  const dl2 = new THREE.DirectionalLight(0x6688aa, 2);
+  dl2.position.set(-10, 15, -5);
+  scene.add(dl2);
+
   // Floor
   const floorGeo = new THREE.PlaneGeometry(GRID_W*TILE, GRID_H*TILE);
   const floorMat = new THREE.MeshStandardMaterial({
-    color: 0x001018,
+    color: 0x1a3848,
+    emissive: 0x0f2535,
+    emissiveIntensity: 1.5,
     roughness: 0.95,
     metalness: 0.1,
   });
@@ -173,14 +185,14 @@ function buildWorld() {
   // Grid lines on floor — circuit board aesthetic
   for (let x = 0; x <= GRID_W; x++) {
     const lineGeo = new THREE.BoxGeometry(0.03, 0.01, GRID_H*TILE);
-    const lineMat = new THREE.MeshBasicMaterial({ color: 0x004040 });
+    const lineMat = new THREE.MeshBasicMaterial({ color: 0x00aaaa });
     const line = new THREE.Mesh(lineGeo, lineMat);
     line.position.set(x*TILE - TILE/2, 0.01, GRID_H*TILE/2 - TILE/2);
     scene.add(line);
   }
   for (let y = 0; y <= GRID_H; y++) {
     const lineGeo = new THREE.BoxGeometry(GRID_W*TILE, 0.01, 0.03);
-    const lineMat = new THREE.MeshBasicMaterial({ color: 0x004040 });
+    const lineMat = new THREE.MeshBasicMaterial({ color: 0x00aaaa });
     const line = new THREE.Mesh(lineGeo, lineMat);
     line.position.set(GRID_W*TILE/2 - TILE/2, 0.01, y*TILE - TILE/2);
     scene.add(line);
@@ -194,9 +206,9 @@ function buildWorld() {
         const isLocked = tile === 2;
         const wallGeo = new THREE.BoxGeometry(TILE*0.95, WALL_H, TILE*0.95);
         const wallMat = new THREE.MeshStandardMaterial({
-          color: isLocked ? 0x220044 : 0x012030,
-          emissive: isLocked ? 0x440088 : 0x001520,
-          emissiveIntensity: isLocked ? 0.8 : 0.3,
+          color: isLocked ? 0x6622cc : 0x1a6080,
+          emissive: isLocked ? 0x8833ff : 0x1a5070,
+          emissiveIntensity: isLocked ? 1.5 : 1.2,
           roughness: 0.8,
           metalness: 0.3,
         });
@@ -227,7 +239,7 @@ function createPlayer() {
   player.castShadow = true;
   scene.add(player);
 
-  const light = new THREE.PointLight(0x00ffff, 2.5, 8);
+  const light = new THREE.PointLight(0x00ffff, 5, 15);
   player.add(light);
 }
 
@@ -1221,4 +1233,5 @@ document.getElementById('start-btn').addEventListener('click', () => {
 
 // ─── BOOTSTRAP ────────────────────────────────────────────────────────────
 initThree();
+render(); // Start the render loop
 // Start screen shows — game initialized on click

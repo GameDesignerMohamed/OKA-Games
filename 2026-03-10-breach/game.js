@@ -413,8 +413,12 @@ function buildRoom(roomIdx) {
   const config = ROOM_CONFIGS[Math.min(roomIdx, ROOM_CONFIGS.length - 1)];
 
   for (let i = 0; i < config.obstacles; i++) {
-    const ox = (rng() - 0.5) * (ROOM_W - 6);
-    const oz = (rng() - 0.5) * (ROOM_D - 6);
+    let ox, oz;
+    // Keep re-rolling until obstacle doesn't overlap player spawn (0, 3)
+    do {
+      ox = (rng() - 0.5) * (ROOM_W - 6);
+      oz = (rng() - 0.5) * (ROOM_D - 6);
+    } while (Math.abs(ox) < 3 && Math.abs(oz - 3) < 3);
     const ow = 1.5 + rng() * 1.5;
     const od = 1.5 + rng() * 1.5;
     addWall(ow, 2.5, od, ox, 1.25, oz);
@@ -458,6 +462,17 @@ function spawnPlayer() {
   const mat = new THREE.MeshStandardMaterial({ color: 0x44ffff, emissive: 0x22aaaa, roughness: 0.3 });
   player = new THREE.Mesh(geo, mat);
   player.position.set(0, 0.4, 3);
+  // Safety: if spawn overlaps an obstacle, nudge to a clear spot
+  if (collidesWithWall(player.position, 0.5)) {
+    const offsets = [[0,5],[0,7],[3,3],[-3,3],[3,5],[-3,5],[0,0]];
+    for (const [dx, dz] of offsets) {
+      const test = new THREE.Vector3(dx, 0.4, dz);
+      if (isInsideRoom(test) && !collidesWithWall(test, 0.5)) {
+        player.position.copy(test);
+        break;
+      }
+    }
+  }
   player.castShadow = true;
   scene.add(player);
   roomObjects.push(player);

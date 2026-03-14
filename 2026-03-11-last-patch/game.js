@@ -72,8 +72,8 @@ function initThree() {
   scene.fog = new THREE.FogExp2(0x040408, 0.04);
 
   // Isometric-ish camera
-  camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
-  camera.position.set(0, 14, 22);
+  camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+  camera.position.set(0, 10, 28);
   camera.lookAt(0, 0, 0);
 
   renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
@@ -84,7 +84,7 @@ function initThree() {
   composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(
-    new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.5, 0.15
+    new THREE.Vector2(window.innerWidth, window.innerHeight), 0.4, 0.3, 0.4
   );
   composer.addPass(bloom);
 
@@ -119,27 +119,25 @@ function buildServerRack() {
   rackGroup = new THREE.Group();
   scene.add(rackGroup);
 
-  const cols = 4, rows = 2;
-  const nodeW = 3.2, nodeH = 1.4, nodeD = 1.2;
-  const gapX = 0.4, gapY = 0.4;
+  const cols = 8, rows = 1;
+  const nodeW = 2.6, nodeH = 1.6, nodeD = 1.0;
+  const gapX = 0.5;
 
   FEATURES.forEach((feat, i) => {
     const col = i % cols;
-    const row = Math.floor(i / cols);
     const x = (col - (cols - 1) / 2) * (nodeW + gapX);
-    const y = (row - (rows - 1) / 2) * (nodeH + gapY);
+    const y = 0;
     const z = 0;
 
-    // Node body
+    // Node body — high emissive so boxes glow visibly
     const geo = new THREE.BoxGeometry(nodeW, nodeH, nodeD);
-    const tierColors = { early: 0x2a5040, mid: 0x2a4060, final: 0x503030 };
-    const tierEmissive = { early: 0x1a4030, mid: 0x1a3050, final: 0x402020 };
+    const tierColors = { early: 0x22aa66, mid: 0x2266cc, final: 0xcc3333 };
     const mat = new THREE.MeshStandardMaterial({
       color: tierColors[feat.tier],
-      emissive: tierEmissive[feat.tier],
-      emissiveIntensity: 0.8,
-      roughness: 0.5,
-      metalness: 0.6,
+      emissive: tierColors[feat.tier],
+      emissiveIntensity: 2.0,
+      roughness: 0.3,
+      metalness: 0.1,
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x, y, z);
@@ -157,23 +155,39 @@ function buildServerRack() {
     led.position.set(x, y + nodeH / 2 + 0.05, z + nodeD / 2 + 0.01);
     rackGroup.add(led);
 
-    // Label sprite — text on the node face
+    // Label sprite — floating ABOVE box with opaque background (sprites always face camera)
+    const featureIcons = {
+      'Chat System': '💬', 'Trading Post': '🏪', 'Guild Halls': '🏰',
+      'Daily Quests': '📜', 'PvP Arena': '⚔️', 'Leaderboards': '🏆',
+      'Custom Avatars': '🎭', 'Core Engine': '⚙️',
+    };
+    const tierLabelBg = { early: '#0a2a18', mid: '#0a1a3a', final: '#3a0a0a' };
+    const tierLabelColor = { early: '#55ffaa', mid: '#55aaff', final: '#ff7766' };
     const labelCanvas = document.createElement('canvas');
-    labelCanvas.width = 256;
-    labelCanvas.height = 64;
+    labelCanvas.width = 512;
+    labelCanvas.height = 128;
     const ctx = labelCanvas.getContext('2d');
-    ctx.fillStyle = 'transparent';
-    ctx.fillRect(0, 0, 256, 64);
-    ctx.font = 'bold 22px Courier New';
+    // Opaque dark background
+    ctx.fillStyle = tierLabelBg[feat.tier];
+    ctx.fillRect(0, 0, 512, 128);
+    // Border
+    ctx.strokeStyle = tierLabelColor[feat.tier];
+    ctx.lineWidth = 4;
+    ctx.strokeRect(2, 2, 508, 124);
+    // Icon + Name
+    ctx.font = '48px serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(feat.name, 128, 32);
+    ctx.fillText(featureIcons[feat.name] || '📦', 60, 64);
+    ctx.font = 'bold 36px Courier New';
+    ctx.fillStyle = tierLabelColor[feat.tier];
+    ctx.textAlign = 'center';
+    ctx.fillText(feat.name, 300, 64);
     const labelTex = new THREE.CanvasTexture(labelCanvas);
-    const labelMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true, opacity: 0.9 });
-    const label = new THREE.Sprite(labelMat);
-    label.position.set(x, y, z + nodeD / 2 + 0.15);
-    label.scale.set(nodeW * 0.9, nodeH * 0.4, 1);
+    const labelMat2 = new THREE.SpriteMaterial({ map: labelTex });
+    const label = new THREE.Sprite(labelMat2);
+    label.position.set(x, y + nodeH / 2 + 0.6, z);
+    label.scale.set(nodeW * 1.1, nodeH * 0.5, 1);
     rackGroup.add(label);
 
     feat.label = label;
@@ -186,22 +200,7 @@ function buildServerRack() {
     feat.originalPos = new THREE.Vector3(x, y, z);
   });
 
-  // Rack frame
-  const frameGeo = new THREE.BoxGeometry(cols * (nodeW + gapX) + 0.5, rows * (nodeH + gapY) + 0.5, nodeD + 0.4);
-  const frameMat = new THREE.MeshStandardMaterial({
-    color: 0x111118,
-    roughness: 0.9,
-    metalness: 0.5,
-    wireframe: false,
-  });
-  const frame = new THREE.Mesh(frameGeo, frameMat);
-  scene.add(frame);
-
-  // Rack outline
-  const edgesGeo = new THREE.EdgesGeometry(frameGeo);
-  const edgesMat = new THREE.LineBasicMaterial({ color: 0x223344 });
-  const edges = new THREE.LineSegments(edgesGeo, edgesMat);
-  scene.add(edges);
+  // No enclosing rack frame — individual boxes are visible on their own
 
   // Starfield / ambient particles
   const starGeo = new THREE.BufferGeometry();

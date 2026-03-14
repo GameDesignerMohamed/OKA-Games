@@ -1,6 +1,6 @@
 # Directive
 
-**Idea:** Command 4 autonomous AI agents (Scout/Builder/Fighter/Medic) by clicking to assign goals — survive 7 waves of enemies attacking your Core.
+**Idea:** Agentic RTS where you issue goals to 4 autonomous AI sub-agents (Scout/Builder/Fighter/Medic) to defend a central Core across 7 waves of enemies.
 **Status:** Working prototype
 **Date:** 2026-03-14
 
@@ -11,15 +11,13 @@ cd ~/Projects/OKA-Games/2026-03-14-directive && python3 -m http.server 8080
 Then open: http://localhost:8080
 
 ## What Was Built
-A Three.js top-down RTS where you play as an AI director issuing goal assignments to autonomous units. Click an agent to select it, then click the ground (move), an enemy (attack), or an ally (support). Agents execute independently — Scout scouts/ranges, Builder melee-tanks, Fighter taunts enemies, Medic heals passively. 7 escalating waves, ability unlocks per wave, enemy telegraphs (Breach pattern) before all attacks.
-
-## Market Signal Tested
-Google's GDC agentic AI pipeline reveal: "player IS the AI director, issuing natural-language goals to AI sub-units." DIRECTIVE makes this the entire game mechanic — goal assignment IS the gameplay.
+Top-down Three.js RTS with click-to-assign goal system. Player selects an agent by clicking it (or pressing 1-4), then clicks the ground to move, clicks an enemy to attack, or clicks an ally to support. Each agent type has unique behavior: Scout auto-attacks, Builder places turrets, Fighter taunts enemies, Medic heals allies. Agents act autonomously when idle — Scout/Fighter auto-engage nearby enemies, Medic auto-heals lowest HP ally. Telegraph rings show 0.8s before all enemy attacks. 4 ability unlocks across 7 waves (W2: Scout Reveal, W3: Builder Turret, W5: Fighter Taunt, W6: Medic Burst). Rejection bubbles fire when player tries to give an invalid goal (Builder attacking, Medic attacking, out-of-bounds turret placement).
 
 ## Key Takeaway
-Goal assignment is satisfying when: (1) agent execution is legible and immediate, (2) rejection states tell you WHY it failed, (3) agents have distinct visual identity so you instantly know who does what. The "select → assign → watch" loop mimics actual agentic workflow at game speed.
+The click-to-assign goal system proves the agentic pipeline metaphor — you're the director issuing intent, not the executor micromanaging actions. The rejection feedback (bubbles saying "NOT MY JOB" or "HEAL ONLY") makes agent specialization tangible and funny.
 
 ## What I'd Change Next
-- Add a 5th agent type (Drone/Recon) that reveals fog of war tiles permanently
-- Per-wave ability branching choice (Fighter taunt OR shield bash at wave 3)
-- Run-end stats: who killed the most, who died first, ability uses
+- Add voice line audio cues per agent type on goal assignment
+- Upgrade Builder to construct walls/barriers, not just auto-turrets
+- Add a "situation report" HUD showing what each agent is currently doing autonomously
+- Scout's reveal ability should show enemy HP and type in a mini-map

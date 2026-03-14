@@ -1,1353 +1,1365 @@
-import * as THREE from "three";
-import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
-import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-// ─── MODULE SCOPE VARIABLES ──────────────────────────────────────────────────
-let scene, camera, renderer, composer, useComposer = false;
+// ─── Constants ───────────────────────────────────────────────────────────────
+const ARENA_RADIUS = 28;
+const CORE_POS = new THREE.Vector3(0, 0, 0);
+const CORE_MAX_HP = 10;
+const AGENT_SPEED = 6;
+const AGENT_ATTACK_RANGE = 5;
+const AGENT_ATTACK_COOLDOWN = 1.2;
+const ENEMY_SPEED_BASE = 2.8;
+const ENEMY_ATTACK_RANGE = 2.0;
+const ENEMY_ATTACK_COOLDOWN = 1.5;
+const TELEGRAPH_DURATION = 0.8;
+const TURRET_RANGE = 9;
+const TURRET_ATTACK_COOLDOWN = 1.8;
+const MEDIC_HEAL_RANGE = 6;
+const MEDIC_HEAL_COOLDOWN = 3.0;
+const MEDIC_HEAL_AMT = 2;
+
+// Wave config: [grunt count, rusher count, tank count]
+const WAVE_CONFIG = [
+  [3, 0, 0],
+  [4, 1, 0],
+  [5, 2, 0],
+  [5, 2, 1],
+  [6, 3, 1],
+  [7, 3, 2],
+  [8, 4, 2],
+];
+
+const ABILITY_UNLOCKS = {
+  2: { name: 'SCOUT REVEAL', desc: 'Scout reveals all enemies for 8s' },
+  3: { name: 'BUILDER TURRET', desc: 'Builder places an auto-turret' },
+  5: { name: 'FIGHTER TAUNT', desc: 'Fighter taunts all enemies for 5s' },
+  6: { name: 'MEDIC BURST', desc: 'Medic heals all agents instantly' },
+};
+
+const AGENT_COLORS = [0x00ffff, 0xffcc00, 0xff4400, 0x00ff88];
+const AGENT_NAMES = ['SCOUT', 'BUILDER', 'FIGHTER', 'MEDIC'];
+
+// ─── Module-scope state ───────────────────────────────────────────────────────
+let renderer, scene, camera, composer;
+let clock;
 let raycaster, mouse;
-let clock, dt, timeScale = 1;
 
-// Game state
-let gameState = "start"; // start | build | wave | win | lose
-let currentWave = 0;
-let waveTimer = 0;
-let buildTimer = 0;
-const BUILD_PHASE_DURATION = 5;
-const WAVE_AUTO_START = 3;
+let coreHp = CORE_MAX_HP;
+let waveNum = 0;
+let phase = 'start'; // start | build | combat | waveclear | gameover | win
+let gameStarted = false;
 
-// Entities
 let agents = [];
 let enemies = [];
-let bullets = [];
+let turrets = [];
 let particles = [];
 let telegraphs = [];
-let selectionRing = null;
-let selectedAgent = null;
-let groundPlane = null;
-let coreObject = null;
-let coreHP = 3;
-const CORE_MAX_HP = 3;
 
-// Camera shake
+let selectedAgentIdx = -1;
+let abilityUnlocked = { 2: false, 3: false, 5: false, 6: false };
+let abilityCooldown = { 2: 0, 3: 0, 5: 0, 6: 0 };
+let abilityDuration = { 2: 0 }; // scout reveal timer
+
+let coreGroup, coreMesh;
+let groundMesh, arenaRingMesh;
+let audioCtx;
+let bgmNodes = [];
+let bgmStarted = false;
 let cameraShake = 0;
 
-// HUD elements (cached)
-let elWaveNum, elPhase, elCoreHpVal, elSelectionInfo, elAbilityPanel;
-let elUnlockFlash, elOverlay, elOverlayTitle, elOverlaySub;
-let elStartOverlay, elStartBtn, elStartPrompt;
-let hpFills = [];
-let agentCards = [];
+// ─── DOM refs ─────────────────────────────────────────────────────────────────
+const waveNumEl = document.getElementById('wave-num');
+const phaseEl = document.getElementById('phase-display');
+const coreHpEl = document.getElementById('core-hp-val');
+const selectionInfoEl = document.getElementById('selection-info');
+const bubblesEl = document.getElementById('bubbles-container');
+const overlayEl = document.getElementById('overlay');
+const overlayTitleEl = document.getElementById('overlay-title');
+const overlaySubEl = document.getElementById('overlay-sub');
+const overlayBtnEl = document.getElementById('overlay-btn');
+const startOverlayEl = document.getElementById('start-overlay');
+const startBtnEl = document.getElementById('start-btn');
+const unlockFlashEl = document.getElementById('unlock-flash');
+const abilityPanelEl = document.getElementById('ability-panel');
+const startPromptEl = document.getElementById('start-prompt');
 
-// Audio
-let audioCtx = null;
-let bgmNodes = [];
-let bgmTimeout = null;
-let bgmWave3Playing = false;
-let bgmWave5Playing = false;
+// ─── Geometry / Material cache ────────────────────────────────────────────────
+const geoCache = {};
+const matCache = {};
 
-// Wave definitions
-const WAVE_DEFS = [
-  { grunts: 4, rushers: 0, tanks: 0, unlock: "SCOUT: Fog Reveal (passive)" },
-  { grunts: 6, rushers: 0, tanks: 0, unlock: "BUILDER: Reinforce Wall" },
-  { grunts: 6, rushers: 2, tanks: 0, unlock: "FIGHTER: Taunt Enemies" },
-  { grunts: 4, rushers: 4, tanks: 0, unlock: "MEDIC: AoE Heal Pulse" },
-  { grunts: 6, rushers: 4, tanks: 1, unlock: null },
-  { grunts: 4, rushers: 6, tanks: 2, unlock: null },
-  { grunts: 4, rushers: 8, tanks: 3, unlock: null }
-];
+function getGeo(key, factory) {
+  if (!geoCache[key]) geoCache[key] = factory();
+  return geoCache[key];
+}
+function getMat(key, factory) {
+  if (!matCache[key]) matCache[key] = factory();
+  return matCache[key];
+}
 
-// Agent definitions
-const AGENT_DEFS = [
-  { name: "SCOUT",   color: 0x00ffff, speed: 4.0, hp: 3, dmgType: "ranged", dmg: 1, cdMax: 1.5, range: 3.0, idx: 0, startPos: [-3, 0, -3] },
-  { name: "BUILDER", color: 0xffcc00, speed: 2.0, hp: 3, dmgType: "melee",  dmg: 1, cdMax: 2.0, range: 0.8, idx: 1, startPos: [3, 0, -3] },
-  { name: "FIGHTER", color: 0xff4400, speed: 2.5, hp: 3, dmgType: "melee",  dmg: 2, cdMax: 1.0, range: 0.8, idx: 2, startPos: [-3, 0, 3] },
-  { name: "MEDIC",   color: 0x00ff88, speed: 1.8, hp: 3, dmgType: "heal",   dmg: 0, cdMax: 2.0, range: 2.0, idx: 3, startPos: [3, 0, 3] }
-];
-
-// ─── INIT ─────────────────────────────────────────────────────────────────────
+// ─── Init ─────────────────────────────────────────────────────────────────────
 function init() {
-  // Scene
-  scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x0a0a1a, 0.04);
-  scene.background = new THREE.Color(0x050510);
-
-  // Camera (orthographic top-down)
-  const aspect = window.innerWidth / window.innerHeight;
-  const zoom = 18;
-  camera = new THREE.OrthographicCamera(
-    -zoom * aspect, zoom * aspect, zoom, -zoom, 0.1, 200
-  );
-  camera.position.set(0, 20, 8);
-  camera.lookAt(0, 0, 0);
-
-  // Renderer
-  renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
-  document.body.appendChild(renderer.domElement);
-
-  // Postprocessing
-  try {
-    composer = new EffectComposer(renderer);
-    const renderPass = new RenderPass(scene, camera);
-    composer.addPass(renderPass);
-    const bloom = new UnrealBloomPass(
-      new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.4, 0.85
-    );
-    composer.addPass(bloom);
-    useComposer = true;
-  } catch (e) {
-    console.warn("Bloom failed, using direct render:", e);
-    useComposer = false;
-  }
-
-  // Lighting
-  const ambient = new THREE.AmbientLight(0x334455, 0.6);
-  scene.add(ambient);
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
-  dirLight.position.set(5, 10, 5);
-  scene.add(dirLight);
-
-  // Raycaster
-  raycaster = new THREE.Raycaster();
-  mouse = new THREE.Vector2();
-
-  // Clock
   clock = new THREE.Clock();
 
-  // Ground plane (invisible, for raycasting)
-  const groundGeo = new THREE.PlaneGeometry(40, 40);
-  const groundMat = new THREE.MeshLambertMaterial({ color: 0x0a0a18, transparent: true, opacity: 0.8 });
-  groundPlane = new THREE.Mesh(groundGeo, groundMat);
-  groundPlane.rotation.x = -Math.PI / 2;
-  groundPlane.position.y = -0.05;
-  groundPlane.receiveShadow = true;
-  groundPlane.userData.isGround = true;
-  scene.add(groundPlane);
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x020408);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.body.appendChild(renderer.domElement);
 
-  // Grid
-  const grid = new THREE.GridHelper(24, 24, 0x112233, 0x0a1020);
-  grid.position.y = -0.04;
-  scene.add(grid);
+  scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x020408, 0.022);
 
-  // Starfield
+  camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
+  camera.position.set(0, 36, 26);
+  camera.lookAt(0, 0, 0);
+
+  // Lighting
+  const ambient = new THREE.AmbientLight(0x111122, 0.8);
+  scene.add(ambient);
+
+  const dirLight = new THREE.DirectionalLight(0x8899cc, 1.2);
+  dirLight.position.set(10, 20, 10);
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.set(1024, 1024);
+  dirLight.shadow.camera.near = 0.5;
+  dirLight.shadow.camera.far = 80;
+  dirLight.shadow.camera.left = -35;
+  dirLight.shadow.camera.right = 35;
+  dirLight.shadow.camera.top = 35;
+  dirLight.shadow.camera.bottom = -35;
+  scene.add(dirLight);
+
+  const coreLight = new THREE.PointLight(0x4488ff, 2.5, 18);
+  coreLight.position.set(0, 3, 0);
+  scene.add(coreLight);
+
+  // Stars
   const starGeo = new THREE.BufferGeometry();
   const starVerts = [];
   for (let i = 0; i < 600; i++) {
     starVerts.push(
-      (Math.random() - 0.5) * 40,
-      Math.random() * 8 + 0.5,
-      (Math.random() - 0.5) * 40
+      (Math.random() - 0.5) * 200,
+      20 + Math.random() * 80,
+      (Math.random() - 0.5) * 200
     );
   }
-  starGeo.setAttribute("position", new THREE.Float32BufferAttribute(starVerts, 3));
-  const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.05 }));
-  scene.add(stars);
+  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVerts, 3));
+  const starMat = new THREE.PointsMaterial({ color: 0xaaaacc, size: 0.3 });
+  scene.add(new THREE.Points(starGeo, starMat));
 
-  // Boundary walls (visual)
-  buildMap();
+  // Ground
+  const groundGeo = new THREE.CircleGeometry(ARENA_RADIUS, 64);
+  const groundMat = new THREE.MeshLambertMaterial({ color: 0x050a10 });
+  groundMesh = new THREE.Mesh(groundGeo, groundMat);
+  groundMesh.rotation.x = -Math.PI / 2;
+  groundMesh.receiveShadow = true;
+  groundMesh.name = 'ground';
+  scene.add(groundMesh);
+
+  // Arena ring
+  const ringGeo = new THREE.TorusGeometry(ARENA_RADIUS, 0.25, 8, 80);
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0x1a2a44 });
+  arenaRingMesh = new THREE.Mesh(ringGeo, ringMat);
+  arenaRingMesh.rotation.x = -Math.PI / 2;
+  scene.add(arenaRingMesh);
+
+  // Grid lines
+  const gridHelper = new THREE.GridHelper(ARENA_RADIUS * 2, 20, 0x0a1520, 0x0a1520);
+  scene.add(gridHelper);
 
   // Core
   buildCore();
 
-  // Selection ring
-  const ringGeo = new THREE.RingGeometry(0.55, 0.7, 24);
-  const ringMat = new THREE.MeshBasicMaterial({ color: 0xffff44, side: THREE.DoubleSide });
-  selectionRing = new THREE.Mesh(ringGeo, ringMat);
-  selectionRing.rotation.x = -Math.PI / 2;
-  selectionRing.position.y = 0.02;
-  selectionRing.visible = false;
-  scene.add(selectionRing);
-
-  // HUD refs
-  elWaveNum = document.getElementById("wave-num");
-  elPhase = document.getElementById("phase-display");
-  elCoreHpVal = document.getElementById("core-hp-val");
-  elSelectionInfo = document.getElementById("selection-info");
-  elAbilityPanel = document.getElementById("ability-panel");
-  elUnlockFlash = document.getElementById("unlock-flash");
-  elOverlay = document.getElementById("overlay");
-  elOverlayTitle = document.getElementById("overlay-title");
-  elOverlaySub = document.getElementById("overlay-sub");
-  elStartOverlay = document.getElementById("start-overlay");
-  elStartBtn = document.getElementById("start-btn");
-  elStartPrompt = document.getElementById("start-prompt");
-  for (let i = 0; i < 4; i++) {
-    hpFills.push(document.getElementById("hp-fill-" + i));
-    agentCards.push(document.getElementById("card-" + i));
+  // EffectComposer
+  try {
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      1.1, 0.5, 0.75
+    );
+    composer.addPass(bloom);
+  } catch (e) {
+    composer = null;
+    console.warn('Bloom unavailable:', e);
   }
+
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
+
+  // Build agents
+  buildAgents();
 
   // Events
-  elStartBtn.addEventListener("click", startGame);
-  document.getElementById("overlay-btn").addEventListener("click", restartGame);
-  renderer.domElement.addEventListener("click", onCanvasClick);
-  window.addEventListener("keydown", onKeyDown);
-  window.addEventListener("resize", onResize);
+  window.addEventListener('resize', onResize);
+  window.addEventListener('click', onClick);
+  window.addEventListener('keydown', onKeyDown);
 
-  animate();
+  startBtnEl.addEventListener('click', startGame);
+  overlayBtnEl.addEventListener('click', restartGame);
+
+  // Build ability panel
+  buildAbilityPanel();
+
+  loop();
 }
 
-function buildMap() {
-  // Boundary walls (visual only, not collision)
-  const wallPositions = [
-    [-5, 0.5, -5], [5, 0.5, -5], [-5, 0.5, 5], [5, 0.5, 5]
-  ];
-  wallPositions.forEach(pos => {
-    const wallGeo = new THREE.BoxGeometry(0.4, 1, 4);
-    const wallMat = new THREE.MeshLambertMaterial({ color: 0x223344 });
-    const wall = new THREE.Mesh(wallGeo, wallMat);
-    wall.position.set(pos[0], pos[1], pos[2]);
-    wall.castShadow = true;
-    wall.userData.isWall = true;
-    scene.add(wall);
-  });
-  // Arena boundary (visual)
-  const edges = [
-    { pos: [0, 0.3, -12], rot: [0, 0, 0], size: [24, 0.6, 0.3] },
-    { pos: [0, 0.3, 12], rot: [0, 0, 0], size: [24, 0.6, 0.3] },
-    { pos: [-12, 0.3, 0], rot: [0, 0, 0], size: [0.3, 0.6, 24] },
-    { pos: [12, 0.3, 0], rot: [0, 0, 0], size: [0.3, 0.6, 24] }
-  ];
-  edges.forEach(e => {
-    const geo = new THREE.BoxGeometry(e.size[0], e.size[1], e.size[2]);
-    const mat = new THREE.MeshLambertMaterial({ color: 0x113355, transparent: true, opacity: 0.6 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(e.pos[0], e.pos[1], e.pos[2]);
-    scene.add(mesh);
-  });
-}
-
+// ─── Core ─────────────────────────────────────────────────────────────────────
 function buildCore() {
-  const geo = new THREE.BoxGeometry(2, 0.8, 2);
-  const mat = new THREE.MeshLambertMaterial({ color: 0x2244bb, emissive: 0x112266, emissiveIntensity: 0.5 });
-  coreObject = new THREE.Mesh(geo, mat);
-  coreObject.position.set(0, 0.4, 0);
-  coreObject.castShadow = true;
-  coreObject.userData.isCore = true;
-  coreHP = CORE_MAX_HP;
-  scene.add(coreObject);
-  // Core glow
-  const coreLight = new THREE.PointLight(0x2244ff, 1.5, 4);
-  coreLight.position.set(0, 1, 0);
-  coreObject.add(coreLight);
+  coreGroup = new THREE.Group();
+  scene.add(coreGroup);
+
+  const geo = new THREE.OctahedronGeometry(1.6, 1);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x2244aa,
+    emissive: 0x112244,
+    emissiveIntensity: 0.6,
+    metalness: 0.6,
+    roughness: 0.3,
+  });
+  coreMesh = new THREE.Mesh(geo, mat);
+  coreMesh.castShadow = true;
+  coreMesh.position.y = 1.6;
+  coreMesh.name = 'core';
+  coreGroup.add(coreMesh);
+
+  // Ring base
+  const baseGeo = new THREE.CylinderGeometry(2.2, 2.2, 0.2, 32);
+  const baseMat = new THREE.MeshLambertMaterial({ color: 0x112233 });
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.position.y = 0.1;
+  coreGroup.add(base);
+
+  // Orbit ring
+  const orbitGeo = new THREE.TorusGeometry(2.2, 0.06, 8, 48);
+  const orbitMat = new THREE.MeshBasicMaterial({ color: 0x4488ff });
+  const orbit = new THREE.Mesh(orbitGeo, orbitMat);
+  orbit.rotation.x = Math.PI / 2;
+  orbit.position.y = 1.6;
+  orbit.name = 'coreOrbit';
+  coreGroup.add(orbit);
+
+  updateCoreHpDisplay();
 }
 
-function spawnAgents() {
-  // Remove old agents
-  agents.forEach(a => {
-    if (a.mesh) scene.remove(a.mesh);
-    if (a.hpBarBg) scene.remove(a.hpBarBg);
-    if (a.hpBarFill) scene.remove(a.hpBarFill);
-  });
+function updateCoreHpDisplay() {
+  let html = '';
+  for (let i = 0; i < CORE_MAX_HP; i++) {
+    html += `<span class="pip${i < coreHp ? '' : ' empty'}"></span>`;
+  }
+  coreHpEl.innerHTML = html;
+
+  // Color based on hp
+  const ratio = coreHp / CORE_MAX_HP;
+  if (coreMesh) {
+    if (ratio > 0.6) coreMesh.material.color.setHex(0x2244aa);
+    else if (ratio > 0.3) coreMesh.material.color.setHex(0xaa6600);
+    else coreMesh.material.color.setHex(0xaa2222);
+  }
+}
+
+// ─── Agents ───────────────────────────────────────────────────────────────────
+function buildAgents() {
+  const positions = [
+    new THREE.Vector3(-6, 0, 6),
+    new THREE.Vector3(6, 0, 6),
+    new THREE.Vector3(-6, 0, -6),
+    new THREE.Vector3(6, 0, -6),
+  ];
+
+  const geometries = [
+    () => new THREE.CapsuleGeometry(0.35, 0.7, 4, 8),       // Scout
+    () => new THREE.BoxGeometry(0.8, 0.8, 0.8),              // Builder
+    () => new THREE.OctahedronGeometry(0.55, 0),             // Fighter
+    () => new THREE.ConeGeometry(0.45, 1.0, 8),              // Medic
+  ];
+
+  const maxHps = [6, 8, 10, 7];
+
   agents = [];
 
-  AGENT_DEFS.forEach(def => {
-    let geo;
-    if (def.idx === 0) geo = new THREE.CapsuleGeometry(0.22, 0.55, 4, 8);
-    else if (def.idx === 1) geo = new THREE.BoxGeometry(0.5, 0.8, 0.5);
-    else if (def.idx === 2) geo = new THREE.OctahedronGeometry(0.4);
-    else geo = new THREE.ConeGeometry(0.3, 0.7, 6);
-
-    const mat = new THREE.MeshLambertMaterial({ color: def.color, emissive: def.color, emissiveIntensity: 0.2 });
+  for (let i = 0; i < 4; i++) {
+    const geo = geometries[i]();
+    const mat = new THREE.MeshStandardMaterial({
+      color: AGENT_COLORS[i],
+      emissive: AGENT_COLORS[i],
+      emissiveIntensity: 0.25,
+      metalness: 0.3,
+      roughness: 0.5,
+    });
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(def.startPos[0], 0.5, def.startPos[2]);
     mesh.castShadow = true;
-    mesh.userData.agentIdx = def.idx;
+    mesh.position.copy(positions[i]);
+    mesh.position.y = 0.5;
+    mesh.name = 'agent_' + i;
     scene.add(mesh);
 
-    // HP bar background
-    const hpBgGeo = new THREE.PlaneGeometry(1.0, 0.12);
-    const hpBgMat = new THREE.MeshBasicMaterial({ color: 0x330000, side: THREE.DoubleSide });
-    const hpBg = new THREE.Mesh(hpBgGeo, hpBgMat);
-    scene.add(hpBg);
+    // Selection ring (hidden by default)
+    const selRingGeo = new THREE.RingGeometry(0.7, 0.85, 24);
+    const selRingMat = new THREE.MeshBasicMaterial({ color: 0xffff44, side: THREE.DoubleSide });
+    const selRing = new THREE.Mesh(selRingGeo, selRingMat);
+    selRing.rotation.x = -Math.PI / 2;
+    selRing.position.y = 0.05;
+    selRing.visible = false;
+    mesh.add(selRing);
 
-    // HP bar fill
-    const hpFillGeo = new THREE.PlaneGeometry(1.0, 0.10);
-    const hpFillMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, side: THREE.DoubleSide });
-    const hpFill = new THREE.Mesh(hpFillGeo, hpFillMat);
-    scene.add(hpFill);
+    const agent = {
+      idx: i,
+      mesh,
+      selRing,
+      hp: maxHps[i],
+      maxHp: maxHps[i],
+      pos: positions[i].clone(),
+      target: null,         // THREE.Vector3 move target
+      attackTarget: null,   // enemy ref
+      supportTarget: null,  // agent ref
+      state: 'idle',        // idle | moving | attacking | supporting | dead
+      attackTimer: 0,
+      healTimer: 0,
+      type: AGENT_NAMES[i].toLowerCase(),
+      revealed: false,      // Scout reveal
+    };
+    agents.push(agent);
 
-    // Point light on agent
-    const light = new THREE.PointLight(def.color, 0.8, 2.5);
-    mesh.add(light);
-    light.position.set(0, 0, 0);
-
-    agents.push({
-      def, mesh, hpBarBg: hpBg, hpBarFill: hpFill,
-      hp: def.hp, maxHp: def.hp,
-      goal: null, // { type: "move"|"attack"|"support", target }
-      attackCd: 0,
-      abilityCd: 0,
-      invincibleTimer: 0,
-      tauntTimer: 0, // active taunt duration
-      alive: true,
-      dead: false,
-      deadTimer: 0,
-      speed: def.speed,
-      vx: 0, vz: 0
-    });
-  });
-}
-
-// ─── WAVE MANAGEMENT ─────────────────────────────────────────────────────────
-function startGame() {
-  elStartOverlay.style.display = "none";
-  initAudio();
-  spawnAgents();
-  gameState = "build";
-  currentWave = 0;
-  coreHP = CORE_MAX_HP;
-  updateHUD();
-  playBGM();
-}
-
-function restartGame() {
-  elOverlay.classList.remove("show");
-  // Clean up enemies
-  enemies.forEach(e => { if (e.mesh) scene.remove(e.mesh); if (e.telegraph) scene.remove(e.telegraph); });
-  enemies = [];
-  bullets.forEach(b => { if (b.mesh) scene.remove(b.mesh); });
-  bullets = [];
-  particles.forEach(p => { if (p.mesh) scene.remove(p.mesh); });
-  particles = [];
-  telegraphs.forEach(t => { if (t.mesh) scene.remove(t.mesh); });
-  telegraphs = [];
-  selectedAgent = null;
-  selectionRing.visible = false;
-  timeScale = 1;
-  currentWave = 0;
-  coreHP = CORE_MAX_HP;
-  gameState = "build";
-  spawnAgents();
-  updateHUD();
-}
-
-function startNextWave() {
-  if (gameState !== "build") return;
-  if (currentWave >= 7) return;
-  gameState = "wave";
-  waveTimer = 0;
-  elPhase.textContent = "WAVE ACTIVE";
-  const wDef = WAVE_DEFS[currentWave];
-  spawnWave(wDef);
-  // Show unlock flash
-  if (wDef.unlock) {
-    showUnlockFlash(wDef.unlock);
-    playAbilityUnlock();
+    updateAgentCard(i);
   }
-  // Add BGM layer
-  if (currentWave >= 2 && !bgmWave3Playing) { addBGMLayer3(); bgmWave3Playing = true; }
-  if (currentWave >= 4 && !bgmWave5Playing) { addBGMLayer5(); bgmWave5Playing = true; }
-  updateHUD();
 }
 
-function spawnWave(wDef) {
-  const corners = [[-11, 0, -11], [11, 0, -11], [-11, 0, 11], [11, 0, 11]];
-  let spawnList = [];
-  for (let i = 0; i < wDef.grunts; i++) spawnList.push("grunt");
-  for (let i = 0; i < wDef.rushers; i++) spawnList.push("rusher");
-  for (let i = 0; i < wDef.tanks; i++) spawnList.push("tank");
+function updateAgentCard(i) {
+  const agent = agents[i];
+  const card = document.getElementById('card-' + i);
+  const fill = document.getElementById('hp-fill-' + i);
+  if (!card || !fill) return;
 
-  spawnList.forEach((type, i) => {
-    const corner = corners[i % 4];
-    const offset = [(Math.random() - 0.5) * 2, 0, (Math.random() - 0.5) * 2];
-    spawnEnemy(type, corner[0] + offset[0], corner[2] + offset[2]);
-  });
+  card.classList.toggle('selected', i === selectedAgentIdx);
+  card.classList.toggle('dead', agent.state === 'dead');
+  fill.style.width = Math.max(0, (agent.hp / agent.maxHp) * 100) + '%';
 }
 
-function spawnEnemy(type, x, z) {
-  let geo, color, hp, speed, dmg, radius;
-  if (type === "grunt") {
-    geo = new THREE.SphereGeometry(0.32, 8, 6);
-    color = 0xff2222; hp = 2; speed = 1.5; dmg = 1; radius = 0.32;
-  } else if (type === "rusher") {
-    geo = new THREE.TetrahedronGeometry(0.4);
-    color = 0xff8800; hp = 1; speed = 3.0; dmg = 1; radius = 0.4;
-  } else {
-    geo = new THREE.IcosahedronGeometry(0.5, 0);
-    color = 0x880000; hp = 5; speed = 0.8; dmg = 2; radius = 0.5;
+// ─── Enemies ──────────────────────────────────────────────────────────────────
+function spawnEnemies() {
+  const [grunts, rushers, tanks] = WAVE_CONFIG[waveNum - 1] || [3, 0, 0];
+  const waveSpeed = ENEMY_SPEED_BASE + (waveNum - 1) * 0.25;
+
+  const configs = [
+    { count: grunts, type: 'grunt', hp: 4, maxHp: 4, speed: waveSpeed, dmg: 1, color: 0xff2244, geo: () => new THREE.ConeGeometry(0.4, 0.9, 6), y: 0.45 },
+    { count: rushers, type: 'rusher', hp: 2, maxHp: 2, speed: waveSpeed * 1.6, dmg: 1, color: 0xff6600, geo: () => new THREE.TetrahedronGeometry(0.45), y: 0.45 },
+    { count: tanks, type: 'tank', hp: 12, maxHp: 12, speed: waveSpeed * 0.55, dmg: 2, color: 0x880022, geo: () => new THREE.BoxGeometry(0.9, 0.9, 0.9), y: 0.45 },
+  ];
+
+  for (const cfg of configs) {
+    for (let n = 0; n < cfg.count; n++) {
+      const angle = Math.random() * Math.PI * 2;
+      const spawnR = ARENA_RADIUS - 1.0;
+      const spawnPos = new THREE.Vector3(
+        Math.cos(angle) * spawnR,
+        cfg.y,
+        Math.sin(angle) * spawnR
+      );
+
+      const geo = cfg.geo();
+      const mat = new THREE.MeshStandardMaterial({
+        color: cfg.color,
+        emissive: cfg.color,
+        emissiveIntensity: 0.3,
+        metalness: 0.2,
+        roughness: 0.7,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.copy(spawnPos);
+      mesh.castShadow = true;
+      mesh.name = 'enemy';
+      scene.add(mesh);
+
+      // HP bar
+      const hpBarGeo = new THREE.PlaneGeometry(1.0, 0.12);
+      const hpBarBgMat = new THREE.MeshBasicMaterial({ color: 0x330000, side: THREE.DoubleSide });
+      const hpBarBg = new THREE.Mesh(hpBarGeo, hpBarBgMat);
+      hpBarBg.position.y = 1.4;
+      hpBarBg.rotation.x = -Math.PI / 6;
+      mesh.add(hpBarBg);
+
+      const hpBarFillMat = new THREE.MeshBasicMaterial({ color: 0xff4444, side: THREE.DoubleSide });
+      const hpBarFill = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.12), hpBarFillMat);
+      hpBarFill.position.y = 1.4;
+      hpBarFill.position.z = 0.01;
+      hpBarFill.rotation.x = -Math.PI / 6;
+      mesh.add(hpBarFill);
+
+      const enemy = {
+        mesh,
+        hpBarFill,
+        hp: cfg.hp,
+        maxHp: cfg.maxHp,
+        speed: cfg.speed,
+        dmg: cfg.dmg,
+        type: cfg.type,
+        pos: spawnPos.clone(),
+        state: 'moving', // moving | attacking | telegraphing | dead
+        attackTimer: Math.random() * ENEMY_ATTACK_COOLDOWN,
+        telegraphTimer: 0,
+        taunted: false,
+        tauntTimer: 0,
+        telegraph: null,
+      };
+      enemies.push(enemy);
+    }
   }
-  const mat = new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: 0.15 });
+}
+// ─── Turrets ──────────────────────────────────────────────────────────────────
+function placeTurret(pos) {
+  const geo = new THREE.CylinderGeometry(0.3, 0.45, 0.8, 8);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xffcc00, emissive: 0x553300, emissiveIntensity: 0.4, metalness: 0.5, roughness: 0.4
+  });
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.set(x, radius, z);
+  mesh.position.copy(pos);
+  mesh.position.y = 0.4;
   mesh.castShadow = true;
   scene.add(mesh);
 
-  // HP bar
-  const hpBgGeo = new THREE.PlaneGeometry(0.8, 0.1);
-  const hpBg = new THREE.Mesh(hpBgGeo, new THREE.MeshBasicMaterial({ color: 0x330000, side: THREE.DoubleSide }));
-  scene.add(hpBg);
-  const hpFillGeo = new THREE.PlaneGeometry(0.8, 0.08);
-  const hpFill = new THREE.Mesh(hpFillGeo, new THREE.MeshBasicMaterial({ color: 0xff4444, side: THREE.DoubleSide }));
-  scene.add(hpFill);
+  // Barrel
+  const barrelGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.6, 6);
+  const barrelMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+  const barrel = new THREE.Mesh(barrelGeo, barrelMat);
+  barrel.rotation.x = Math.PI / 2;
+  barrel.position.set(0, 0.25, 0.4);
+  mesh.add(barrel);
 
-  // Telegraph ring
-  const telegraphGeo = new THREE.RingGeometry(0, radius + 0.3, 16);
-  const telegraphMat = new THREE.MeshBasicMaterial({ color: 0xff2222, side: THREE.DoubleSide, transparent: true, opacity: 0 });
-  const telegraphMesh = new THREE.Mesh(telegraphGeo, telegraphMat);
-  telegraphMesh.rotation.x = -Math.PI / 2;
-  telegraphMesh.position.y = 0.01;
-  scene.add(telegraphMesh);
+  const turret = {
+    mesh,
+    pos: pos.clone(),
+    attackTimer: TURRET_ATTACK_COOLDOWN,
+    state: 'active',
+  };
+  turrets.push(turret);
+  spawnParticleBurst(pos, 0xffcc00, 12);
+  playSound('place');
+}
 
-  enemies.push({
-    type, mesh, hpBarBg: hpBg, hpBarFill: hpFill,
-    telegraph: telegraphMesh,
-    hp, maxHp: hp, speed, dmg, radius,
-    attackCd: 0.8 + Math.random() * 0.5,
-    telegraphTimer: 0,
-    telegraphActive: false,
-    alive: true,
-    dead: false,
-    deadTimer: 0,
-    tauntTarget: null
+// ─── Particles ────────────────────────────────────────────────────────────────
+function spawnParticleBurst(pos, color, count = 16) {
+  for (let i = 0; i < count; i++) {
+    const geo = new THREE.SphereGeometry(0.08, 4, 4);
+    const mat = new THREE.MeshBasicMaterial({ color });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(pos);
+    mesh.position.y += 0.5;
+    scene.add(mesh);
+    const vel = new THREE.Vector3(
+      (Math.random() - 0.5) * 6,
+      Math.random() * 5 + 1,
+      (Math.random() - 0.5) * 6
+    );
+    particles.push({ mesh, vel, life: 0.6 + Math.random() * 0.4 });
+  }
+}
+
+// ─── Telegraph rings ──────────────────────────────────────────────────────────
+function spawnTelegraph(pos, radius, color = 0xff2244) {
+  const geo = new THREE.RingGeometry(radius - 0.1, radius + 0.1, 32);
+  const mat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: 0.85 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.copy(pos);
+  mesh.position.y = 0.08;
+  mesh.rotation.x = -Math.PI / 2;
+  scene.add(mesh);
+  const t = { mesh, timer: TELEGRAPH_DURATION };
+  telegraphs.push(t);
+  return t;
+}
+
+// ─── Rejection bubble ─────────────────────────────────────────────────────────
+function showRejectionBubble(worldPos, text) {
+  const projected = worldPos.clone().project(camera);
+  const x = (projected.x * 0.5 + 0.5) * window.innerWidth;
+  const y = (-projected.y * 0.5 + 0.5) * window.innerHeight;
+
+  const el = document.createElement('div');
+  el.className = 'rejection-bubble';
+  el.textContent = text;
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  bubblesEl.appendChild(el);
+  setTimeout(() => el.remove(), 1500);
+}
+
+// ─── Selection / Input ────────────────────────────────────────────────────────
+function selectAgent(idx) {
+  selectedAgentIdx = idx;
+  agents.forEach((a, i) => {
+    a.selRing.visible = i === idx && a.state !== 'dead';
+    updateAgentCard(i);
   });
-}
-
-function onWaveClear() {
-  currentWave++;
-  if (currentWave >= 7) {
-    // WIN — set state BEFORE setTimeout (B2 rule)
-    gameState = "win";
-    timeScale = 0.2;
-    setTimeout(() => triggerWin(), 2000);
-    return;
+  if (idx >= 0) {
+    selectionInfoEl.textContent = `${AGENT_NAMES[idx]} selected · Click ground to move · Click enemy to attack`;
+  } else {
+    selectionInfoEl.textContent = 'Click an agent to select · SPACE to start wave';
   }
-  gameState = "build";
-  buildTimer = BUILD_PHASE_DURATION;
-  elPhase.textContent = "BUILD PHASE — Reposition agents";
-  elWaveNum.textContent = currentWave + 1;
-  playSFX("wave-clear");
-  updateHUD();
 }
 
-function triggerWin() {
-  gameState = "win";
-  timeScale = 1;
-  elOverlayTitle.textContent = "DIRECTIVE COMPLETE";
-  elOverlaySub.textContent = "7 WAVES SURVIVED";
-  elOverlay.classList.add("show");
-  playSFX("win");
-}
-
-function triggerLose() {
-  gameState = "lose";
-  cameraShake = 0.5;
-  elOverlayTitle.textContent = "CORE DESTROYED";
-  elOverlaySub.textContent = "WAVE " + (currentWave + 1) + " / 7";
-  elOverlay.classList.add("show");
-  playSFX("lose");
-}
-
-// ─── INPUT HANDLING ───────────────────────────────────────────────────────────
-function onKeyDown(e) {
-  if (gameState === "start") return;
-  if (e.code === "Space" && gameState === "build") {
-    e.preventDefault();
-    startNextWave();
-  }
-  if (e.key === "1") selectAgentByIdx(0);
-  if (e.key === "2") selectAgentByIdx(1);
-  if (e.key === "3") selectAgentByIdx(2);
-  if (e.key === "4") selectAgentByIdx(3);
-}
-
-function selectAgentByIdx(idx) {
-  if (!agents[idx] || !agents[idx].alive) return;
-  selectedAgent = agents[idx];
-  updateSelectionRing();
-  updateSelectionInfo();
-  playSFX("select");
-}
-
-function onCanvasClick(e) {
-  if (gameState === "start" || gameState === "win" || gameState === "lose") return;
-  initAudio();
+function onClick(e) {
+  if (!gameStarted || phase === 'gameover' || phase === 'win') return;
+  // Don't intercept clicks on UI buttons
+  if (e.target.tagName === 'BUTTON') return;
 
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
 
   raycaster.setFromCamera(mouse, camera);
+  const allObjects = [];
 
-  // Check agent clicks
-  const agentMeshes = agents.filter(a => a.alive).map(a => a.mesh);
-  const agentHits = raycaster.intersectObjects(agentMeshes);
-  if (agentHits.length > 0) {
-    const idx = agentHits[0].object.userData.agentIdx;
-    if (selectedAgent && selectedAgent !== agents[idx]) {
-      // Support action: assign goal to go to this ally
-      assignGoalSupport(selectedAgent, agents[idx], e.clientX, e.clientY);
-    } else {
-      selectAgentByIdx(idx);
+  // Collect agent meshes
+  agents.forEach((a) => { if (a.state !== 'dead') allObjects.push(a.mesh); });
+  // Collect enemy meshes
+  enemies.forEach((en) => { if (en.state !== 'dead') allObjects.push(en.mesh); });
+  // Ground
+  allObjects.push(groundMesh);
+
+  const hits = raycaster.intersectObjects(allObjects, false);
+  if (hits.length === 0) return;
+
+  const hit = hits[0];
+  const obj = hit.object;
+
+  // Check if clicked an agent
+  const agentHit = agents.findIndex(a => a.mesh === obj);
+  if (agentHit >= 0) {
+    if (agents[agentHit].state === 'dead') {
+      showRejectionBubble(agents[agentHit].pos.clone().setY(1.5), 'AGENT DOWN');
+      return;
     }
+    selectAgent(agentHit);
     return;
   }
 
-  // Check enemy clicks
-  if (selectedAgent && selectedAgent.alive) {
-    const enemyMeshes = enemies.filter(en => en.alive).map(en => en.mesh);
-    const enemyHits = raycaster.intersectObjects(enemyMeshes);
-    if (enemyHits.length > 0) {
-      const hitEnemy = enemies.find(en => en.mesh === enemyHits[0].object);
-      if (hitEnemy) {
-        assignGoalAttack(selectedAgent, hitEnemy, e.clientX, e.clientY);
+  // Check if clicked an enemy (when an agent is selected)
+  const enemyHit = enemies.findIndex(en => en.mesh === obj);
+  if (enemyHit >= 0 && selectedAgentIdx >= 0) {
+    const agent = agents[selectedAgentIdx];
+    if (agent.state === 'dead') {
+      showRejectionBubble(agent.pos.clone().setY(1.5), 'AGENT DOWN');
+      return;
+    }
+    // Only Fighter and Scout can attack; Builder/Medic reject
+    if (agent.type === 'builder') {
+      showRejectionBubble(agent.pos.clone().setY(1.5), 'NOT MY JOB');
+      playSound('reject');
+      return;
+    }
+    if (agent.type === 'medic') {
+      showRejectionBubble(agent.pos.clone().setY(1.5), 'HEAL ONLY');
+      playSound('reject');
+      return;
+    }
+    agent.attackTarget = enemies[enemyHit];
+    agent.target = null;
+    agent.state = 'moving';
+    return;
+  }
+
+  // Clicked ground
+  if (obj === groundMesh && selectedAgentIdx >= 0) {
+    const agent = agents[selectedAgentIdx];
+    if (agent.state === 'dead') return;
+
+    const clickPos = hit.point.clone();
+
+    // Builder: if in build phase and near edge, place turret
+    if (agent.type === 'builder' && phase === 'build') {
+      const distFromCore = clickPos.length();
+      if (distFromCore < 3) {
+        showRejectionBubble(agent.pos.clone().setY(1.5), 'TOO CLOSE');
+        playSound('reject');
         return;
       }
+      if (distFromCore > ARENA_RADIUS - 2) {
+        showRejectionBubble(agent.pos.clone().setY(1.5), 'OUT OF BOUNDS');
+        playSound('reject');
+        return;
+      }
+      if (!abilityUnlocked[3]) {
+        showRejectionBubble(agent.pos.clone().setY(1.5), 'UNLOCK FIRST');
+        playSound('reject');
+        return;
+      }
+      if (abilityCooldown[3] > 0) {
+        showRejectionBubble(agent.pos.clone().setY(1.5), 'RECHARGING');
+        playSound('reject');
+        return;
+      }
+      // Move builder to location then place turret
+      agent.target = clickPos.clone();
+      agent.target.y = 0.5;
+      agent.attackTarget = null;
+      agent.state = 'moving';
+      agent._pendingTurret = clickPos.clone();
+      abilityCooldown[3] = 30;
+      updateAbilityPanel();
+      return;
     }
 
-    // Check ground click → move
-    const groundHits = raycaster.intersectObject(groundPlane);
-    if (groundHits.length > 0) {
-      const pt = groundHits[0].point;
-      // Clamp to arena
-      const clampedX = Math.max(-11, Math.min(11, pt.x));
-      const clampedZ = Math.max(-11, Math.min(11, pt.z));
-      assignGoalMove(selectedAgent, clampedX, clampedZ, e.clientX, e.clientY);
-    }
-  } else {
-    // Deselect
-    selectedAgent = null;
-    selectionRing.visible = false;
-    updateSelectionInfo();
+    // Move agent to clicked position
+    const target = clickPos.clone();
+    target.y = 0.5;
+    agent.target = target;
+    agent.attackTarget = null;
+    agent.state = 'moving';
+    agent._pendingTurret = null;
   }
 }
 
-function assignGoalMove(agent, x, z, screenX, screenY) {
-  // Check valid position
-  const dist = Math.sqrt(x * x + z * z);
-  if (dist > 13) {
-    showRejection("OUT OF RANGE", screenX, screenY);
+function onKeyDown(e) {
+  if (!gameStarted) return;
+  const k = e.key;
+  if (k === '1') selectAgent(0);
+  else if (k === '2') selectAgent(1);
+  else if (k === '3') selectAgent(2);
+  else if (k === '4') selectAgent(3);
+  else if (k === ' ') {
+    e.preventDefault();
+    if (phase === 'build') startCombat();
+    else if (phase === 'waveclear') nextWave();
+  }
+}
+
+// ─── Game flow ────────────────────────────────────────────────────────────────
+function startGame() {
+  startOverlayEl.style.display = 'none';
+  gameStarted = true;
+  phase = 'build';
+  waveNum = 1;
+  updateHud();
+  startBGM();
+  phaseEl.textContent = 'BUILD PHASE — SPACE to start wave';
+}
+
+function restartGame() {
+  // Clean up scene
+  enemies.forEach(en => scene.remove(en.mesh));
+  turrets.forEach(t => scene.remove(t.mesh));
+  particles.forEach(p => scene.remove(p.mesh));
+  telegraphs.forEach(t => scene.remove(t.mesh));
+  agents.forEach(a => scene.remove(a.mesh));
+  scene.remove(coreGroup);
+
+  enemies = [];
+  turrets = [];
+  particles = [];
+  telegraphs = [];
+  agents = [];
+
+  coreHp = CORE_MAX_HP;
+  waveNum = 1;
+  phase = 'build';
+  selectedAgentIdx = -1;
+  abilityUnlocked = { 2: false, 3: false, 5: false, 6: false };
+  abilityCooldown = { 2: 0, 3: 0, 5: 0, 6: 0 };
+
+  overlayEl.classList.remove('show');
+  buildCore();
+  buildAgents();
+  buildAbilityPanel();
+  updateHud();
+  phaseEl.textContent = 'BUILD PHASE — SPACE to start wave';
+}
+
+function startCombat() {
+  if (phase !== 'build') return;
+  phase = 'combat';
+  phaseEl.textContent = 'WAVE ' + waveNum + ' — DEFEND THE CORE';
+  waveNumEl.textContent = waveNum;
+  spawnEnemies();
+  playSound('waveStart');
+}
+
+function endWave() {
+  if (waveNum >= 7) {
+    phase = 'win';
+    triggerWin();
     return;
   }
-  agent.goal = { type: "move", tx: x, tz: z };
-  playSFX("goal-set");
-  updateSelectionInfo();
+  phase = 'waveclear';
+  phaseEl.textContent = 'WAVE ' + waveNum + ' CLEAR — SPACE for next wave';
+  playSound('waveClear');
+  checkAbilityUnlocks();
 }
 
-function assignGoalAttack(agent, enemy, screenX, screenY) {
-  if (agent.def.dmgType === "heal") {
-    showRejection("MEDIC CANNOT ATTACK", screenX, screenY);
-    playSFX("goal-reject");
-    return;
-  }
-  agent.goal = { type: "attack", enemy };
-  playSFX("goal-set");
-  updateSelectionInfo();
+function nextWave() {
+  if (phase !== 'waveclear') return;
+  waveNum++;
+  phase = 'build';
+  updateHud();
+  phaseEl.textContent = 'BUILD PHASE — SPACE to start wave';
 }
 
-function assignGoalSupport(agent, ally, screenX, screenY) {
-  if (agent.def.idx === 3) {
-    // Medic: heal target
-    agent.goal = { type: "heal", ally };
-    playSFX("goal-set");
-    updateSelectionInfo();
-  } else if (agent.def.idx === 2) {
-    // Fighter: taunt (affects nearby enemies)
-    if (agent.tauntTimer > 0) {
-      showRejection("TAUNT ACTIVE", screenX, screenY);
-      return;
-    }
-    if (currentWave < 2) {
-      showRejection("ABILITY LOCKED", screenX, screenY);
-      return;
-    }
-    agent.tauntTimer = 3;
-    agent.goal = null;
-    playSFX("taunt");
-    // Redirect all enemies within 5 units to target this fighter
-    enemies.filter(en => en.alive).forEach(en => {
-      const dx = en.mesh.position.x - agent.mesh.position.x;
-      const dz = en.mesh.position.z - agent.mesh.position.z;
-      if (Math.sqrt(dx*dx + dz*dz) < 6) {
-        en.tauntTarget = agent;
-      }
-    });
-  } else if (agent.def.idx === 1) {
-    // Builder: reinforce ally position
-    agent.goal = { type: "move", tx: ally.mesh.position.x + 0.5, tz: ally.mesh.position.z };
-    playSFX("goal-set");
-  } else {
-    // Scout: support move
-    agent.goal = { type: "move", tx: ally.mesh.position.x - 0.5, tz: ally.mesh.position.z };
-    playSFX("goal-set");
-  }
-  updateSelectionInfo();
+function triggerWin() {
+  overlayTitleEl.textContent = 'DIRECTIVE COMPLETE';
+  overlaySubEl.textContent = 'All 7 waves defeated. The Core stands.';
+  overlayEl.classList.add('show');
+  playSound('win');
 }
 
-// ─── UPDATE LOOP ──────────────────────────────────────────────────────────────
-function update(rawDt) {
-  dt = rawDt * timeScale;
-  if (dt > 0.1) dt = 0.1; // clamp
-
-  if (gameState === "build") {
-    if (buildTimer > 0) {
-      buildTimer -= dt;
-      if (buildTimer <= 0) {
-        // Auto-start wave after build phase timer if it's not the first wave
-        if (currentWave > 0) {
-          elPhase.textContent = "SPACE to start wave";
-        }
-      }
-    }
-    updateAgents();
-    updateParticles();
-    updateBullets();
-    updateSelectionRing();
-    updateHPBars();
-    return;
-  }
-
-  if (gameState !== "wave") return;
-
-  waveTimer += dt;
-  updateAgents();
-  updateEnemies();
-  updateBullets();
-  updateParticles();
-  updateTelegraphs();
-  updateSelectionRing();
-  updateHPBars();
-  updateCore();
-
-  // Check wave clear
-  if (enemies.every(en => !en.alive) && enemies.length > 0) {
-    onWaveClear();
-  }
+function triggerLose() {
+  phase = 'gameover';
+  overlayTitleEl.textContent = 'CORE LOST';
+  overlaySubEl.textContent = 'The core was destroyed. Wave ' + waveNum + ' of 7.';
+  overlayEl.classList.add('show');
+  playSound('lose');
 }
 
-function updateAgents() {
-  agents.forEach((agent, ai) => {
-    if (!agent.alive) {
-      if (agent.deadTimer > 0) {
-        agent.deadTimer -= dt;
-        if (agent.deadTimer <= 0) {
-          scene.remove(agent.mesh);
-          scene.remove(agent.hpBarBg);
-          scene.remove(agent.hpBarFill);
-          agent.dead = true;
-        }
-      }
-      return;
-    }
-
-    // Invincibility timer
-    if (agent.invincibleTimer > 0) agent.invincibleTimer -= dt;
-
-    // Taunt timer
-    if (agent.tauntTimer > 0) agent.tauntTimer -= dt;
-
-    // Attack cooldown
-    if (agent.attackCd > 0) agent.attackCd -= dt;
-
-    // Idle animation
-    agent.mesh.rotation.y += dt * 0.8;
-
-    // Pursue goal
-    let moved = false;
-    if (agent.goal) {
-      if (agent.goal.type === "move") {
-        const dx = agent.goal.tx - agent.mesh.position.x;
-        const dz = agent.goal.tz - agent.mesh.position.z;
-        const dist = Math.sqrt(dx*dx + dz*dz);
-        if (dist > 0.2) {
-          const step = agent.speed * dt;
-          agent.mesh.position.x += (dx / dist) * step;
-          agent.mesh.position.z += (dz / dist) * step;
-          moved = true;
-        } else {
-          agent.goal = null;
-        }
-      } else if (agent.goal.type === "attack") {
-        const enemy = agent.goal.enemy;
-        if (!enemy || !enemy.alive) { agent.goal = null; return; }
-        const dx = enemy.mesh.position.x - agent.mesh.position.x;
-        const dz = enemy.mesh.position.z - agent.mesh.position.z;
-        const dist = Math.sqrt(dx*dx + dz*dz);
-        if (dist > agent.def.range + 0.1) {
-          const step = agent.speed * dt;
-          agent.mesh.position.x += (dx / dist) * step;
-          agent.mesh.position.z += (dz / dist) * step;
-          moved = true;
-        } else if (agent.attackCd <= 0) {
-          attackEnemy(agent, enemy);
-          agent.attackCd = agent.def.cdMax;
-        }
-      } else if (agent.goal.type === "heal") {
-        const ally = agent.goal.ally;
-        if (!ally || !ally.alive) { agent.goal = null; return; }
-        const dx = ally.mesh.position.x - agent.mesh.position.x;
-        const dz = ally.mesh.position.z - agent.mesh.position.z;
-        const dist = Math.sqrt(dx*dx + dz*dz);
-        if (dist > 1.5) {
-          const step = agent.speed * dt;
-          agent.mesh.position.x += (dx / dist) * step;
-          agent.mesh.position.z += (dz / dist) * step;
-          moved = true;
-        } else if (agent.attackCd <= 0) {
-          healAlly(agent, ally);
-          agent.attackCd = agent.def.cdMax;
-        }
-      }
-    }
-
-    // Auto-attack nearest enemy if idle and in range
-    if (!agent.goal && agent.attackCd <= 0 && agent.def.dmgType !== "heal") {
-      const inRange = enemies.filter(en => en.alive).find(en => {
-        const dx = en.mesh.position.x - agent.mesh.position.x;
-        const dz = en.mesh.position.z - agent.mesh.position.z;
-        return Math.sqrt(dx*dx + dz*dz) <= agent.def.range;
-      });
-      if (inRange) {
-        attackEnemy(agent, inRange);
-        agent.attackCd = agent.def.cdMax;
-      }
-    }
-
-    // Medic passive heal
-    if (agent.def.idx === 3 && agent.alive && agent.attackCd <= 0) {
-      const nearestAlly = agents.filter(a => a.alive && a !== agent).sort((a, b) => {
-        const da = Math.hypot(a.mesh.position.x - agent.mesh.position.x, a.mesh.position.z - agent.mesh.position.z);
-        const db = Math.hypot(b.mesh.position.x - agent.mesh.position.x, b.mesh.position.z - agent.mesh.position.z);
-        return da - db;
-      })[0];
-      if (nearestAlly) {
-        const d = Math.hypot(nearestAlly.mesh.position.x - agent.mesh.position.x, nearestAlly.mesh.position.z - agent.mesh.position.z);
-        if (d <= 2 && nearestAlly.hp < nearestAlly.maxHp) {
-          healAlly(agent, nearestAlly);
-          agent.attackCd = agent.def.cdMax;
-        }
-      }
-    }
-
-    // Clamp to arena
-    agent.mesh.position.x = Math.max(-11, Math.min(11, agent.mesh.position.x));
-    agent.mesh.position.z = Math.max(-11, Math.min(11, agent.mesh.position.z));
-
-    // Update HUD card
-    if (hpFills[ai]) {
-      hpFills[ai].style.width = (agent.hp / agent.maxHp * 100) + "%";
-    }
-    if (agentCards[ai]) {
-      agentCards[ai].classList.toggle("selected", selectedAgent === agent);
-      agentCards[ai].classList.toggle("dead", !agent.alive);
-    }
-  });
+function updateHud() {
+  waveNumEl.textContent = waveNum;
+  updateCoreHpDisplay();
 }
 
-function attackEnemy(agent, enemy) {
-  if (agent.def.dmgType === "ranged") {
-    // Spawn bullet
-    const geo = new THREE.SphereGeometry(0.08, 4, 4);
-    const mat = new THREE.MeshBasicMaterial({ color: agent.def.color });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(agent.mesh.position.x, 0.5, agent.mesh.position.z);
-    scene.add(mesh);
-    bullets.push({
-      mesh, target: enemy, speed: 10, dmg: agent.def.dmg,
-      owner: "agent", lifetime: 2
-    });
-  } else {
-    // Melee: instant
-    damageEnemy(enemy, agent.def.dmg);
-  }
-  playSFX("agent-attack");
-}
-
-function healAlly(agent, ally) {
-  if (ally.hp < ally.maxHp) {
-    ally.hp = Math.min(ally.maxHp, ally.hp + 1);
-    spawnHealParticles(ally.mesh.position);
-    playSFX("heal");
-  }
-}
-
-function damageAgent(agent, dmg) {
-  // Invincibility check FIRST
-  if (agent.invincibleTimer > 0) return;
-  agent.hp -= dmg;
-  agent.invincibleTimer = 1.5;
-  // Flash emissive
-  agent.mesh.material.emissiveIntensity = 1.5;
-  setTimeout(() => { if (agent.mesh.material) agent.mesh.material.emissiveIntensity = 0.2; }, 150);
-  if (agent.hp <= 0) {
-    agent.hp = 0;
-    agent.alive = false;
-    agent.deadTimer = 2;
-    agent.mesh.material.color.set(0x333333);
-    agent.mesh.material.emissive.set(0x000000);
-    spawnDeathParticles(agent.mesh.position, agent.def.color);
-    // Clear selection
-    if (selectedAgent === agent) {
-      selectedAgent = null;
-      selectionRing.visible = false;
-      updateSelectionInfo();
+// ─── Ability unlocks ──────────────────────────────────────────────────────────
+function checkAbilityUnlocks() {
+  const wave = waveNum;
+  for (const w of [2, 3, 5, 6]) {
+    if (wave >= w && !abilityUnlocked[w]) {
+      abilityUnlocked[w] = true;
+      showUnlockFlash(ABILITY_UNLOCKS[w].name + ' UNLOCKED');
+      updateAbilityPanel();
     }
   }
 }
 
-function damageEnemy(enemy, dmg) {
-  enemy.hp -= dmg;
-  if (enemy.hp <= 0 && enemy.alive) {
-    enemy.alive = false;
-    enemy.dead = true;
-    enemy.deadTimer = 0.5;
-    spawnDeathParticles(enemy.mesh.position, 0xff4422);
-    playSFX("enemy-death");
-    scene.remove(enemy.telegraph);
+function showUnlockFlash(text) {
+  unlockFlashEl.textContent = text;
+  unlockFlashEl.style.display = 'block';
+  unlockFlashEl.style.animation = 'none';
+  void unlockFlashEl.offsetWidth;
+  unlockFlashEl.style.animation = 'unlockFlash 2s ease-out forwards';
+  setTimeout(() => { unlockFlashEl.style.display = 'none'; }, 2000);
+  playSound('unlock');
+}
+
+function buildAbilityPanel() {
+  abilityPanelEl.innerHTML = '';
+  for (const w of [2, 3, 5, 6]) {
+    const btn = document.createElement('button');
+    btn.className = 'ability-btn' + (!abilityUnlocked[w] ? ' locked' : '');
+    btn.id = 'ability-btn-' + w;
+    btn.dataset.wave = w;
+    const info = ABILITY_UNLOCKS[w];
+    btn.textContent = (abilityUnlocked[w] ? '' : '[W' + w + '] ') + info.name;
+    btn.title = info.desc;
+    btn.addEventListener('click', () => useAbility(w));
+    abilityPanelEl.appendChild(btn);
   }
-}
-
-function updateEnemies() {
-  enemies.forEach(enemy => {
-    if (!enemy.alive) {
-      if (enemy.deadTimer > 0) {
-        enemy.deadTimer -= dt;
-        if (enemy.deadTimer <= 0 && !enemy.removed) {
-          enemy.removed = true;
-          scene.remove(enemy.mesh);
-          scene.remove(enemy.hpBarBg);
-          scene.remove(enemy.hpBarFill);
-        }
-      }
-      return;
-    }
-
-    // Spin
-    enemy.mesh.rotation.y += dt * (enemy.type === "rusher" ? 3 : 1);
-
-    // Determine target
-    let target = null;
-    if (enemy.tauntTarget && enemy.tauntTarget.alive && enemy.tauntTarget.tauntTimer > 0) {
-      target = { isAgent: true, agent: enemy.tauntTarget };
-    } else {
-      enemy.tauntTarget = null;
-      // Target nearest agent or core
-      let nearestDist = Infinity;
-      agents.filter(a => a.alive).forEach(a => {
-        const d = Math.hypot(a.mesh.position.x - enemy.mesh.position.x, a.mesh.position.z - enemy.mesh.position.z);
-        if (d < nearestDist) { nearestDist = d; target = { isAgent: true, agent: a, pos: a.mesh.position }; }
-      });
-      // Core position
-      const coreDist = Math.hypot(enemy.mesh.position.x, enemy.mesh.position.z);
-      if (coreDist < nearestDist - 1) {
-        target = { isCore: true, pos: { x: 0, z: 0 } };
-        nearestDist = coreDist;
-      }
-    }
-
-    if (!target) target = { isCore: true, pos: { x: 0, z: 0 } };
-
-    let targetPos;
-    if (enemy.tauntTarget && enemy.tauntTarget.alive && enemy.tauntTarget.tauntTimer > 0) {
-      targetPos = enemy.tauntTarget.mesh.position;
-    } else if (target && target.isAgent) {
-      targetPos = target.agent.mesh.position;
-    } else {
-      targetPos = { x: 0, z: 0 };
-    }
-    const dx = targetPos.x - enemy.mesh.position.x;
-    const dz = (targetPos.z !== undefined ? targetPos.z : 0) - enemy.mesh.position.z;
-    const dist = Math.sqrt(dx*dx + dz*dz);
-    const attackRange = enemy.radius + (target && target.isCore ? 1.2 : 0.5);
-
-    if (dist > attackRange) {
-      // Move toward target
-      const step = enemy.speed * dt;
-      enemy.mesh.position.x += (dx / dist) * step;
-      enemy.mesh.position.z += (dz / dist) * step;
-      enemy.telegraphActive = false;
-      enemy.telegraph.material.opacity = 0;
-    } else {
-      // Telegraph attack
-      enemy.telegraphTimer += dt;
-      if (!enemy.telegraphActive) {
-        enemy.telegraphActive = true;
-        enemy.telegraphTimer = 0;
-      }
-      const progress = Math.min(enemy.telegraphTimer / 0.8, 1);
-      enemy.telegraph.material.opacity = progress * 0.6;
-      enemy.telegraph.scale.setScalar(1 + progress * 0.5);
-
-      if (enemy.telegraphTimer >= 0.8 && enemy.attackCd <= 0) {
-        // Attack whatever is in range
-        if (enemy.tauntTarget && enemy.tauntTarget.alive && enemy.tauntTarget.tauntTimer > 0) {
-          damageAgent(enemy.tauntTarget, enemy.dmg);
-        } else if (target && target.isAgent && target.agent && target.agent.alive) {
-          damageAgent(target.agent, enemy.dmg);
-        } else {
-          const coreD = Math.hypot(enemy.mesh.position.x, enemy.mesh.position.z);
-          if (coreD <= attackRange) damageCore(enemy.dmg);
-        }
-        enemy.attackCd = 1.2 + Math.random() * 0.4;
-        enemy.telegraphActive = false;
-        enemy.telegraphTimer = 0;
-        enemy.telegraph.material.opacity = 0;
-      }
-    }
-
-    // Update attack cooldown
-    if (enemy.attackCd > 0) enemy.attackCd -= dt;
-
-    // Position telegraph
-    enemy.telegraph.position.set(enemy.mesh.position.x, 0.01, enemy.mesh.position.z);
-  });
-}
-
-function damageCore(dmg) {
-  if (gameState !== "wave") return;
-  coreHP = Math.max(0, coreHP - dmg);
-  cameraShake = 0.3;
-  // Flash core
-  coreObject.material.emissiveIntensity = 2.0;
-  setTimeout(() => { if (coreObject.material) coreObject.material.emissiveIntensity = 0.5; }, 200);
-  playSFX("core-hit");
-  updateHUD();
-  if (coreHP <= 0) {
-    gameState = "lose";
-    setTimeout(() => triggerLose(), 500);
-  }
-}
-
-function updateBullets() {
-  bullets = bullets.filter(b => {
-    if (!b.mesh) return false;
-    b.lifetime -= dt;
-    if (b.lifetime <= 0) { scene.remove(b.mesh); return false; }
-
-    if (b.target && b.target.alive) {
-      const dx = b.target.mesh.position.x - b.mesh.position.x;
-      const dz = b.target.mesh.position.z - b.mesh.position.z;
-      const dist = Math.sqrt(dx*dx + dz*dz);
-      if (dist < 0.4) {
-        damageEnemy(b.target, b.dmg);
-        scene.remove(b.mesh);
-        return false;
-      }
-      b.mesh.position.x += (dx / dist) * b.speed * dt;
-      b.mesh.position.z += (dz / dist) * b.speed * dt;
-    } else {
-      scene.remove(b.mesh);
-      return false;
-    }
-    return true;
-  });
-}
-
-function updateTelegraphs() {
-  // Telegraphs updated in updateEnemies
-}
-
-function updateCore() {
-  // Pulse animation
-  const pulse = 1 + Math.sin(Date.now() * 0.003) * 0.05;
-  coreObject.scale.set(pulse, 1, pulse);
-}
-
-function updateHPBars() {
-  const cameraDir = new THREE.Vector3(0, 1, 0);
-
-  // Agent HP bars
-  agents.forEach(agent => {
-    if (agent.dead) return;
-    const pos = agent.mesh.position.clone();
-    pos.y += 1.2;
-    agent.hpBarBg.position.copy(pos);
-    agent.hpBarBg.rotation.x = -Math.PI / 2;
-    agent.hpBarFill.position.copy(pos);
-    agent.hpBarFill.position.y += 0.01;
-    agent.hpBarFill.rotation.x = -Math.PI / 2;
-    const hpFrac = agent.alive ? (agent.hp / agent.maxHp) : 0;
-    agent.hpBarFill.scale.x = hpFrac;
-    agent.hpBarFill.position.x = pos.x - (1 - hpFrac) * 0.5;
-    agent.hpBarBg.visible = agent.alive;
-    agent.hpBarFill.visible = agent.alive;
-  });
-
-  // Enemy HP bars
-  enemies.forEach(enemy => {
-    if (!enemy.alive || enemy.removed) {
-      enemy.hpBarBg.visible = false;
-      enemy.hpBarFill.visible = false;
-      return;
-    }
-    const pos = enemy.mesh.position.clone();
-    pos.y += enemy.radius + 0.4;
-    enemy.hpBarBg.position.copy(pos);
-    enemy.hpBarBg.rotation.x = -Math.PI / 2;
-    enemy.hpBarFill.position.copy(pos);
-    enemy.hpBarFill.position.y += 0.01;
-    enemy.hpBarFill.rotation.x = -Math.PI / 2;
-    const hpFrac = enemy.hp / enemy.maxHp;
-    enemy.hpBarFill.scale.x = hpFrac;
-    enemy.hpBarFill.position.x = pos.x - (0.8 * (1 - hpFrac)) * 0.5;
-    enemy.hpBarFill.scale.x = hpFrac;
-  });
-}
-
-function updateSelectionRing() {
-  if (selectedAgent && selectedAgent.alive) {
-    selectionRing.visible = true;
-    selectionRing.position.set(selectedAgent.mesh.position.x, 0.02, selectedAgent.mesh.position.z);
-    selectionRing.rotation.z += dt * 1.5;
-  } else {
-    selectionRing.visible = false;
-  }
-}
-
-// ─── PARTICLES ────────────────────────────────────────────────────────────────
-function spawnDeathParticles(pos, color) {
-  for (let i = 0; i < 8; i++) {
-    const geo = new THREE.TetrahedronGeometry(0.12);
-    const mat = new THREE.MeshBasicMaterial({ color });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.copy(pos);
-    scene.add(mesh);
-    const angle = (Math.PI * 2 * i) / 8 + Math.random() * 0.5;
-    const speed = 2 + Math.random() * 2;
-    particles.push({
-      mesh, vx: Math.cos(angle) * speed, vy: 2 + Math.random() * 2, vz: Math.sin(angle) * speed,
-      life: 0.5, maxLife: 0.5
-    });
-  }
-}
-
-function spawnHealParticles(pos) {
-  for (let i = 0; i < 4; i++) {
-    const geo = new THREE.SphereGeometry(0.07, 4, 4);
-    const mat = new THREE.MeshBasicMaterial({ color: 0x44ff88 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.copy(pos);
-    scene.add(mesh);
-    particles.push({
-      mesh, vx: (Math.random() - 0.5) * 1, vy: 2 + Math.random(), vz: (Math.random() - 0.5) * 1,
-      life: 0.6, maxLife: 0.6
-    });
-  }
-}
-
-function updateParticles() {
-  particles = particles.filter(p => {
-    p.life -= dt;
-    if (p.life <= 0) { scene.remove(p.mesh); return false; }
-    p.mesh.position.x += p.vx * dt;
-    p.mesh.position.y += p.vy * dt;
-    p.mesh.position.z += p.vz * dt;
-    p.vy -= 6 * dt; // gravity
-    const t = p.life / p.maxLife;
-    p.mesh.material.opacity = t;
-    p.mesh.material.transparent = true;
-    const s = t * 0.8 + 0.2;
-    p.mesh.scale.setScalar(s);
-    return true;
-  });
-}
-
-// ─── HUD UPDATES ──────────────────────────────────────────────────────────────
-function updateHUD() {
-  if (elWaveNum) elWaveNum.textContent = Math.min(currentWave + 1, 7);
-  // Core HP pips
-  if (elCoreHpVal) {
-    let pips = "";
-    for (let i = 0; i < CORE_MAX_HP; i++) {
-      pips += i < coreHP ? "●" : "○";
-    }
-    elCoreHpVal.textContent = pips;
-    elCoreHpVal.style.color = coreHP <= 1 ? "#ff4444" : "#44aaff";
-  }
-  // Phase
-  if (elPhase) {
-    if (gameState === "wave") elPhase.textContent = "WAVE ACTIVE";
-    else if (gameState === "build") elPhase.textContent = currentWave === 0 ? "BUILD PHASE — SPACE to begin" : "BUILD PHASE — SPACE to start wave";
-  }
-  if (elStartPrompt) {
-    elStartPrompt.style.display = gameState === "build" ? "block" : "none";
-  }
-}
-
-function updateSelectionInfo() {
-  if (!elSelectionInfo) return;
-  if (!selectedAgent || !selectedAgent.alive) {
-    elSelectionInfo.textContent = "Click an agent to select · SPACE to start wave";
-  } else {
-    const names = ["SCOUT", "BUILDER", "FIGHTER", "MEDIC"];
-    elSelectionInfo.textContent = names[selectedAgent.def.idx] + " selected — click ground/enemy/ally to assign goal";
-  }
-  updateAbilityPanel();
 }
 
 function updateAbilityPanel() {
-  if (!elAbilityPanel) return;
-  elAbilityPanel.innerHTML = "";
-  if (!selectedAgent || !selectedAgent.alive) return;
-
-  const idx = selectedAgent.def.idx;
-  const waveReached = currentWave;
-
-  if (idx === 0 && waveReached >= 0) {
-    // Scout: fog reveal (passive, show as info)
-    const btn = document.createElement("div");
-    btn.className = "ability-btn";
-    btn.textContent = "FOG REVEAL (passive)";
-    elAbilityPanel.appendChild(btn);
-  } else if (idx === 1 && waveReached >= 1) {
-    // Builder: reinforce
-    const btn = document.createElement("button");
-    btn.className = "ability-btn";
-    btn.textContent = "REINFORCE WALL";
-    btn.addEventListener("click", () => {
-      // Move to nearest wall position
-      const wallPositions = [[-5, -5], [5, -5], [-5, 5], [5, 5]];
-      let nearest = wallPositions[0];
-      let nearestDist = Infinity;
-      wallPositions.forEach(wp => {
-        const d = Math.hypot(wp[0] - selectedAgent.mesh.position.x, wp[1] - selectedAgent.mesh.position.z);
-        if (d < nearestDist) { nearestDist = d; nearest = wp; }
-      });
-      selectedAgent.goal = { type: "move", tx: nearest[0], tz: nearest[1] };
-      playSFX("goal-set");
-    });
-    elAbilityPanel.appendChild(btn);
-  } else if (idx === 2 && waveReached >= 2) {
-    // Fighter: taunt
-    const btn = document.createElement("button");
-    btn.className = "ability-btn" + (selectedAgent.tauntTimer > 0 ? " on-cooldown" : "");
-    btn.textContent = selectedAgent.tauntTimer > 0 ? "TAUNT (active)" : "TAUNT ENEMIES";
-    btn.addEventListener("click", () => {
-      if (selectedAgent.tauntTimer > 0) return;
-      selectedAgent.tauntTimer = 3;
-      enemies.filter(en => en.alive).forEach(en => {
-        const d = Math.hypot(en.mesh.position.x - selectedAgent.mesh.position.x, en.mesh.position.z - selectedAgent.mesh.position.z);
-        if (d < 6) en.tauntTarget = selectedAgent;
-      });
-      playSFX("taunt");
-      updateAbilityPanel();
-    });
-    elAbilityPanel.appendChild(btn);
-  } else if (idx === 3 && waveReached >= 3) {
-    // Medic: AoE heal
-    const btn = document.createElement("button");
-    btn.className = "ability-btn";
-    btn.textContent = "AoE HEAL PULSE";
-    btn.addEventListener("click", () => {
-      agents.filter(a => a.alive && a !== selectedAgent).forEach(a => {
-        const d = Math.hypot(a.mesh.position.x - selectedAgent.mesh.position.x, a.mesh.position.z - selectedAgent.mesh.position.z);
-        if (d <= 3) {
-          a.hp = Math.min(a.maxHp, a.hp + 1);
-          spawnHealParticles(a.mesh.position);
-        }
-      });
-      playSFX("heal");
-    });
-    elAbilityPanel.appendChild(btn);
-  } else if (waveReached < [0, 1, 2, 3][idx]) {
-    const btn = document.createElement("div");
-    btn.className = "ability-btn locked";
-    const unlockWaves = ["WAVE 1", "WAVE 2", "WAVE 3", "WAVE 4"];
-    btn.textContent = "ABILITY — unlocks " + unlockWaves[idx];
-    elAbilityPanel.appendChild(btn);
-  }
-}
-
-// ─── REJECTION BUBBLES ────────────────────────────────────────────────────────
-function showRejection(text, screenX, screenY) {
-  const container = document.getElementById("bubbles-container");
-  const el = document.createElement("div");
-  el.className = "rejection-bubble";
-  el.textContent = text;
-  el.style.left = screenX + "px";
-  el.style.top = screenY + "px";
-  container.appendChild(el);
-  playSFX("goal-reject");
-  setTimeout(() => container.removeChild(el), 1600);
-}
-
-// ─── UNLOCK FLASH ─────────────────────────────────────────────────────────────
-function showUnlockFlash(text) {
-  elUnlockFlash.textContent = "ABILITY UNLOCKED\n" + text;
-  elUnlockFlash.style.display = "block";
-  // Reset animation
-  elUnlockFlash.style.animation = "none";
-  elUnlockFlash.offsetHeight; // reflow
-  elUnlockFlash.style.animation = "unlockFlash 2s ease-out forwards";
-  setTimeout(() => { elUnlockFlash.style.display = "none"; }, 2100);
-}
-
-// ─── AUDIO ────────────────────────────────────────────────────────────────────
-function initAudio() {
-  if (audioCtx) return;
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-}
-
-function playTone(freq, type, duration, gain, sustain, startDelay = 0) {
-  if (!audioCtx) return;
-  const now = audioCtx.currentTime + startDelay;
-  const osc = audioCtx.createOscillator();
-  const gainNode = audioCtx.createGain();
-  osc.connect(gainNode);
-  gainNode.connect(audioCtx.destination);
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, now);
-  // B5 rule: sustain never 0
-  const sustainVal = Math.max(gain * 0.7, sustain || gain * 0.7);
-  gainNode.gain.setValueAtTime(0, now);
-  gainNode.gain.linearRampToValueAtTime(gain, now + 0.01);
-  gainNode.gain.setValueAtTime(sustainVal, now + duration * 0.1);
-  gainNode.gain.linearRampToValueAtTime(0.0001, now + duration);
-  osc.start(now);
-  osc.stop(now + duration + 0.01);
-}
-
-function playBGM() {
-  if (!audioCtx) return;
-  const loopDuration = 64;
-
-  // Sub-bass drone
-  const bass = audioCtx.createOscillator();
-  const bassGain = audioCtx.createGain();
-  bass.connect(bassGain);
-  bassGain.connect(audioCtx.destination);
-  bass.type = "sawtooth";
-  bass.frequency.value = 55;
-  bassGain.gain.setValueAtTime(0.12, audioCtx.currentTime);
-  bassGain.gain.setValueAtTime(0.08, audioCtx.currentTime + 0.1); // sustain ~70%
-  bass.start();
-  bgmNodes.push(bass, bassGain);
-
-  // Tension arpeggio at 8 irregular times
-  const arpTimes = [4, 10, 17, 23, 31, 38, 46, 55];
-  const arpFreqs = [220, 277, 330, 392];
-  arpTimes.forEach((t, i) => {
-    setTimeout(() => {
-      if (!audioCtx) return;
-      playTone(arpFreqs[i % arpFreqs.length], "square", 0.3, 0.06, 0.05);
-    }, t * 1000);
-  });
-
-  // Glitch hits at 6 irregular times
-  const glitchTimes = [8, 19, 29, 41, 52, 60];
-  glitchTimes.forEach(t => {
-    setTimeout(() => {
-      if (!audioCtx) return;
-      playTone(800, "sawtooth", 0.08, 0.04, 0.03);
-    }, t * 1000);
-  });
-
-  // Percussion at 12 spread beats
-  const percTimes = [2, 6, 12, 18, 24, 28, 34, 40, 44, 50, 56, 62];
-  percTimes.forEach(t => {
-    setTimeout(() => {
-      if (!audioCtx) return;
-      playTone(80, "triangle", 0.15, 0.08, 0.06);
-    }, t * 1000);
-  });
-
-  // Schedule next loop 100ms before end (S6 rule — never silent)
-  bgmTimeout = setTimeout(playBGM, (loopDuration - 0.1) * 1000);
-}
-
-function addBGMLayer3() {
-  // Hi-hat layer (wave 3+)
-  const hatTimes = [1, 5, 9, 13, 17, 21, 25, 29];
-  hatTimes.forEach(t => {
-    setTimeout(() => {
-      if (!audioCtx) return;
-      playTone(1200, "square", 0.05, 0.03, 0.02);
-    }, t * 500);
-  });
-}
-
-function addBGMLayer5() {
-  // Bass pulse (wave 5+)
-  const pulseTimes = [0, 4, 8, 12];
-  pulseTimes.forEach(t => {
-    setTimeout(() => {
-      if (!audioCtx) return;
-      playTone(40, "sine", 0.5, 0.1, 0.08);
-    }, t * 1000);
-  });
-}
-
-function playSFX(type) {
-  if (!audioCtx) return;
-  switch (type) {
-    case "select":
-      playTone(880, "sine", 0.1, 0.08, 0.07); break;
-    case "goal-set":
-      playTone(660, "sine", 0.08, 0.07, 0.06);
-      setTimeout(() => playTone(880, "sine", 0.08, 0.07, 0.06), 80); break;
-    case "goal-reject":
-      playTone(440, "sawtooth", 0.1, 0.07, 0.06);
-      setTimeout(() => playTone(220, "sawtooth", 0.1, 0.07, 0.06), 100); break;
-    case "enemy-death":
-      playTone(440, "sine", 0.12, 0.06, 0.05); break;
-    case "agent-attack":
-      playTone(660, "square", 0.05, 0.04, 0.03); break;
-    case "core-hit":
-      playTone(55, "sawtooth", 0.35, 0.15, 0.12); break;
-    case "wave-clear":
-      [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => playTone(f, "sine", 0.25, 0.1, 0.08), i * 120)); break;
-    case "win":
-      [523, 659, 784, 880, 1047, 1319].forEach((f, i) => setTimeout(() => playTone(f, "sine", 0.3, 0.12, 0.1), i * 150)); break;
-    case "lose":
-      [523, 440, 370, 294].forEach((f, i) => setTimeout(() => playTone(f, "sawtooth", 0.3, 0.1, 0.08), i * 140)); break;
-    case "ability-unlock":
-      [330, 440, 554, 659, 880].forEach((f, i) => setTimeout(() => playTone(f, "sine", 0.2, 0.1, 0.08), i * 100)); break;
-    case "heal":
-      playTone(880, "triangle", 0.12, 0.06, 0.05); break;
-    case "taunt":
-      playTone(660, "square", 0.2, 0.08, 0.07); break;
-  }
-}
-
-function playAbilityUnlock() {
-  playSFX("ability-unlock");
-}
-
-// ─── CAMERA SHAKE ─────────────────────────────────────────────────────────────
-const camBasePos = new THREE.Vector3(0, 20, 8);
-function applyCameraShake() {
-  if (cameraShake > 0) {
-    camera.position.set(
-      camBasePos.x + (Math.random() - 0.5) * cameraShake,
-      camBasePos.y + (Math.random() - 0.5) * cameraShake * 0.3,
-      camBasePos.z + (Math.random() - 0.5) * cameraShake * 0.5
-    );
-    cameraShake *= 0.85;
-    if (cameraShake < 0.01) {
-      cameraShake = 0;
-      camera.position.copy(camBasePos);
+  for (const w of [2, 3, 5, 6]) {
+    const btn = document.getElementById('ability-btn-' + w);
+    if (!btn) continue;
+    const info = ABILITY_UNLOCKS[w];
+    if (!abilityUnlocked[w]) {
+      btn.className = 'ability-btn locked';
+      btn.textContent = '[W' + w + '] ' + info.name;
+    } else if (abilityCooldown[w] > 0) {
+      btn.className = 'ability-btn on-cooldown';
+      btn.textContent = info.name + ' (' + Math.ceil(abilityCooldown[w]) + 's)';
+    } else {
+      btn.className = 'ability-btn';
+      btn.textContent = info.name;
     }
   }
 }
 
-// ─── RENDER LOOP ──────────────────────────────────────────────────────────────
-function animate() {
-  requestAnimationFrame(animate);
-  const rawDt = Math.min(clock.getDelta(), 0.1);
-  if (gameState !== "start" && gameState !== "win" && gameState !== "lose") {
-    update(rawDt);
+function useAbility(w) {
+  if (!abilityUnlocked[w] || abilityCooldown[w] > 0) return;
+
+  if (w === 2) {
+    // Scout reveal — mark all enemies visible
+    abilityDuration[2] = 8;
+    enemies.forEach(en => { en.revealed = true; });
+    abilityCooldown[2] = 20;
+    showUnlockFlash('SCOUT REVEAL ACTIVE');
+  } else if (w === 3) {
+    // Builder turret — handled on ground click
+    showRejectionBubble(agents[1].pos.clone().setY(1.5), 'SELECT LOCATION');
+    selectAgent(1);
+  } else if (w === 5) {
+    // Fighter taunt
+    agents[2].type = 'fighter';
+    enemies.forEach(en => {
+      en.taunted = true;
+      en.tauntTimer = 5;
+    });
+    abilityCooldown[5] = 25;
+    showUnlockFlash('TAUNT ACTIVE: Enemies drawn to Fighter');
+    spawnParticleBurst(agents[2].pos.clone(), 0xff4400, 20);
+  } else if (w === 6) {
+    // Medic burst — heal all agents
+    agents.forEach(a => {
+      if (a.state !== 'dead') {
+        a.hp = Math.min(a.maxHp, a.hp + MEDIC_HEAL_AMT * 2);
+        updateAgentCard(a.idx);
+        spawnParticleBurst(a.pos.clone(), 0x00ff88, 10);
+      }
+    });
+    abilityCooldown[6] = 30;
+    showUnlockFlash('MEDIC BURST: All agents healed');
   }
-  applyCameraShake();
-  if (useComposer) {
-    composer.render();
-  } else {
-    renderer.render(scene, camera);
+
+  updateAbilityPanel();
+}
+
+// ─── Main update loop ─────────────────────────────────────────────────────────
+function loop() {
+  requestAnimationFrame(loop);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  if (!gameStarted || phase === 'gameover' || phase === 'win') {
+    if (composer) composer.render();
+    else renderer.render(scene, camera);
+    return;
+  }
+
+  updateCore(dt);
+  updateAgents(dt);
+  if (phase === 'combat') updateEnemies(dt);
+  updateTurrets(dt);
+  updateParticles(dt);
+  updateTelegraphs(dt);
+  updateAbilityCooldowns(dt);
+  updateCameraShake(dt);
+  checkWinCondition();
+
+  if (composer) composer.render();
+  else renderer.render(scene, camera);
+}
+
+// ─── Core update ──────────────────────────────────────────────────────────────
+function updateCore(dt) {
+  if (!coreMesh) return;
+  coreMesh.rotation.y += dt * 0.5;
+  const orbit = coreGroup.getObjectByName('coreOrbit');
+  if (orbit) orbit.rotation.z += dt * 1.2;
+}
+
+// ─── Agent update ─────────────────────────────────────────────────────────────
+function updateAgents(dt) {
+  for (const agent of agents) {
+    if (agent.state === 'dead') continue;
+
+    // Autonomous behaviours when idle during combat
+    if (phase === 'combat' && agent.state === 'idle' && !agent.attackTarget) {
+      if (agent.type === 'fighter' || agent.type === 'scout') {
+        // Auto-target nearest enemy
+        const nearest = nearestEnemy(agent.pos);
+        if (nearest && agent.pos.distanceTo(nearest.pos) < AGENT_ATTACK_RANGE * 2.5) {
+          agent.attackTarget = nearest;
+          agent.state = 'moving';
+        }
+      } else if (agent.type === 'medic') {
+        // Auto-heal lowest HP ally
+        const needsHeal = agents
+          .filter(a => a !== agent && a.state !== 'dead' && a.hp < a.maxHp)
+          .sort((a, b) => a.hp - b.hp)[0];
+        if (needsHeal) {
+          agent.supportTarget = needsHeal;
+          agent.state = 'moving';
+        }
+      }
+    }
+
+    // Move toward target
+    if (agent.target && agent.state === 'moving' && !agent.attackTarget) {
+      const dir = agent.target.clone().sub(agent.pos);
+      dir.y = 0;
+      const dist = dir.length();
+      if (dist < 0.3) {
+        agent.pos.copy(agent.target);
+        agent.mesh.position.copy(agent.pos);
+        agent.state = 'idle';
+        agent.target = null;
+        // Place turret if pending
+        if (agent._pendingTurret) {
+          placeTurret(agent._pendingTurret);
+          agent._pendingTurret = null;
+        }
+      } else {
+        dir.normalize().multiplyScalar(AGENT_SPEED * dt);
+        agent.pos.add(dir);
+        agent.mesh.position.copy(agent.pos);
+        agent.mesh.position.y = 0.5;
+        // Face movement direction
+        if (dir.length() > 0.001) {
+          agent.mesh.lookAt(agent.pos.clone().add(new THREE.Vector3(dir.x, 0, dir.z)));
+        }
+      }
+    }
+
+    // Move toward attack target
+    if (agent.attackTarget && agent.state === 'moving') {
+      if (agent.attackTarget.state === 'dead') {
+        agent.attackTarget = null;
+        agent.state = 'idle';
+        continue;
+      }
+      const dir = agent.attackTarget.pos.clone().sub(agent.pos);
+      dir.y = 0;
+      const dist = dir.length();
+      if (dist < AGENT_ATTACK_RANGE) {
+        agent.state = 'attacking';
+      } else {
+        dir.normalize().multiplyScalar(AGENT_SPEED * dt);
+        agent.pos.add(dir);
+        agent.mesh.position.copy(agent.pos);
+        agent.mesh.position.y = 0.5;
+        if (dir.length() > 0.001) {
+          agent.mesh.lookAt(agent.pos.clone().add(new THREE.Vector3(dir.x, 0, dir.z)));
+        }
+      }
+    }
+
+    // Attack
+    if (agent.state === 'attacking' && agent.attackTarget) {
+      if (agent.attackTarget.state === 'dead') {
+        agent.attackTarget = null;
+        agent.state = 'idle';
+        continue;
+      }
+      const dist = agent.pos.distanceTo(agent.attackTarget.pos);
+      if (dist > AGENT_ATTACK_RANGE + 0.5) {
+        agent.state = 'moving';
+        continue;
+      }
+
+      agent.attackTimer -= dt;
+      if (agent.attackTimer <= 0) {
+        agent.attackTimer = AGENT_ATTACK_COOLDOWN;
+        const dmg = agent.type === 'fighter' ? 3 : 2;
+        damageEnemy(agent.attackTarget, dmg, agent.pos.clone());
+        spawnProjectile(agent.pos.clone(), agent.attackTarget.pos.clone(), AGENT_COLORS[agent.idx]);
+      }
+    }
+
+    // Support (Medic heal)
+    if (agent.type === 'medic' && agent.supportTarget) {
+      if (agent.supportTarget.state === 'dead') {
+        agent.supportTarget = null;
+        agent.state = 'idle';
+        continue;
+      }
+      const dist = agent.pos.distanceTo(agent.supportTarget.pos);
+      if (agent.state === 'moving') {
+        const dir = agent.supportTarget.pos.clone().sub(agent.pos);
+        dir.y = 0;
+        if (dir.length() < MEDIC_HEAL_RANGE) {
+          agent.state = 'supporting';
+        } else {
+          dir.normalize().multiplyScalar(AGENT_SPEED * dt);
+          agent.pos.add(dir);
+          agent.mesh.position.copy(agent.pos);
+          agent.mesh.position.y = 0.5;
+        }
+      }
+      if (agent.state === 'supporting') {
+        if (dist > MEDIC_HEAL_RANGE + 0.5) {
+          agent.state = 'moving';
+          continue;
+        }
+        agent.healTimer -= dt;
+        if (agent.healTimer <= 0) {
+          agent.healTimer = MEDIC_HEAL_COOLDOWN;
+          agent.supportTarget.hp = Math.min(agent.supportTarget.maxHp, agent.supportTarget.hp + MEDIC_HEAL_AMT);
+          updateAgentCard(agent.supportTarget.idx);
+          spawnParticleBurst(agent.supportTarget.pos.clone(), 0x00ff88, 6);
+          if (agent.supportTarget.hp >= agent.supportTarget.maxHp) {
+            agent.supportTarget = null;
+            agent.state = 'idle';
+          }
+        }
+      }
+    }
+
+    updateAgentCard(agent.idx);
   }
 }
 
+function nearestEnemy(pos) {
+  let nearest = null;
+  let nearestDist = Infinity;
+  for (const en of enemies) {
+    if (en.state === 'dead') continue;
+    const d = pos.distanceTo(en.pos);
+    if (d < nearestDist) { nearestDist = d; nearest = en; }
+  }
+  return nearest;
+}
+
+function damageAgent(agent, dmg) {
+  agent.hp -= dmg;
+  cameraShake = Math.max(cameraShake, 0.2);
+  updateAgentCard(agent.idx);
+  if (agent.hp <= 0) {
+    agent.hp = 0;
+    agent.state = 'dead';
+    agent.mesh.visible = false;
+    agent.selRing.visible = false;
+    spawnParticleBurst(agent.pos.clone(), AGENT_COLORS[agent.idx], 18);
+    if (selectedAgentIdx === agent.idx) selectAgent(-1);
+    playSound('agentDie');
+  }
+}
+
+// ─── Enemy update ─────────────────────────────────────────────────────────────
+function updateEnemies(dt) {
+  let allDead = true;
+
+  for (const en of enemies) {
+    if (en.state === 'dead') continue;
+    allDead = false;
+
+    // Taunt timer
+    if (en.taunted) {
+      en.tauntTimer -= dt;
+      if (en.tauntTimer <= 0) en.taunted = false;
+    }
+
+    // Telegraph countdown
+    if (en.state === 'telegraphing') {
+      en.telegraphTimer -= dt;
+      if (en.telegraphTimer <= 0) {
+        en.state = 'attacking';
+        if (en.telegraph) {
+          scene.remove(en.telegraph.mesh);
+          telegraphs = telegraphs.filter(t => t !== en.telegraph);
+          en.telegraph = null;
+        }
+      }
+      continue;
+    }
+
+    // Choose movement target
+    let target;
+    if (en.taunted) {
+      const fighter = agents.find(a => a.type === 'fighter' && a.state !== 'dead');
+      target = fighter ? fighter.pos : CORE_POS;
+    } else {
+      target = CORE_POS;
+    }
+
+    const dir = target.clone().sub(en.pos);
+    dir.y = 0;
+    const dist = dir.length();
+
+    // Attack range
+    const attackRange = en.type === 'tank' ? 2.8 : ENEMY_ATTACK_RANGE;
+    const coreRange = 2.5;
+
+    if (en.state === 'moving') {
+      if (dist < coreRange) {
+        en.state = 'telegraphing';
+        en.telegraphTimer = TELEGRAPH_DURATION;
+        en.telegraph = spawnTelegraph(CORE_POS.clone(), coreRange, 0xff2244);
+        playSound('telegraph');
+      } else {
+        dir.normalize().multiplyScalar(en.speed * dt);
+        en.pos.add(dir);
+        en.mesh.position.copy(en.pos);
+        en.mesh.position.y = en.type === 'rusher' ? 0.35 : (en.type === 'tank' ? 0.55 : 0.45);
+        en.mesh.lookAt(en.pos.clone().add(new THREE.Vector3(dir.x, en.mesh.position.y, dir.z)));
+
+        // Check if taunted and nearby fighter
+        if (en.taunted) {
+          const fighter = agents.find(a => a.type === 'fighter' && a.state !== 'dead');
+          if (fighter && en.pos.distanceTo(fighter.pos) < attackRange) {
+            triggerEnemyAttack(en, fighter, 'agent');
+          }
+        }
+
+        // Check if near any agent
+        for (const ag of agents) {
+          if (ag.state === 'dead') continue;
+          if (en.pos.distanceTo(ag.pos) < attackRange) {
+            triggerEnemyAttack(en, ag, 'agent');
+            break;
+          }
+        }
+      }
+    }
+
+    if (en.state === 'attacking') {
+      // Deal damage to core
+      en.attackTimer -= dt;
+      if (en.attackTimer <= 0) {
+        en.attackTimer = ENEMY_ATTACK_COOLDOWN;
+        coreHp -= en.dmg;
+        cameraShake = Math.max(cameraShake, 0.35);
+        updateCoreHpDisplay();
+        spawnParticleBurst(CORE_POS.clone(), 0x4488ff, 8);
+        playSound('coreHit');
+        if (coreHp <= 0) {
+          coreHp = 0;
+          triggerLose();
+          return;
+        }
+        en.state = 'moving';
+      }
+    }
+
+    // Update HP bar
+    if (en.hpBarFill) {
+      const ratio = en.hp / en.maxHp;
+      en.hpBarFill.scale.x = Math.max(0.001, ratio);
+      en.hpBarFill.position.x = -(1 - ratio) * 0.5;
+    }
+  }
+
+  if (allDead && phase === 'combat') {
+    endWave();
+  }
+}
+
+function triggerEnemyAttack(en, agentTarget, targetType) {
+  if (en.attackTimer > 0) return;
+  en.attackTimer = ENEMY_ATTACK_COOLDOWN;
+  en.state = 'telegraphing';
+  en.telegraphTimer = TELEGRAPH_DURATION;
+  const pos = agentTarget.pos.clone();
+  en.telegraph = spawnTelegraph(pos, 1.2, 0xff6600);
+  playSound('telegraph');
+
+  // Schedule actual damage after telegraph
+  const capturedAgent = agentTarget;
+  const capturedEn = en;
+  setTimeout(() => {
+    if (capturedEn.state === 'dead') return;
+    if (capturedAgent.state === 'dead') return;
+    damageAgent(capturedAgent, capturedEn.dmg);
+    capturedEn.state = 'moving';
+  }, TELEGRAPH_DURATION * 1000);
+}
+
+function damageEnemy(en, dmg, fromPos) {
+  if (en.state === 'dead') return;
+  en.hp -= dmg;
+  if (en.hp <= 0) {
+    en.hp = 0;
+    en.state = 'dead';
+    scene.remove(en.mesh);
+    spawnParticleBurst(en.pos.clone(), 0xff2244, 12);
+    playSound('enemyDie');
+  }
+}
+
+// ─── Turret update ────────────────────────────────────────────────────────────
+function updateTurrets(dt) {
+  for (const t of turrets) {
+    if (t.state !== 'active') continue;
+    t.attackTimer -= dt;
+    if (t.attackTimer <= 0) {
+      // Find nearest enemy in range
+      let nearest = null;
+      let nearestDist = TURRET_RANGE;
+      for (const en of enemies) {
+        if (en.state === 'dead') continue;
+        const d = t.pos.distanceTo(en.pos);
+        if (d < nearestDist) { nearestDist = d; nearest = en; }
+      }
+      if (nearest) {
+        t.attackTimer = TURRET_ATTACK_COOLDOWN;
+        damageEnemy(nearest, 2, t.pos.clone());
+        spawnProjectile(t.pos.clone(), nearest.pos.clone(), 0xffcc00);
+      } else {
+        t.attackTimer = 0.3;
+      }
+    }
+    // Rotate turret toward nearest enemy
+    const nearest = nearestEnemy(t.pos);
+    if (nearest) t.mesh.lookAt(nearest.pos.x, t.mesh.position.y, nearest.pos.z);
+  }
+}
+
+// ─── Projectile ───────────────────────────────────────────────────────────────
+function spawnProjectile(from, to, color) {
+  const geo = new THREE.SphereGeometry(0.12, 4, 4);
+  const mat = new THREE.MeshBasicMaterial({ color });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.copy(from);
+  mesh.position.y = 0.8;
+  scene.add(mesh);
+  const vel = to.clone().sub(from);
+  vel.y = 0;
+  vel.normalize().multiplyScalar(18);
+  const maxLife = from.distanceTo(to) / 18;
+  particles.push({ mesh, vel, life: maxLife + 0.1, isProjectile: true });
+}
+
+// ─── Particle update ──────────────────────────────────────────────────────────
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt;
+    if (p.life <= 0) {
+      scene.remove(p.mesh);
+      particles.splice(i, 1);
+      continue;
+    }
+    if (p.isProjectile) {
+      p.mesh.position.addScaledVector(p.vel, dt);
+    } else {
+      p.vel.y -= 9 * dt;
+      p.mesh.position.addScaledVector(p.vel, dt);
+    }
+    p.mesh.material.opacity = Math.min(1, p.life * 3);
+    if (!p.mesh.material.transparent) p.mesh.material.transparent = true;
+  }
+}
+
+// ─── Telegraph update ─────────────────────────────────────────────────────────
+function updateTelegraphs(dt) {
+  for (let i = telegraphs.length - 1; i >= 0; i--) {
+    const t = telegraphs[i];
+    t.timer -= dt;
+    if (t.timer <= 0) {
+      scene.remove(t.mesh);
+      telegraphs.splice(i, 1);
+      continue;
+    }
+    const pulse = 0.5 + 0.5 * Math.sin((TELEGRAPH_DURATION - t.timer) * Math.PI * 8 / TELEGRAPH_DURATION);
+    t.mesh.material.opacity = 0.4 + 0.5 * pulse;
+  }
+}
+
+// ─── Ability cooldowns ────────────────────────────────────────────────────────
+function updateAbilityCooldowns(dt) {
+  let changed = false;
+  for (const w of [2, 3, 5, 6]) {
+    if (abilityCooldown[w] > 0) {
+      abilityCooldown[w] = Math.max(0, abilityCooldown[w] - dt);
+      changed = true;
+    }
+  }
+  if (abilityDuration[2] > 0) {
+    abilityDuration[2] -= dt;
+    if (abilityDuration[2] <= 0) {
+      enemies.forEach(en => { en.revealed = false; });
+    }
+  }
+  if (changed) updateAbilityPanel();
+}
+
+// ─── Camera shake ─────────────────────────────────────────────────────────────
+function updateCameraShake(dt) {
+  if (cameraShake <= 0) return;
+  const s = cameraShake;
+  camera.position.set(
+    0 + (Math.random() - 0.5) * s * 0.8,
+    36 + (Math.random() - 0.5) * s * 0.4,
+    26 + (Math.random() - 0.5) * s * 0.6
+  );
+  camera.lookAt(0, 0, 0);
+  cameraShake -= dt * 3;
+  if (cameraShake < 0) cameraShake = 0;
+}
+
+// ─── Win check ────────────────────────────────────────────────────────────────
+function checkWinCondition() {
+  if (phase === 'win' || phase === 'gameover') return;
+  if (coreHp <= 0) { triggerLose(); return; }
+}
+
+// ─── Resize ───────────────────────────────────────────────────────────────────
 function onResize() {
-  const w = window.innerWidth, h = window.innerHeight;
-  const aspect = w / h;
-  const zoom = 18;
-  camera.left = -zoom * aspect;
-  camera.right = zoom * aspect;
-  camera.top = zoom;
-  camera.bottom = -zoom;
+  camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(w, h);
-  if (useComposer) composer.setSize(w, h);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  if (composer) composer.setSize(window.innerWidth, window.innerHeight);
 }
 
-// ─── BOOT ─────────────────────────────────────────────────────────────────────
+// ─── Audio ────────────────────────────────────────────────────────────────────
+function getAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { return null; }
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playTone(freq, type, duration, vol, delay = 0) {
+  const ctx = getAudio();
+  if (!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.type = type;
+  osc.frequency.value = freq;
+  const t = ctx.currentTime + delay;
+  gain.gain.setValueAtTime(vol, t);
+  gain.gain.exponentialRampToValueAtTime(0.01, t + duration);
+  osc.start(t);
+  osc.stop(t + duration + 0.05);
+}
+
+function startBGM() {
+  const ctx = getAudio();
+  if (!ctx || bgmStarted) return;
+  bgmStarted = true;
+
+  // Sub-bass drone
+  const drone = ctx.createOscillator();
+  const droneGain = ctx.createGain();
+  drone.connect(droneGain);
+  droneGain.connect(ctx.destination);
+  drone.type = 'sine';
+  drone.frequency.value = 60;
+  droneGain.gain.setValueAtTime(0.18, ctx.currentTime);
+  drone.start();
+  bgmNodes.push(drone, droneGain);
+
+  // Tension arpeggio
+  const arpFreqs = [220, 277, 330, 440, 370, 294, 247, 185];
+  let arpIdx = 0;
+  function arpTick() {
+    if (!gameStarted) return;
+    playTone(arpFreqs[arpIdx % arpFreqs.length], 'sawtooth', 0.3, 0.04);
+    arpIdx++;
+    setTimeout(arpTick, 600 + Math.random() * 400);
+  }
+  setTimeout(arpTick, 800);
+
+  // Kick pattern
+  const kickTimes = [0, 0.5, 1.0, 1.5, 2.2, 2.5, 3.0, 3.8, 4.0, 4.5, 5.0, 5.5];
+  function kickPattern() {
+    if (!gameStarted) return;
+    kickTimes.forEach(offset => {
+      setTimeout(() => {
+        if (!gameStarted) return;
+        playTone(80, 'sine', 0.15, 0.22);
+      }, offset * 1000);
+    });
+    setTimeout(kickPattern, 6000);
+  }
+  setTimeout(kickPattern, 1200);
+}
+
+function playSound(type) {
+  switch (type) {
+    case 'waveStart': playTone(440, 'square', 0.3, 0.15); playTone(660, 'square', 0.25, 0.12, 0.15); break;
+    case 'waveClear': [330, 440, 550, 660].forEach((f, i) => playTone(f, 'sine', 0.3, 0.14, i * 0.1)); break;
+    case 'unlock': [440, 550, 660, 880].forEach((f, i) => playTone(f, 'sine', 0.35, 0.15, i * 0.08)); break;
+    case 'enemyDie': playTone(200, 'sawtooth', 0.12, 0.12); break;
+    case 'agentDie': [300, 200, 150].forEach((f, i) => playTone(f, 'square', 0.2, 0.14, i * 0.1)); break;
+    case 'coreHit': playTone(120, 'square', 0.2, 0.25); break;
+    case 'telegraph': playTone(880, 'sine', 0.15, 0.08); break;
+    case 'place': [440, 550].forEach((f, i) => playTone(f, 'sine', 0.2, 0.12, i * 0.07)); break;
+    case 'reject': playTone(200, 'sawtooth', 0.1, 0.12); break;
+    case 'win': [330, 440, 550, 660, 880, 1100].forEach((f, i) => playTone(f, 'sine', 0.5, 0.15, i * 0.12)); break;
+    case 'lose': [300, 250, 200, 150, 100].forEach((f, i) => playTone(f, 'sawtooth', 0.4, 0.15, i * 0.15)); break;
+  }
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
 init();

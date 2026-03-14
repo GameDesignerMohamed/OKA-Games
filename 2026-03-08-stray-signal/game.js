@@ -119,8 +119,8 @@ function isWalkable(x, y) {
 // ─── THREE.JS SETUP ───────────────────────────────────────────────────────
 function initThree() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x000509);
-  scene.fog = new THREE.FogExp2(0x000509, 0.04);
+  scene.background = new THREE.Color(0x080818);
+  scene.fog = new THREE.FogExp2(0x080818, 0.02);
 
   camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 200);
   camera.position.set(GRID_W*TILE/2, 22, GRID_H*TILE/2 + 10);
@@ -134,19 +134,22 @@ function initThree() {
   document.getElementById('canvas-container').appendChild(renderer.domElement);
 
   // Lighting
-  const ambient = new THREE.AmbientLight(0x001122, 1.2);
+  const ambient = new THREE.AmbientLight(0x224466, 3.0);
   scene.add(ambient);
 
-  const dirLight = new THREE.DirectionalLight(0x00ffff, 0.4);
+  const dirLight = new THREE.DirectionalLight(0x88ccff, 3);
   dirLight.position.set(10, 20, 10);
   scene.add(dirLight);
+  const dirLight2 = new THREE.DirectionalLight(0x6688aa, 2);
+  dirLight2.position.set(-10, 15, -5);
+  scene.add(dirLight2);
 
   // Bloom post-processing
   composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(
     new THREE.Vector2(innerWidth, innerHeight),
-    1.6, 0.6, 0.2
+    0.6, 0.4, 0.3
   );
   composer.addPass(bloom);
 

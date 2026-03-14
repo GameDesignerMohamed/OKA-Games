@@ -394,6 +394,45 @@
 
   <div id="feed">
 
+    <!-- ── Directive (Agentic RTS) ── -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title-block">
+          <div class="card-title"><a href="2026-03-14-directive/index.html" target="_blank">Directive</a></div>
+          <div class="card-date">March 14, 2026</div>
+        </div>
+        <div class="badge conditional">Conditional</div>
+      </div>
+      <div class="card-body">
+        <div class="card-row">
+          <div class="row-label">Game</div>
+          <div class="row-text">Click-to-assign agentic RTS. You command 4 autonomous agents (Scout, Builder, Fighter, Medic) by clicking goals — they execute autonomously, with hard role rejection when a goal is outside their spec: "NOT MY JOB" / "HEAL ONLY" / "TOO CLOSE." Agents idle-behave when unassigned (Scout and Fighter auto-engage threats, Medic auto-heals). Survive 7 waves. 4 ability unlocks gated by wave progression.</div>
+        </div>
+        <div class="card-row">
+          <div class="row-label">Design</div>
+          <div class="row-text">Select-assign-watch does feel like meaningful direction, not delayed mouse control — the combination of click-to-assign plus autonomous idle behavior is what creates the director feeling. Role rejection bubbles are the strongest mechanic in the build: they make agent constraints tangible and legible in real-time. Telegraph rings consistent with OKA-Games pattern. Wave-gated ability unlocks with correct behavioral ordering. Critical gap: no live read on what agents are doing autonomously between commands — player corrects problems reactively, not proactively. No decision fingerprint: run 1 and run 2 are structurally identical.</div>
+        </div>
+        <div class="card-row verdict-row">
+          <div class="row-label">Verdict</div>
+          <div class="row-text">The prototype proves the hardest part of the thesis: issuing goals to AI sub-units reads as meaningful direction. Rejection bubbles make agent constraints legible in real-time — clearest agent constraint communication in any OKA-Games build to date. The fix is a live situation report ticker per agent showing current autonomous intent (one line each: "SCOUT → engaging rusher-3", "MEDIC → healing Fighter 2HP"). That single addition transforms the player from reactive corrector into proactive director — and puts this in a category no commercial title has shipped. Scout confirmed: "agent reasoning transparency as first-class mechanic" is 0% shipped in the market.</div>
+        </div>
+        <div class="card-row">
+          <div class="row-label">Market Signal</div>
+          <div class="row-text">Scout Mar 13: Google's GDC agentic AI pipeline reveal — "player as AI director, issuing natural-language goals to autonomous sub-units." The game IS the production pipeline. Directive tests whether player-as-director is a playable mechanic or just a framing device.</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="tag">threejs</span>
+        <span class="tag">rts</span>
+        <span class="tag">agentic</span>
+        <span class="tag">director-mechanic</span>
+        <a class="play-link" href="2026-03-14-directive/index.html" target="_blank">
+          <svg viewBox="0 0 12 12"><path d="M2 1l9 5-9 5V1z"/></svg>
+          Play
+        </a>
+      </div>
+    </div>
+
     <!-- ── Clearance (Earned Access Survivor) ── -->
     <div class="card">
       <div class="card-header">

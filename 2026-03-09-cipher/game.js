@@ -82,8 +82,8 @@ function init() {
 
   // Scene
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x050508);
-  scene.fog = new THREE.FogExp2(0x070710, 0.06);
+  scene.background = new THREE.Color(0x0c0c18);
+  scene.fog = new THREE.FogExp2(0x0c0c18, 0.025);
 
   // Camera
   camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 100);
@@ -101,16 +101,19 @@ function init() {
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    1.2, 0.5, 0.1
+    0.6, 0.4, 0.3
   );
   composer.addPass(bloom);
 
   // Lighting
-  const ambient = new THREE.AmbientLight(0x101018, 1.0);
+  const ambient = new THREE.AmbientLight(0x334466, 3.0);
   scene.add(ambient);
-  const dirLight = new THREE.DirectionalLight(0x4040a0, 1.5);
+  const dirLight = new THREE.DirectionalLight(0x8888cc, 4);
   dirLight.position.set(5, 10, 5);
   scene.add(dirLight);
+  const dirLight2 = new THREE.DirectionalLight(0x6666aa, 2);
+  dirLight2.position.set(-5, 8, -3);
+  scene.add(dirLight2);
 
   // Build static scene
   buildScene();

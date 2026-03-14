@@ -90,13 +90,16 @@ function initThree() {
 
   clock = new THREE.Clock();
 
-  // Lighting
-  const ambient = new THREE.AmbientLight(0x111122, 1.5);
+  // Lighting — brighter so feature nodes are readable
+  const ambient = new THREE.AmbientLight(0x334466, 2.5);
   scene.add(ambient);
-  const dirLight = new THREE.DirectionalLight(0x2244ff, 2);
+  const dirLight = new THREE.DirectionalLight(0x6688cc, 3);
   dirLight.position.set(5, 10, 5);
   scene.add(dirLight);
-  const pointLight = new THREE.PointLight(0x44aaff, 3, 30);
+  const dirLight2 = new THREE.DirectionalLight(0x4466aa, 1.5);
+  dirLight2.position.set(-5, 8, -3);
+  scene.add(dirLight2);
+  const pointLight = new THREE.PointLight(0x44aaff, 4, 40);
   pointLight.position.set(0, 8, 0);
   scene.add(pointLight);
 
@@ -129,13 +132,14 @@ function buildServerRack() {
 
     // Node body
     const geo = new THREE.BoxGeometry(nodeW, nodeH, nodeD);
-    const tierColors = { early: 0x1a3a2a, mid: 0x1a2a3a, final: 0x2a1a1a };
+    const tierColors = { early: 0x2a5040, mid: 0x2a4060, final: 0x503030 };
+    const tierEmissive = { early: 0x1a4030, mid: 0x1a3050, final: 0x402020 };
     const mat = new THREE.MeshStandardMaterial({
       color: tierColors[feat.tier],
-      emissive: tierColors[feat.tier],
-      emissiveIntensity: 0.4,
-      roughness: 0.6,
-      metalness: 0.8,
+      emissive: tierEmissive[feat.tier],
+      emissiveIntensity: 0.8,
+      roughness: 0.5,
+      metalness: 0.6,
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x, y, z);
@@ -153,7 +157,26 @@ function buildServerRack() {
     led.position.set(x, y + nodeH / 2 + 0.05, z + nodeD / 2 + 0.01);
     rackGroup.add(led);
 
-    // Label sprite (invisible — tooltip handles text)
+    // Label sprite — text on the node face
+    const labelCanvas = document.createElement('canvas');
+    labelCanvas.width = 256;
+    labelCanvas.height = 64;
+    const ctx = labelCanvas.getContext('2d');
+    ctx.fillStyle = 'transparent';
+    ctx.fillRect(0, 0, 256, 64);
+    ctx.font = 'bold 22px Courier New';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(feat.name, 128, 32);
+    const labelTex = new THREE.CanvasTexture(labelCanvas);
+    const labelMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true, opacity: 0.9 });
+    const label = new THREE.Sprite(labelMat);
+    label.position.set(x, y, z + nodeD / 2 + 0.15);
+    label.scale.set(nodeW * 0.9, nodeH * 0.4, 1);
+    rackGroup.add(label);
+
+    feat.label = label;
     feat.mesh = mesh;
     feat.led = led;
     feat.baseColor = tierColors[feat.tier];
@@ -309,59 +332,56 @@ function updateBGMDistortion(playerRatio) {
 }
 
 function scheduleBGMLoop(startTime) {
-  // 64-second lo-fi server hum composition
-  // B1/B5: sustain values 0.6-0.8 of attack, never 0
-  const bpm = 72;
-  const beat = 60 / bpm;
+  // 64-second lo-fi ambient — warm sine pads, no harsh sawtooth static
+  const loopLen = 64;
 
-  // Sub-bass drone
-  playDrone(startTime, 60, 64, 0.10, 0.08);     // 60Hz sub
-  playDrone(startTime, 80, 64, 0.06, 0.05);     // 80Hz bass
+  // Warm pad drones — sine waves for clean tone
+  playDrone(startTime, 65, loopLen, 0.06, 0.04, 'sine');      // low root
+  playDrone(startTime, 98, loopLen, 0.04, 0.03, 'sine');      // fifth
+  playDrone(startTime, 131, loopLen, 0.025, 0.02, 'triangle'); // octave
 
-  // Atmospheric hum texture
-  playDrone(startTime, 240, 64, 0.02, 0.015);   // warm mid
-  playDrone(startTime, 480, 64, 0.015, 0.01);   // presence
+  // Slow evolving pad — slight detune for warmth/chorus
+  playDrone(startTime, 196, loopLen, 0.02, 0.015, 'sine');
+  playDrone(startTime, 198, loopLen, 0.015, 0.01, 'sine');
 
-  // Sparse melodic notes spread across 64s — S6 rule
+  // Sparse melodic notes — gentle plucks spread across 64s
   const melNotes = [
-    [0, 220, 1.2],
-    [8, 165, 0.8],
-    [16, 196, 1.0],
-    [24, 175, 0.9],
-    [32, 220, 1.1],
-    [40, 165, 0.7],
-    [48, 196, 0.9],
-    [56, 175, 0.8],
-    [60, 147, 1.5],
+    [0, 330, 2.5],    // E4
+    [8, 294, 2.0],    // D4
+    [16, 262, 2.5],   // C4
+    [24, 247, 2.0],   // B3
+    [32, 330, 2.2],   // E4
+    [40, 294, 1.8],   // D4
+    [48, 262, 2.5],   // C4
+    [56, 220, 3.0],   // A3
   ];
   melNotes.forEach(([offset, freq, dur]) => {
-    playNote(startTime + offset, freq, dur, 0.025, 'sine');
-    // Harmonics
-    playNote(startTime + offset + 0.01, freq * 1.5, dur * 0.8, 0.012, 'triangle');
+    playNote(startTime + offset, freq, dur, 0.035, 'sine');
+    playNote(startTime + offset + 0.02, freq * 2, dur * 0.5, 0.012, 'sine');
   });
 
-  // Glitch/click artifacts spread irregularly — S6
-  const glitchTimes = [3.5, 11.2, 19.8, 27.1, 35.4, 43.7, 52.1, 59.3];
-  glitchTimes.forEach(t => {
-    playGlitch(startTime + t);
+  // Soft ambient texture instead of harsh glitches
+  const textureTimes = [5, 15, 28, 38, 50, 60];
+  textureTimes.forEach(t => {
+    playNote(startTime + t, 440, 0.5, 0.008, 'sine');
+    playNote(startTime + t + 0.1, 660, 0.4, 0.005, 'triangle');
   });
 
   // Schedule next loop
   setTimeout(() => {
     if (gameState === 'playing') scheduleBGMLoop(audioCtx.currentTime);
-  }, 62000);
+  }, (loopLen - 2) * 1000);
 }
 
-function playDrone(startTime, freq, dur, attack, sustain) {
+function playDrone(startTime, freq, dur, attack, sustain, type = 'sine') {
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
-  osc.type = 'sawtooth';
+  osc.type = type;
   osc.frequency.value = freq;
-  // B5: attack → sustain (never 0) → release
   gain.gain.setValueAtTime(0, startTime);
-  gain.gain.linearRampToValueAtTime(attack, startTime + 0.5);
-  gain.gain.setValueAtTime(sustain, startTime + 1);  // sustain = 60-80% of attack, not 0
-  gain.gain.setValueAtTime(sustain, startTime + dur - 0.5);
+  gain.gain.linearRampToValueAtTime(attack, startTime + 1.5);
+  gain.gain.setValueAtTime(sustain, startTime + 2);
+  gain.gain.setValueAtTime(sustain, startTime + dur - 1.5);
   gain.gain.linearRampToValueAtTime(0, startTime + dur);
   osc.connect(gain);
   if (bgmGain) gain.connect(bgmGain);
@@ -642,6 +662,7 @@ function confirmDelete(node) {
   spawnDeleteBurst(node.mesh.position);
   node.mesh.visible = false;
   if (node.led) node.led.visible = false;
+  if (node.label) node.label.visible = false;
 
   addLog(`Deleted: ${node.name} (+${node.credits} credits)`, 'blue');
   playSFX('delete');
@@ -1015,7 +1036,7 @@ function restartGame() {
   particles = [];
 
   // Rebuild
-  FEATURES.forEach(f => { f.mesh = null; f.led = null; f.deleted = false; f.players = 0; });
+  FEATURES.forEach(f => { f.mesh = null; f.led = null; f.label = null; f.deleted = false; f.players = 0; });
   buildServerRack();
   buildPlayerOrbs();
 

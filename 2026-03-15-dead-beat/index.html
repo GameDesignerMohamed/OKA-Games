@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dead Beat</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+canvas { display: block; }
+
+#ui {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 10;
+}
+
+#hud {
+  position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 30px; align-items: center;
+}
+
+#hp-display {
+  display: flex; gap: 8px;
+}
+.hp-pip {
+  width: 24px; height: 24px;
+  background: #00ffaa;
+  border: 2px solid #00ffaa;
+  box-shadow: 0 0 8px #00ffaa;
+  transition: all 0.2s;
+}
+.hp-pip.empty {
+  background: transparent;
+  box-shadow: none;
+}
+
+#combo-display {
+  color: #ffcc00;
+  font-size: 22px;
+  font-weight: bold;
+  text-shadow: 0 0 10px #ffcc00;
+  min-width: 120px;
+  text-align: center;
+}
+
+#score-display {
+  color: #fff;
+  font-size: 18px;
+  text-shadow: 0 0 6px #fff;
+}
+
+#arena-display {
+  color: #aaaaff;
+  font-size: 18px;
+  text-shadow: 0 0 6px #aaaaff;
+}
+
+/* Bottom beat indicator */
+#beat-bar {
+  position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+  width: 300px; text-align: center;
+}
+#bpm-label {
+  color: #888; font-size: 12px; margin-bottom: 6px; letter-spacing: 3px;
+}
+#beat-dots {
+  display: flex; justify-content: center; gap: 10px;
+}
+.beat-dot {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #333; border: 1px solid #555;
+  transition: all 0.05s;
+}
+.beat-dot.active {
+  background: #ffcc00;
+  box-shadow: 0 0 10px #ffcc00, 0 0 20px #ffaa00;
+  transform: scale(1.3);
+}
+
+/* Overlays */
+#overlay {
+  display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.85);
+  justify-content: center; align-items: center; flex-direction: column;
+  pointer-events: all;
+}
+#overlay.active { display: flex; }
+#overlay-title {
+  font-size: 52px; font-weight: bold; color: #ffcc00;
+  text-shadow: 0 0 20px #ffaa00, 0 0 40px #ff8800;
+  margin-bottom: 20px; letter-spacing: 4px;
+}
+#overlay-sub {
+  font-size: 20px; color: #ccc; margin-bottom: 10px;
+}
+#overlay-body {
+  font-size: 16px; color: #888; margin-bottom: 40px; text-align: center; line-height: 1.8;
+}
+#overlay-btn {
+  background: #ffcc00; color: #000; border: none; padding: 14px 40px;
+  font-size: 18px; font-family: 'Courier New', monospace; font-weight: bold;
+  cursor: pointer; letter-spacing: 2px;
+  transition: all 0.2s; box-shadow: 0 0 20px #ffaa00;
+}
+#overlay-btn:hover { background: #fff; box-shadow: 0 0 30px #fff; }
+
+/* Wave announcement */
+#wave-announce {
+  display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  font-size: 48px; font-weight: bold; color: #fff;
+  text-shadow: 0 0 20px #00ffff; letter-spacing: 6px;
+  pointer-events: none;
+}
+
+/* Beat flash overlay */
+#beat-flash {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; opacity: 0;
+  border: 8px solid #ffcc00;
+  box-shadow: inset 0 0 60px rgba(255,200,0,0.3);
+  transition: opacity 0.05s;
+}
+
+/* Chromatic aberration flash */
+#chroma-flash {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 60%, rgba(255,0,100,0.3) 100%);
+  mix-blend-mode: screen;
+}
+
+/* Miss flash */
+#miss-flash {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; opacity: 0;
+  background: rgba(100,0,0,0.25);
+}
+
+/* Perfect hits / stats */
+#perf-stats {
+  position: absolute; bottom: 100px; right: 30px;
+  color: #555; font-size: 13px; text-align: right; line-height: 1.6;
+}
+</style>
+</head>
+<body>
+<div id="ui">
+  <div id="hud">
+    <div id="hp-display">
+      <div class="hp-pip" id="hp0"></div>
+      <div class="hp-pip" id="hp1"></div>
+      <div class="hp-pip" id="hp2"></div>
+    </div>
+    <div id="combo-display">×1</div>
+    <div id="score-display">0</div>
+    <div id="arena-display">ARENA 1</div>
+  </div>
+
+  <div id="beat-bar">
+    <div id="bpm-label">100 BPM</div>
+    <div id="beat-dots">
+      <div class="beat-dot" id="bd0"></div>
+      <div class="beat-dot" id="bd1"></div>
+      <div class="beat-dot" id="bd2"></div>
+      <div class="beat-dot" id="bd3"></div>
+    </div>
+  </div>
+
+  <div id="beat-flash"></div>
+  <div id="chroma-flash"></div>
+  <div id="miss-flash"></div>
+
+  <div id="wave-announce"></div>
+  <div id="perf-stats">PERFECT HITS: 0/0</div>
+
+  <div id="overlay" class="active">
+    <div id="overlay-title">DEAD BEAT</div>
+    <div id="overlay-sub">Rhythm Brawler</div>
+    <div id="overlay-body">
+      CLICK TO PUNCH — SPACE TO DODGE<br>
+      Hit ON THE BEAT for 3× damage + stagger<br>
+      Miss the beat — miss the hit<br>
+      Dodge ON the beat for invincibility frames<br>
+      <br>
+      3 ARENAS · 100/120/140 BPM · BUILD YOUR COMBO
+    </div>
+    <button id="overlay-btn" onclick="startGame()">START</button>
+  </div>
+</div>
+<script type="module" src="game.js"></script>
+</body>
+</html>

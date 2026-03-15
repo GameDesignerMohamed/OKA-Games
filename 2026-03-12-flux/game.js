@@ -335,9 +335,12 @@ function endGame(won) {
 
   updateUI();
 
+  weaponIndex = (weaponIndex + 1) % 4;
+
   // B2: async callbacks AFTER state set
   setTimeout(() => {
-    const nextWeaponName = WEAPON_NAMES[(weaponIndex + 1) % 4];
+    if (gameState !== 'ended') return; // guard: player already clicked to restart
+    const nextWeaponName = WEAPON_NAMES[weaponIndex];
     overlayEl.innerHTML = `
       <h1>${won ? 'SURVIVED' : 'DEAD'}</h1>
       <div class="final-score">${score} pts</div>
@@ -346,7 +349,6 @@ function endGame(won) {
       <div class="hint">CLICK FOR NEXT RUN</div>
     `;
     overlayEl.style.display = 'flex';
-    weaponIndex = (weaponIndex + 1) % 4;
   }, 800);
 }
 

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grid Lock</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: #00ffcc; }
+  #canvas-container { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  /* HUD */
+  #hud {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 14px 18px; pointer-events: none; z-index: 10;
+  }
+  .hud-box {
+    background: rgba(0,0,0,0.75); border: 1px solid #00ffcc44;
+    border-radius: 6px; padding: 8px 14px;
+  }
+  .hud-label { font-size: 10px; letter-spacing: 3px; color: #007755; text-transform: uppercase; }
+  .hud-val { font-size: 20px; font-weight: bold; color: #00ffcc; text-shadow: 0 0 10px #00ffcc; }
+
+  /* Lives */
+  #breach-display { display: flex; flex-direction: column; align-items: center; }
+  #breach-pips { display: flex; gap: 6px; margin-top: 4px; }
+  .breach-pip {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #ff4455; border: 1px solid #ff8899;
+    box-shadow: 0 0 6px #ff4455;
+    transition: all 0.3s;
+  }
+  .breach-pip.used { background: #222; border-color: #444; box-shadow: none; }
+
+  /* Tower selector */
+  #tower-panel {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 12px; padding: 14px 20px;
+    background: rgba(0,0,0,0.88); border: 1px solid #00ffcc22;
+    border-bottom: none; border-radius: 12px 12px 0 0;
+    z-index: 20;
+  }
+  .tower-btn {
+    width: 72px; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    cursor: pointer; padding: 8px; border-radius: 8px;
+    border: 1px solid transparent; transition: all 0.15s;
+    pointer-events: all;
+  }
+  .tower-btn:hover { background: rgba(255,255,255,0.05); border-color: #00ffcc44; }
+  .tower-btn.selected { background: rgba(0, 255, 200, 0.08); border-color: #00ffcc; box-shadow: 0 0 12px rgba(0,255,200,0.2); }
+  .tower-btn.selected.pulse-cost { border-color: #ff4466; box-shadow: 0 0 12px rgba(255,68,102,0.3); }
+  .tower-icon { width: 32px; height: 32px; border-radius: 50%; }
+  .pulse-icon { background: radial-gradient(circle, #ff66cc, #aa0066); box-shadow: 0 0 12px #ff44aa; }
+  .cryo-icon { background: radial-gradient(circle, #44aaff, #0033aa); box-shadow: 0 0 12px #0088ff; }
+  .arc-icon { background: radial-gradient(circle, #44ff88, #007733); box-shadow: 0 0 12px #00ff66; }
+  .tower-name { font-size: 10px; letter-spacing: 1px; color: #aaa; text-transform: uppercase; }
+  .tower-cost { font-size: 11px; font-weight: bold; }
+  .pulse-cost { color: #ff66cc; }
+  .cryo-cost { color: #44aaff; }
+  .arc-cost { color: #44ff88; }
+
+  /* Credits display in panel */
+  #panel-credits {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 0 8px; min-width: 60px;
+  }
+  #panel-credits .hud-label { font-size: 9px; }
+  #panel-credits .hud-val { font-size: 18px; }
+
+  /* Wave announce */
+  #wave-announce {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    font-size: 36px; letter-spacing: 8px; color: #00ffcc;
+    text-shadow: 0 0 20px #00ffcc, 0 0 40px #00aa88;
+    pointer-events: none; z-index: 50;
+    opacity: 0; transition: opacity 0.3s;
+    text-transform: uppercase; text-align: center;
+  }
+
+  /* Screen overlay */
+  #screen-overlay {
+    position: fixed; inset: 0; background: rgba(0,5,10,0.92);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 100; gap: 14px;
+  }
+  #screen-overlay h1 {
+    font-size: 52px; letter-spacing: 10px;
+    color: #00ffcc; text-shadow: 0 0 30px #00ffcc, 0 0 60px #007755;
+    text-transform: uppercase;
+  }
+  #screen-overlay .sub { font-size: 13px; letter-spacing: 4px; color: #006644; text-transform: uppercase; }
+  #screen-overlay .hint { font-size: 12px; color: #334433; }
+  #start-btn, #restart-btn {
+    margin-top: 14px; background: transparent;
+    border: 1px solid #00ffcc; border-radius: 6px; padding: 12px 36px;
+    font-family: 'Courier New', monospace; font-size: 14px; font-weight: bold;
+    color: #00ffcc; letter-spacing: 4px; cursor: pointer;
+    box-shadow: 0 0 20px rgba(0,255,200,0.3);
+    text-transform: uppercase; transition: all 0.2s;
+  }
+  #start-btn:hover, #restart-btn:hover {
+    background: rgba(0,255,200,0.08);
+    box-shadow: 0 0 35px rgba(0,255,200,0.5);
+  }
+  #best-display { font-size: 11px; color: #334433; letter-spacing: 2px; }
+
+  /* Rain effect */
+  #rain-canvas {
+    position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0.15;
+  }
+
+  /* Speed up btn */
+  #speed-btn {
+    position: fixed; top: 14px; right: 14px; z-index: 15;
+    background: rgba(0,0,0,0.7); border: 1px solid #00ffcc44;
+    border-radius: 6px; padding: 6px 12px; color: #00ffcc66;
+    font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  #speed-btn.fast { color: #00ffcc; border-color: #00ffcc; box-shadow: 0 0 8px rgba(0,255,200,0.3); }
+</style>
+</head>
+<body>
+<canvas id="rain-canvas"></canvas>
+<div id="canvas-container"></div>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-box">
+    <div class="hud-label">Wave</div>
+    <div class="hud-val" id="wave-num">—</div>
+  </div>
+  <div class="hud-box" id="breach-display">
+    <div class="hud-label">Breaches</div>
+    <div id="breach-pips">
+      <div class="breach-pip" id="bp-0"></div>
+      <div class="breach-pip" id="bp-1"></div>
+      <div class="breach-pip" id="bp-2"></div>
+    </div>
+  </div>
+  <div class="hud-box">
+    <div class="hud-label">Kills</div>
+    <div class="hud-val" id="kill-num">0</div>
+  </div>
+</div>
+
+<!-- Speed btn -->
+<button id="speed-btn">▶ 1×</button>
+
+<!-- Wave announce -->
+<div id="wave-announce"></div>
+
+<!-- Tower panel -->
+<div id="tower-panel">
+  <div class="tower-btn selected" id="btn-pulse" data-type="pulse">
+    <div class="tower-icon pulse-icon"></div>
+    <div class="tower-name">Pulse</div>
+    <div class="tower-cost pulse-cost">25¢</div>
+  </div>
+  <div class="tower-btn" id="btn-cryo" data-type="cryo">
+    <div class="tower-icon cryo-icon"></div>
+    <div class="tower-name">Cryo</div>
+    <div class="tower-cost cryo-cost">35¢</div>
+  </div>
+  <div class="tower-btn" id="btn-arc" data-type="arc">
+    <div class="tower-icon arc-icon"></div>
+    <div class="tower-name">Arc</div>
+    <div class="tower-cost arc-cost">50¢</div>
+  </div>
+  <div id="panel-credits">
+    <div class="hud-label">Credits</div>
+    <div class="hud-val" id="credits-num">100</div>
+  </div>
+</div>
+
+<!-- Screen overlay -->
+<div id="screen-overlay">
+  <h1>Grid Lock</h1>
+  <div class="sub">Tower Defense — Trial Edition</div>
+  <div class="hint">Click sidewalk tiles to place towers · 5 waves · 3 breach limit</div>
+  <div class="hint">Pulse: DPS · Cryo: Slow · Arc: Chain damage</div>
+  <div id="best-display"></div>
+  <button id="start-btn">BEGIN</button>
+</div>
+
+<script type="module" src="game.js"></script>
+</body>
+</html>

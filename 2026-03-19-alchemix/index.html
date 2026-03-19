@@ -1,428 +1,782 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Alchemix — Elemental Discovery</title>
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alchemix — Cozy Alchemy Discovery</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
   }
-  </script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: #1a0f05;
-      overflow: hidden;
-      font-family: 'Georgia', serif;
-      color: #f0d090;
-      user-select: none;
-    }
-    #canvas-container {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
-    }
-    #ui {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
-      pointer-events: none;
-      display: flex;
-      flex-direction: column;
-    }
-    /* Top bar */
-    #top-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 20px;
-      background: linear-gradient(to bottom, rgba(26,15,5,0.9), transparent);
-      pointer-events: none;
-    }
-    #title-text {
-      font-size: 22px;
-      letter-spacing: 4px;
-      text-transform: uppercase;
-      color: #f0c060;
-      text-shadow: 0 0 20px rgba(255,160,60,0.5);
-    }
-    #progress-text {
-      font-size: 14px;
-      color: #c09040;
-      letter-spacing: 1px;
-    }
-    /* Main content row */
-    #main-row {
-      flex: 1;
-      display: flex;
-    }
-    /* Left panel — Codex */
-    #codex-panel {
-      width: 200px;
-      padding: 15px 10px;
-      background: rgba(15,8,2,0.85);
-      border-right: 1px solid rgba(180,120,40,0.3);
-      overflow-y: auto;
-      pointer-events: all;
-      backdrop-filter: blur(4px);
-    }
-    #codex-panel h3 {
-      font-size: 13px;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: #c09040;
-      margin-bottom: 10px;
-      text-align: center;
-      padding-bottom: 8px;
-      border-bottom: 1px solid rgba(180,120,40,0.3);
-    }
-    .codex-entry {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 4px 6px;
-      margin: 2px 0;
-      border-radius: 4px;
-      font-size: 11px;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    .codex-entry:hover {
-      background: rgba(180,120,40,0.15);
-    }
-    .codex-dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      flex-shrink: 0;
-      box-shadow: 0 0 6px currentColor;
-    }
-    .codex-name {
-      color: #e0b870;
-      font-size: 11px;
-    }
-    .codex-tier {
-      font-size: 9px;
-      color: #806030;
-      margin-left: auto;
-    }
-    /* Center canvas area */
-    #center {
-      flex: 1;
-      position: relative;
-    }
-    /* Right panel — Element picker */
-    #picker-panel {
-      width: 200px;
-      padding: 15px 10px;
-      background: rgba(15,8,2,0.85);
-      border-left: 1px solid rgba(180,120,40,0.3);
-      overflow-y: auto;
-      pointer-events: all;
-      backdrop-filter: blur(4px);
-    }
-    #picker-panel h3 {
-      font-size: 13px;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: #c09040;
-      margin-bottom: 10px;
-      text-align: center;
-      padding-bottom: 8px;
-      border-bottom: 1px solid rgba(180,120,40,0.3);
-    }
-    #picker-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-    }
-    .picker-btn {
-      padding: 6px 4px;
-      border-radius: 6px;
-      border: 1px solid rgba(180,120,40,0.3);
-      background: rgba(40,20,5,0.8);
-      color: #e0b870;
-      font-size: 10px;
-      text-align: center;
-      cursor: pointer;
-      transition: all 0.2s;
-      font-family: 'Georgia', serif;
-    }
-    .picker-btn:hover {
-      background: rgba(80,40,10,0.9);
-      border-color: rgba(255,160,60,0.5);
-      transform: scale(1.05);
-    }
-    .picker-btn.selected {
-      background: rgba(180,100,20,0.4);
-      border-color: rgba(255,200,80,0.7);
-      box-shadow: 0 0 8px rgba(255,160,60,0.4);
-    }
-    .picker-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      display: inline-block;
-      margin-right: 4px;
-      vertical-align: middle;
-    }
-    /* Bottom bar */
-    #bottom-bar {
-      padding: 12px 20px;
-      background: linear-gradient(to top, rgba(26,15,5,0.9), transparent);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 30px;
-      pointer-events: none;
-    }
-    #combination-display {
-      display: flex;
-      align-items: center;
-      gap: 15px;
-      min-height: 40px;
-    }
-    .combo-slot {
-      width: 80px;
-      height: 36px;
-      border: 1px solid rgba(180,120,40,0.4);
-      border-radius: 8px;
-      background: rgba(40,20,5,0.6);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      color: #c09040;
-    }
-    .combo-slot.filled {
-      border-color: rgba(255,160,60,0.6);
-      color: #f0d090;
-      background: rgba(80,40,10,0.7);
-    }
-    .combo-plus {
-      font-size: 20px;
-      color: #806030;
-    }
-    .combo-equals {
-      font-size: 20px;
-      color: #806030;
-    }
-    .combo-result {
-      width: 100px;
-      height: 36px;
-      border: 1px solid rgba(100,200,100,0.3);
-      border-radius: 8px;
-      background: rgba(20,40,10,0.6);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      color: #c09040;
-    }
-    .combo-result.found {
-      border-color: rgba(100,255,100,0.6);
-      color: #80ff80;
-      background: rgba(0,40,0,0.7);
-    }
-    .combo-result.known {
-      border-color: rgba(150,120,60,0.4);
-      color: #a08040;
-    }
-    /* Discovery notification */
-    #discovery-toast {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(20,10,0,0.95);
-      border: 2px solid rgba(255,200,80,0.6);
-      border-radius: 12px;
-      padding: 20px 40px;
-      text-align: center;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.3s;
-      z-index: 100;
-    }
-    #discovery-toast.visible {
-      opacity: 1;
-    }
-    #toast-label {
-      font-size: 11px;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: #a08040;
-      margin-bottom: 6px;
-    }
-    #toast-name {
-      font-size: 28px;
-      color: #ffd060;
-      text-shadow: 0 0 20px rgba(255,200,80,0.8);
-      letter-spacing: 2px;
-    }
-    #toast-tier {
-      font-size: 11px;
-      color: #806030;
-      margin-top: 4px;
-    }
-    /* Win overlay */
-    #win-overlay {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
-      background: rgba(0,0,0,0.8);
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 200;
-      pointer-events: all;
-    }
-    #win-overlay.visible {
-      display: flex;
-    }
-    #win-title {
-      font-size: 48px;
-      color: #ffd700;
-      text-shadow: 0 0 40px rgba(255,215,0,0.8);
-      margin-bottom: 20px;
-      letter-spacing: 4px;
-    }
-    #win-subtitle {
-      font-size: 18px;
-      color: #e0b870;
-      margin-bottom: 30px;
-      letter-spacing: 2px;
-    }
-    #win-btn {
-      padding: 12px 40px;
-      border: 2px solid rgba(255,215,0,0.6);
-      border-radius: 8px;
-      background: rgba(40,30,0,0.8);
-      color: #ffd700;
-      font-size: 16px;
-      cursor: pointer;
-      font-family: 'Georgia', serif;
-      letter-spacing: 2px;
-      transition: all 0.2s;
-    }
-    #win-btn:hover {
-      background: rgba(80,60,0,0.9);
-      box-shadow: 0 0 20px rgba(255,215,0,0.4);
-    }
-    /* Start screen */
-    #start-overlay {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
-      background: rgba(10,5,0,0.92);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 200;
-      pointer-events: all;
-    }
-    #start-title {
-      font-size: 54px;
-      color: #ffd060;
-      text-shadow: 0 0 40px rgba(255,200,60,0.6);
-      letter-spacing: 6px;
-      margin-bottom: 10px;
-    }
-    #start-tagline {
-      font-size: 16px;
-      color: #a08040;
-      letter-spacing: 2px;
-      margin-bottom: 40px;
-    }
-    #start-instructions {
-      max-width: 360px;
-      text-align: center;
-      font-size: 13px;
-      color: #c09050;
-      line-height: 2;
-      margin-bottom: 40px;
-    }
-    #start-btn {
-      padding: 14px 50px;
-      border: 2px solid rgba(255,200,60,0.6);
-      border-radius: 10px;
-      background: rgba(40,25,0,0.9);
-      color: #ffd060;
-      font-size: 18px;
-      cursor: pointer;
-      font-family: 'Georgia', serif;
-      letter-spacing: 3px;
-      transition: all 0.2s;
-    }
-    #start-btn:hover {
-      background: rgba(80,50,0,0.9);
-      box-shadow: 0 0 30px rgba(255,200,60,0.4);
-      transform: scale(1.03);
-    }
-    /* Scrollbar styling */
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: rgba(20,10,0,0.5); }
-    ::-webkit-scrollbar-thumb { background: rgba(180,120,40,0.4); border-radius: 2px; }
-  </style>
+}
+</script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a0f05; overflow: hidden; font-family: 'Georgia', serif; }
+  canvas { display: block; }
+
+  #overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  #counter {
+    position: absolute;
+    top: 16px; left: 16px;
+    background: rgba(20, 10, 0, 0.7);
+    border: 1px solid rgba(255, 180, 60, 0.4);
+    color: #ffd080;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 15px;
+    letter-spacing: 0.5px;
+  }
+
+  #title-label {
+    position: absolute;
+    top: 16px; left: 50%; transform: translateX(-50%);
+    color: rgba(255, 200, 100, 0.7);
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  #discovery-flash {
+    position: absolute;
+    top: 40%; left: 50%; transform: translate(-50%, -50%);
+    color: #ffd700;
+    font-size: 32px;
+    font-weight: bold;
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 150, 0, 0.5);
+    pointer-events: none;
+    opacity: 0;
+    transition: none;
+  }
+  #discovery-flash.show {
+    animation: flashIn 2s ease forwards;
+  }
+  @keyframes flashIn {
+    0%   { opacity: 0; transform: translate(-50%, -60%) scale(0.8); }
+    15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+    60%  { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+    100% { opacity: 0; transform: translate(-50%, -45%) scale(0.95); }
+  }
+
+  #discovery-panel {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: rgba(10, 5, 0, 0.85);
+    border-top: 1px solid rgba(255, 160, 40, 0.3);
+    padding: 8px 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-height: 90px;
+    overflow-y: auto;
+  }
+
+  .element-tile {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(40, 20, 5, 0.8);
+    border: 1px solid rgba(200, 140, 40, 0.3);
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    color: #e8c87a;
+    white-space: nowrap;
+  }
+  .element-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  #hint {
+    position: absolute;
+    bottom: 100px; left: 50%; transform: translateX(-50%);
+    color: rgba(200, 160, 80, 0.5);
+    font-size: 12px;
+    letter-spacing: 1px;
+  }
+
+  #win-screen {
+    position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(10, 5, 0, 0.95);
+    border: 2px solid #ffd700;
+    border-radius: 16px;
+    padding: 32px 48px;
+    text-align: center;
+    color: #ffd700;
+    display: none;
+    box-shadow: 0 0 40px rgba(255, 215, 0, 0.4), 0 0 80px rgba(255, 150, 0, 0.2);
+  }
+  #win-screen h1 { font-size: 28px; margin-bottom: 8px; }
+  #win-screen p { font-size: 14px; color: #ffcc80; }
+</style>
 </head>
 <body>
-  <div id="canvas-container"></div>
-
-  <div id="ui">
-    <div id="top-bar">
-      <div id="title-text">Alchemix</div>
-      <div id="progress-text">4 / 60 elements discovered</div>
-    </div>
-    <div id="main-row">
-      <div id="codex-panel">
-        <h3>Codex</h3>
-        <div id="codex-list"></div>
-      </div>
-      <div id="center"></div>
-      <div id="picker-panel">
-        <h3>Elements</h3>
-        <div id="picker-grid"></div>
-      </div>
-    </div>
-    <div id="bottom-bar">
-      <div id="combination-display">
-        <div class="combo-slot" id="slot-a">—</div>
-        <div class="combo-plus">+</div>
-        <div class="combo-slot" id="slot-b">—</div>
-        <div class="combo-equals">=</div>
-        <div class="combo-result" id="slot-result">?</div>
-      </div>
-    </div>
+<div id="overlay">
+  <div id="counter">🧪 4 / 20 Discovered</div>
+  <div id="title-label">Alchemix</div>
+  <div id="discovery-flash"></div>
+  <div id="hint">Click an element to select · Click another to combine</div>
+  <div id="discovery-panel" id="discovery-panel"></div>
+  <div id="win-screen">
+    <h1>🏆 Grand Alchemist!</h1>
+    <p>All 20 elements discovered.</p>
+    <p style="margin-top:8px; font-size:12px; color:#aaa;">Keep combining — the cauldron never runs dry.</p>
   </div>
+</div>
 
-  <div id="discovery-toast">
-    <div id="toast-label">New Element Discovered!</div>
-    <div id="toast-name">—</div>
-    <div id="toast-tier">—</div>
-  </div>
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-  <div id="win-overlay">
-    <div id="win-title">✨ ALCHEMY ✨</div>
-    <div id="win-subtitle">You have discovered the art of Alchemy — all 60 elements revealed!</div>
-    <button id="win-btn" onclick="document.getElementById('win-overlay').classList.remove('visible')">Continue Exploring</button>
-  </div>
+// ============================================================
+// ELEMENT DATA
+// ============================================================
+const ELEMENT_COLORS = {
+  Fire:      0xff4400, Water:    0x0088ff, Earth:    0x8B4513, Air:      0xddecff,
+  Steam:     0xdddddd, Lava:     0xff6600, Smoke:    0x888888, Mud:      0x7a5430,
+  Mist:      0xaabbcc, Dust:     0xc8b8a2, Energy:   0xffee00, Obsidian: 0x2a2255,
+  Brick:     0xcc4422, Ash:      0xaaaaaa, Crystal:  0x88ffee, Magma:    0xff3300,
+  Life:      0x44ff44, Ice:      0x99eeff, Void:     0x330044, Phoenix:  0xff8800,
+  Volcano:   0xff2200, Lightning:0xffff88, Shadow:   0x330033, Eternity: 0xffd700
+};
 
-  <div id="start-overlay">
-    <div id="start-title">ALCHEMIX</div>
-    <div id="start-tagline">The Art of Elemental Discovery</div>
-    <div id="start-instructions">
-      Start with Fire, Water, Earth, and Air.<br>
-      Click two elements in the panel to combine them.<br>
-      Discover all 60 elements across 5 tiers.<br>
-      What will you create?
-    </div>
-    <button id="start-btn">Begin</button>
-  </div>
+const ELEMENT_EMISSIVE = {
+  Fire:0xff2200, Water:0x0055bb, Earth:0x3a1a05, Air:0x8899cc,
+  Steam:0x888888, Lava:0xff4400, Smoke:0x444444, Mud:0x3a2010,
+  Mist:0x4466aa, Dust:0x6a5832, Energy:0xddcc00, Obsidian:0x110033,
+  Brick:0x882200, Ash:0x444444, Crystal:0x00ccaa, Magma:0xcc1100,
+  Life:0x00aa00, Ice:0x44aadd, Void:0x110022, Phoenix:0xff5500,
+  Volcano:0xcc1100, Lightning:0xcccc00, Shadow:0x110011, Eternity:0xcc9900
+};
 
-  <script type="module" src="game.js"></script>
+const COMBINATION_MAP = {};
+function addCombo(a, b, result) {
+  const key1 = a + '+' + b;
+  const key2 = b + '+' + a;
+  COMBINATION_MAP[key1] = result;
+  COMBINATION_MAP[key2] = result;
+}
+addCombo('Fire',     'Water',   'Steam');
+addCombo('Fire',     'Earth',   'Lava');
+addCombo('Fire',     'Air',     'Smoke');
+addCombo('Water',    'Earth',   'Mud');
+addCombo('Water',    'Air',     'Mist');
+addCombo('Earth',    'Air',     'Dust');
+addCombo('Steam',    'Fire',    'Energy');
+addCombo('Lava',     'Water',   'Obsidian');
+addCombo('Mud',      'Fire',    'Brick');
+addCombo('Smoke',    'Water',   'Ash');
+addCombo('Energy',   'Earth',   'Crystal');
+addCombo('Obsidian', 'Fire',    'Magma');
+addCombo('Mist',     'Earth',   'Life');
+addCombo('Crystal',  'Water',   'Ice');
+addCombo('Ash',      'Air',     'Void');
+addCombo('Life',     'Fire',    'Phoenix');
+addCombo('Magma',    'Air',     'Volcano');
+addCombo('Ice',      'Energy',  'Lightning');
+addCombo('Void',     'Life',    'Shadow');
+addCombo('Phoenix',  'Shadow',  'Eternity');
+
+const TOTAL_ELEMENTS = 20;
+const STARTING_ELEMENTS = ['Fire', 'Water', 'Earth', 'Air'];
+
+// ============================================================
+// SCENE SETUP
+// ============================================================
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a0f05);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 10, 13);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+// LIGHTING
+const ambientLight = new THREE.AmbientLight(0xfff3d0, 2.5);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xffcc88, 1.5);
+dirLight.position.set(3, 8, 5);
+dirLight.castShadow = true;
+scene.add(dirLight);
+
+const cauldronLight = new THREE.PointLight(0xff8822, 4.0, 12);
+cauldronLight.position.set(0, 1.5, 0);
+scene.add(cauldronLight);
+
+const fillLight = new THREE.PointLight(0xffaa44, 1.2, 18);
+fillLight.position.set(-5, 3, 5);
+scene.add(fillLight);
+
+const rimLight = new THREE.PointLight(0xff6600, 0.8, 14);
+rimLight.position.set(5, 2, -4);
+scene.add(rimLight);
+
+// POSTPROCESSING
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  0.4, 0.3, 0.2
+);
+composer.addPass(bloomPass);
+
+// ============================================================
+// TABLE + CAULDRON
+// ============================================================
+// Wooden table surface
+const tableGeo = new THREE.BoxGeometry(18, 0.3, 12);
+const tableMat = new THREE.MeshStandardMaterial({ color: 0x5c3d1e, roughness: 0.9, metalness: 0.0 });
+const table = new THREE.Mesh(tableGeo, tableMat);
+table.position.set(0, -0.15, 0);
+table.receiveShadow = true;
+scene.add(table);
+
+// Table edge trim
+const trimGeo = new THREE.BoxGeometry(18.2, 0.15, 0.15);
+const trimMat = new THREE.MeshStandardMaterial({ color: 0x3a2008, roughness: 0.7 });
+const trimFront = new THREE.Mesh(trimGeo, trimMat);
+trimFront.position.set(0, 0.0, 6.05);
+scene.add(trimFront);
+const trimBack = new THREE.Mesh(trimGeo, trimMat);
+trimBack.position.set(0, 0.0, -6.05);
+scene.add(trimBack);
+
+// Cauldron body
+const cauldronBodyGeo = new THREE.CylinderGeometry(0.7, 0.5, 0.9, 16);
+const cauldronMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.85, roughness: 0.25 });
+const cauldron = new THREE.Mesh(cauldronBodyGeo, cauldronMat);
+cauldron.position.set(0, 0.6, 0);
+cauldron.castShadow = true;
+scene.add(cauldron);
+
+// Cauldron rim
+const rimGeo = new THREE.TorusGeometry(0.72, 0.07, 8, 24);
+const rimMeshMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.9, roughness: 0.2 });
+const cauldronRim = new THREE.Mesh(rimGeo, rimMeshMat);
+cauldronRim.position.set(0, 1.05, 0);
+cauldronRim.rotation.x = Math.PI / 2;
+scene.add(cauldronRim);
+
+// Cauldron liquid glow (emissive plane inside)
+const liquidGeo = new THREE.CircleGeometry(0.55, 16);
+const liquidMat = new THREE.MeshStandardMaterial({ color: 0xff6600, emissive: 0xff4400, emissiveIntensity: 2.0 });
+const liquid = new THREE.Mesh(liquidGeo, liquidMat);
+liquid.rotation.x = -Math.PI / 2;
+liquid.position.set(0, 1.0, 0);
+scene.add(liquid);
+
+// Cauldron legs
+for (let i = 0; i < 3; i++) {
+  const angle = (i / 3) * Math.PI * 2;
+  const legGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.4, 6);
+  const leg = new THREE.Mesh(legGeo, cauldronMat);
+  leg.position.set(Math.cos(angle) * 0.55, 0.2, Math.sin(angle) * 0.55);
+  scene.add(leg);
+}
+
+// Candles (decoration)
+const candlePositions = [[-6, 0, -3], [6, 0, -3], [-7, 0, 2], [7, 0, 2]];
+candlePositions.forEach(([x, y, z]) => {
+  const candleGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.5, 8);
+  const candleMat = new THREE.MeshStandardMaterial({ color: 0xfffadc, roughness: 0.8 });
+  const candle = new THREE.Mesh(candleGeo, candleMat);
+  candle.position.set(x, y + 0.4, z);
+  scene.add(candle);
+  const candleLight = new THREE.PointLight(0xffaa33, 0.8, 4);
+  candleLight.position.set(x, y + 0.8, z);
+  scene.add(candleLight);
+  // Flame
+  const flameGeo = new THREE.SphereGeometry(0.06, 6, 4);
+  const flameMat = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0xff6600, emissiveIntensity: 3.0 });
+  const flame = new THREE.Mesh(flameGeo, flameMat);
+  flame.position.set(x, y + 0.72, z);
+  scene.add(flame);
+});
+
+// ============================================================
+// ORB MANAGEMENT
+// ============================================================
+let discoveredElements = [...STARTING_ELEMENTS];
+let orbMeshes = []; // array of THREE.Mesh, each with userData.element
+let selectedOrb = null;
+
+function makeOrbMaterial(element) {
+  const col = ELEMENT_COLORS[element] || 0xffffff;
+  const emi = ELEMENT_EMISSIVE[element] || 0x222222;
+  return new THREE.MeshStandardMaterial({
+    color: col,
+    emissive: emi,
+    emissiveIntensity: 0.8,
+    roughness: 0.15,
+    metalness: 0.2,
+    transparent: false
+  });
+}
+
+function createOrb(element) {
+  const geo = new THREE.IcosahedronGeometry(0.38, 1);
+  const mat = makeOrbMaterial(element);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true;
+  mesh.userData = { element, baseY: 0.55, isOrb: true };
+  scene.add(mesh);
+  orbMeshes.push(mesh);
+  return mesh;
+}
+
+function getGridPosition(index) {
+  // Lay orbs out in rows of 5, centered, starting from back-left
+  const cols = 5;
+  const col = index % cols;
+  const row = Math.floor(index / cols);
+  const startX = -4.0;
+  const startZ = -3.5;
+  const spacingX = 2.0;
+  const spacingZ = 2.2;
+  return new THREE.Vector3(startX + col * spacingX, 0.55, startZ + row * spacingZ);
+}
+
+function repositionOrbs() {
+  orbMeshes.forEach((orb, i) => {
+    const target = getGridPosition(i);
+    orb.userData.baseY = target.y;
+    orb.userData.targetX = target.x;
+    orb.userData.targetZ = target.z;
+    if (!orb.userData.animating) {
+      orb.position.x = target.x;
+      orb.position.y = orb.userData.selected ? target.y + 0.5 : target.y;
+      orb.position.z = target.z;
+    }
+  });
+}
+
+// Spawn initial orbs
+STARTING_ELEMENTS.forEach(el => createOrb(el));
+repositionOrbs();
+
+// ============================================================
+// AUDIO SETUP
+// ============================================================
+let audioCtx = null;
+let bgmStarted = false;
+
+function getAudioCtx() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioCtx;
+}
+
+function startBGM() {
+  if (bgmStarted) return;
+  bgmStarted = true;
+  const ctx = getAudioCtx();
+
+  // Warm drone: C3 + G3 + E3 sine waves
+  const freqs = [130.81, 196.00, 164.81];
+  freqs.forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.value = i === 0 ? 0.05 : 0.03;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    // Add slow vibrato
+    const lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+    lfo.frequency.value = 0.3 + i * 0.1;
+    lfoGain.gain.value = 1.5;
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);
+    lfo.start();
+  });
+}
+
+function playSelectSound() {
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 880;
+  gain.gain.setValueAtTime(0, ctx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.15);
+}
+
+function playArpeggio(loud) {
+  const ctx = getAudioCtx();
+  const vol = loud ? 0.25 : 0.15;
+  const freqs = loud ? [440, 554, 659, 880] : [440, 554, 659];
+  freqs.forEach((freq, i) => {
+    setTimeout(() => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(vol, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+    }, i * 130);
+  });
+}
+
+function playFailSound() {
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 220;
+  gain.gain.setValueAtTime(0.07, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.4);
+}
+
+// ============================================================
+// PARTICLES
+// ============================================================
+let particles = [];
+
+function spawnParticles(origin, color, count, velocity) {
+  for (let i = 0; i < count; i++) {
+    const geo = new THREE.IcosahedronGeometry(0.06, 0);
+    const mat = new THREE.MeshStandardMaterial({
+      color, emissive: color, emissiveIntensity: 1.5,
+      transparent: true, opacity: 1.0
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(origin);
+    const v = velocity || 3.0;
+    const dir = new THREE.Vector3(
+      (Math.random() - 0.5) * 2,
+      Math.random() * 1.5 + 0.3,
+      (Math.random() - 0.5) * 2
+    ).normalize().multiplyScalar(v * (0.5 + Math.random() * 0.5));
+    const maxLife = 0.7 + Math.random() * 0.4;
+    particles.push({ mesh, velocity: dir, life: maxLife, maxLife });
+    scene.add(mesh);
+  }
+}
+
+// ============================================================
+// COMBINATION ANIMATION STATE
+// ============================================================
+let combineState = {
+  active: false,
+  orbA: null, orbB: null,
+  origPosA: null, origPosB: null,
+  timer: 0, phase: 'idle',
+  newElement: null, success: false
+};
+
+function tryCombo(orbA, orbB) {
+  const a = orbA.userData.element;
+  const b = orbB.userData.element;
+  const key = a + '+' + b;
+  const result = COMBINATION_MAP[key];
+
+  combineState.active = true;
+  combineState.orbA = orbA;
+  combineState.orbB = orbB;
+  combineState.origPosA = orbA.position.clone();
+  combineState.origPosB = orbB.position.clone();
+  combineState.timer = 0;
+  combineState.phase = 'flying';
+  combineState.newElement = result || null;
+  combineState.success = !!(result && !discoveredElements.includes(result));
+  combineState.alreadyKnown = !!(result && discoveredElements.includes(result));
+
+  // Disable hover on combining orbs
+  orbA.userData.combining = true;
+  orbB.userData.combining = true;
+
+  selectedOrb = null;
+  orbA.userData.selected = false;
+  orbB.userData.selected = false;
+  orbA.material.emissiveIntensity = 0.8;
+  orbB.material.emissiveIntensity = 0.8;
+}
+
+function finishCombine() {
+  const state = combineState;
+  if (state.success) {
+    // Add new element
+    discoveredElements.push(state.newElement);
+    const newOrb = createOrb(state.newElement);
+    repositionOrbs();
+
+    // Flash discovery text
+    showDiscoveryFlash('✨ ' + state.newElement + '!');
+    playArpeggio(true);
+    spawnParticles(new THREE.Vector3(0, 1.2, 0), ELEMENT_COLORS[state.newElement], 25, 4.0);
+    updateDiscoveryPanel();
+    updateCounter();
+
+    if (discoveredElements.length >= TOTAL_ELEMENTS) {
+      setTimeout(() => {
+        document.getElementById('win-screen').style.display = 'block';
+        spawnParticles(new THREE.Vector3(0, 1.5, 0), 0xffd700, 40, 5.0);
+      }, 800);
+    }
+  } else if (state.alreadyKnown) {
+    playArpeggio(false);
+    spawnParticles(new THREE.Vector3(0, 1.2, 0), 0x4488ff, 8, 2.0);
+  } else {
+    playFailSound();
+    spawnParticles(new THREE.Vector3(0, 1.2, 0), 0x4488ff, 8, 1.5);
+  }
+
+  // Return orbs to their positions (they were never removed from orbMeshes)
+  state.orbA.userData.combining = false;
+  state.orbB.userData.combining = false;
+
+  combineState.active = false;
+  combineState.phase = 'idle';
+  combineState.orbA = null;
+  combineState.orbB = null;
+}
+
+// ============================================================
+// INTERACTION
+// ============================================================
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let hoveredOrb = null;
+
+window.addEventListener('mousemove', (e) => {
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+});
+
+window.addEventListener('click', (e) => {
+  // Start audio on first click
+  startBGM();
+
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+  if (combineState.active) return; // ignore clicks during animation
+
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(orbMeshes);
+
+  if (hits.length > 0) {
+    const clickedOrb = hits[0].object;
+
+    if (!selectedOrb) {
+      // Select this orb
+      selectedOrb = clickedOrb;
+      selectedOrb.userData.selected = true;
+      selectedOrb.material.emissiveIntensity = 2.5;
+      playSelectSound();
+    } else if (selectedOrb === clickedOrb) {
+      // Deselect
+      selectedOrb.userData.selected = false;
+      selectedOrb.material.emissiveIntensity = 0.8;
+      selectedOrb = null;
+    } else {
+      // Combine!
+      tryCombo(selectedOrb, clickedOrb);
+    }
+  } else {
+    // Deselect
+    if (selectedOrb) {
+      selectedOrb.userData.selected = false;
+      selectedOrb.material.emissiveIntensity = 0.8;
+      selectedOrb = null;
+    }
+  }
+});
+
+// ============================================================
+// UI UPDATES
+// ============================================================
+function updateCounter() {
+  document.getElementById('counter').textContent = `🧪 ${discoveredElements.length} / ${TOTAL_ELEMENTS} Discovered`;
+}
+
+function updateDiscoveryPanel() {
+  const panel = document.getElementById('discovery-panel');
+  panel.innerHTML = '';
+  discoveredElements.forEach(el => {
+    const tile = document.createElement('div');
+    tile.className = 'element-tile';
+    const dot = document.createElement('div');
+    dot.className = 'element-dot';
+    const col = ELEMENT_COLORS[el] || 0xffffff;
+    const hex = '#' + col.toString(16).padStart(6, '0');
+    dot.style.background = hex;
+    dot.style.boxShadow = `0 0 6px ${hex}`;
+    const label = document.createElement('span');
+    label.textContent = el;
+    tile.appendChild(dot);
+    tile.appendChild(label);
+    panel.appendChild(tile);
+  });
+}
+
+let flashTimeout = null;
+function showDiscoveryFlash(text) {
+  const el = document.getElementById('discovery-flash');
+  el.textContent = text;
+  el.classList.remove('show');
+  void el.offsetWidth; // reflow
+  el.classList.add('show');
+  clearTimeout(flashTimeout);
+  flashTimeout = setTimeout(() => el.classList.remove('show'), 2100);
+}
+
+// Initial UI
+updateDiscoveryPanel();
+updateCounter();
+
+// ============================================================
+// ANIMATE LOOP
+// ============================================================
+const clock = new THREE.Clock();
+
+function animate() {  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const elapsed = clock.elapsedTime;
+
+  // --- Cauldron light flicker ---
+  cauldronLight.intensity = 3.5 + Math.sin(elapsed * 3.1) * 0.8 + Math.sin(elapsed * 7.3) * 0.4;
+  liquid.material.emissiveIntensity = 1.8 + Math.sin(elapsed * 2.5) * 0.4;
+
+  // --- Hover detection ---
+  raycaster.setFromCamera(mouse, camera);
+  const hovered = raycaster.intersectObjects(orbMeshes);
+  const newHovered = hovered.length > 0 ? hovered[0].object : null;
+
+  if (hoveredOrb && hoveredOrb !== newHovered && !hoveredOrb.userData.selected) {
+    hoveredOrb.material.emissiveIntensity = 0.8;
+    hoveredOrb.position.y = hoveredOrb.userData.baseY;
+  }
+  hoveredOrb = newHovered;
+  if (hoveredOrb && !hoveredOrb.userData.selected && !hoveredOrb.userData.combining) {
+    hoveredOrb.material.emissiveIntensity = 1.6;
+    hoveredOrb.position.y = hoveredOrb.userData.baseY + 0.12;
+    document.body.style.cursor = 'pointer';
+  } else if (!hoveredOrb) {
+    document.body.style.cursor = 'default';
+  }
+
+  // --- Selected orb bob ---
+  if (selectedOrb && !combineState.active) {
+    selectedOrb.position.y = selectedOrb.userData.baseY + 0.5 + Math.sin(elapsed * 4) * 0.06;
+  }
+
+  // --- Orb rotation ---
+  orbMeshes.forEach(orb => {
+    if (!orb.userData.combining) {
+      orb.rotation.y += dt * 0.4;
+      orb.rotation.x += dt * 0.15;
+    }
+  });
+
+  // --- Combine animation ---
+  if (combineState.active) {
+    combineState.timer += dt;
+    const t = combineState.timer;
+    const cauldronPos = new THREE.Vector3(0, 1.0, 0);
+
+    if (combineState.phase === 'flying') {
+      // Both orbs fly toward cauldron
+      const progress = Math.min(t / 0.5, 1.0);
+      const ease = 1 - Math.pow(1 - progress, 3);
+      combineState.orbA.position.lerpVectors(combineState.origPosA, cauldronPos, ease);
+      combineState.orbB.position.lerpVectors(combineState.origPosB, cauldronPos, ease);
+      // Scale down as approaching
+      const scale = 1.0 - ease * 0.4;
+      combineState.orbA.scale.setScalar(scale);
+      combineState.orbB.scale.setScalar(scale);
+
+      if (progress >= 1.0) {
+        combineState.phase = 'burst';
+        combineState.timer = 0;
+        // Hide the combining orbs temporarily
+        combineState.orbA.visible = false;
+        combineState.orbB.visible = false;
+        // Trigger the result
+        finishCombine();
+      }
+    }
+  }
+
+  // --- Particle update ---
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.mesh.position.addScaledVector(p.velocity, dt);
+    p.velocity.y -= dt * 4.0; // gravity
+    p.life -= dt;
+    const frac = Math.max(p.life / p.maxLife, 0);
+    p.mesh.material.opacity = frac;
+    p.mesh.scale.setScalar(frac * 0.8 + 0.2);
+    if (p.life <= 0) {
+      scene.remove(p.mesh);
+      p.mesh.geometry.dispose();
+      p.mesh.material.dispose();
+      particles.splice(i, 1);
+    }
+  }
+
+  // --- Restore hidden combining orbs after burst (they return to grid) ---
+  orbMeshes.forEach(orb => {
+    if (!orb.visible && !combineState.active) {
+      orb.visible = true;
+      orb.scale.setScalar(1.0);
+      const idx = orbMeshes.indexOf(orb);
+      const pos = getGridPosition(idx);
+      orb.position.copy(pos);
+      orb.userData.baseY = pos.y;
+    }
+  });
+
+  composer.render();
+}
+animate();
+
+// ============================================================
+// WINDOW RESIZE
+// ============================================================
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
 </body>
 </html>

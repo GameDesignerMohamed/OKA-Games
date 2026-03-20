@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sketch Run</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #F5F0E8; overflow: hidden; font-family: 'Courier New', monospace; }
+    canvas { display: block; }
+    #hud {
+      position: fixed; top: 16px; left: 16px;
+      color: #4A4A4A; font-size: 15px; pointer-events: none;
+      line-height: 1.7;
+    }
+    #overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      pointer-events: none;
+      font-family: 'Courier New', monospace;
+      color: #4A4A4A;
+    }
+    #overlay .title {
+      font-size: 52px; font-weight: bold; letter-spacing: 4px;
+      text-shadow: 3px 3px 0 #c8b8a0;
+      margin-bottom: 12px;
+    }
+    #overlay .subtitle {
+      font-size: 18px; margin-bottom: 32px; opacity: 0.7;
+    }
+    #overlay .instruction {
+      font-size: 15px; opacity: 0.6; text-align: center; line-height: 2;
+    }
+    #overlay.hidden { display: none; }
+    #start-btn {
+      pointer-events: all;
+      margin-top: 24px;
+      background: none; border: 2px solid #4A4A4A;
+      color: #4A4A4A; font-family: 'Courier New', monospace;
+      font-size: 18px; padding: 10px 32px; cursor: pointer;
+      letter-spacing: 2px;
+    }
+    #start-btn:hover { background: #4A4A4A; color: #F5F0E8; }
+    #room-clear {
+      position: fixed; top: 40%; left: 50%; transform: translateX(-50%);
+      font-size: 36px; font-weight: bold; color: #4A4A4A;
+      opacity: 0; pointer-events: none;
+      letter-spacing: 3px;
+      text-shadow: 2px 2px 0 #c8b8a0;
+    }
+  </style>
+</head>
+<body>
+<div id="hud">
+  <div id="hp-display">HP: ♥♥♥</div>
+  <div id="room-display">Room 1 / 5</div>
+  <div id="score-display">Score: 0</div>
+</div>
+<div id="overlay">
+  <div class="title">SKETCH RUN</div>
+  <div class="subtitle">A game drawn by one human hand</div>
+  <div class="instruction">
+    Arrow Keys / WASD — Move &amp; Jump<br>
+    Z or X — Attack<br>
+    Clear all rooms to complete the sketch
+  </div>
+  <button id="start-btn">BEGIN SKETCH</button>
+</div>
+<div id="room-clear"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ─── MODULE-SCOPE STATE ───────────────────────────────────────────────────────
+let renderer, scene, camera;
+let clock = new THREE.Clock();
+let gameState = 'start'; // start | playing | dead | win
+let audioCtx = null;
+
+// Player state
+let player = {
+  x: 0, y: 0,
+  vx: 0, vy: 0,
+  onGround: false,
+  hp: 3,
+  maxHp: 3,
+  invTimer: 0,
+  attackTimer: 0,
+  attackCooldown: 0,
+  facingRight: true,
+  mesh: null,          // THREE.Group of lines
+  trailPoints: [],
+};
+
+// Room state
+let currentRoom = 0;
+let score = 0;
+let enemies = [];       // array of enemy objects
+let platforms = [];     // array of platform objects  {x, y, w, h, mesh}
+let roomGroup = null;   // THREE.Group for current room geometry
+let attackSlash = null; // slash line mesh
+let attackSlashTimer = 0;
+let impactParticles = [];
+
+// Input
+const keys = {};
+
+// Constants
+const GRAVITY = -22;
+const PLAYER_SPEED = 6;
+const JUMP_VEL = 11;
+const ATTACK_RANGE = 1.6;
+const ATTACK_DURATION = 0.25;
+const INV_DURATION = 0.8;
+
+// ─── PENCIL JITTER ─────────────────────────────────────────────────────────
+function jitter(v, amt = 0.04) {
+  return v + (Math.random() - 0.5) * amt;
+}
+
+// ─── AUDIO ─────────────────────────────────────────────────────────────────
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  startAmbient();
+}
+
+function startAmbient() {
+  const bufferSize = audioCtx.sampleRate * 2;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  src.loop = true;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 180;
+  const gain = audioCtx.createGain();
+  gain.gain.value = 0.035;
+  src.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioCtx.destination);
+  src.start();
+}
+
+function playNoise(duration = 0.08, gainVal = 0.25, freq = 800) {
+  if (!audioCtx) return;
+  const bufSize = Math.floor(audioCtx.sampleRate * duration);
+  const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) d[i] = Math.random() * 2 - 1;
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  const bpf = audioCtx.createBiquadFilter();
+  bpf.type = 'bandpass';
+  bpf.frequency.value = freq;
+  bpf.Q.value = 2;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  src.connect(bpf);
+  bpf.connect(gain);
+  gain.connect(audioCtx.destination);
+  src.start();
+  src.stop(audioCtx.currentTime + duration);
+}
+
+function playTone(freq, duration = 0.1, gainVal = 0.2) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  osc.type = 'triangle';
+  osc.frequency.value = freq;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+}
+
+function playAttackSfx() { playNoise(0.08, 0.22, 1200); }
+function playHitSfx() { playNoise(0.15, 0.38, 600); }
+function playEnemyDieSfx() {
+  playTone(440, 0.08, 0.15);
+  setTimeout(() => playTone(330, 0.08, 0.12), 60);
+  setTimeout(() => playTone(220, 0.1, 0.1), 130);
+}
+function playRoomClearSfx() {
+  playTone(523, 0.1, 0.18);
+  setTimeout(() => playTone(659, 0.1, 0.18), 120);
+  setTimeout(() => playTone(784, 0.15, 0.2), 240);
+}
+function playWinSfx() {
+  const freqs = [523, 659, 784, 1047, 1319];
+  freqs.forEach((f, i) => setTimeout(() => playTone(f, 0.18, 0.22), i * 130));
+}
+function playGameOverSfx() {
+  playTone(440, 0.15, 0.18);
+  setTimeout(() => playTone(330, 0.15, 0.15), 180);
+  setTimeout(() => playTone(220, 0.25, 0.12), 360);
+}
+
+// ─── PENCIL LINE HELPERS ────────────────────────────────────────────────────
+function makeLine(points, color = 0x4A4A4A, opacity = 1) {
+  const geo = new THREE.BufferGeometry().setFromPoints(
+    points.map(p => new THREE.Vector3(jitter(p.x), jitter(p.y), 0))
+  );
+  const mat = new THREE.LineBasicMaterial({ color, transparent: opacity < 1, opacity });
+  return new THREE.Line(geo, mat);
+}
+
+function makeRect(x, y, w, h, color = 0x4A4A4A, opacity = 1) {
+  const pts = [
+    {x: x-w/2, y: y-h/2}, {x: x+w/2, y: y-h/2},
+    {x: x+w/2, y: y+h/2}, {x: x-w/2, y: y+h/2},
+    {x: x-w/2, y: y-h/2}
+  ];
+  return makeLine(pts, color, opacity);
+}
+
+function makeTriangle(x, y, size, color = 0x4A4A4A) {
+  const h = size * 0.866;
+  const pts = [
+    {x: x, y: y + size * 0.6},
+    {x: x - size/2, y: y - h*0.4},
+    {x: x + size/2, y: y - h*0.4},
+    {x: x, y: y + size * 0.6}
+  ];
+  return makeLine(pts, color);
+}
+
+function makeCircle(x, y, r, segments = 10, color = 0x4A4A4A) {
+  const pts = [];
+  for (let i = 0; i <= segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    pts.push({x: x + Math.cos(a) * r, y: y + Math.sin(a) * r});
+  }
+  return makeLine(pts, color);
+}
+
+// ─── PLAYER MESH ────────────────────────────────────────────────────────────
+function buildPlayerMesh() {
+  const g = new THREE.Group();
+  const c = 0x4A4A4A;
+
+  // Head circle
+  g.add(makeCircle(0, 0.55, 0.18, 10, c));
+  // Body
+  g.add(makeLine([{x:0, y:0.37}, {x:0, y:-0.1}], c));
+  // Left arm
+  g.add(makeLine([{x:0, y:0.2}, {x:-0.28, y:0.05}], c));
+  // Right arm
+  g.add(makeLine([{x:0, y:0.2}, {x:0.28, y:0.05}], c));
+  // Left leg
+  g.add(makeLine([{x:0, y:-0.1}, {x:-0.22, y:-0.42}], c));
+  // Right leg
+  g.add(makeLine([{x:0, y:-0.1}, {x:0.22, y:-0.42}], c));
+  return g;
+}
+
+// X-cross for dead enemy
+function makeX(x, y, size = 0.3, color = 0x4A4A4A) {
+  const g = new THREE.Group();
+  g.add(makeLine([{x: x-size, y: y-size}, {x: x+size, y: y+size}], color));
+  g.add(makeLine([{x: x+size, y: y-size}, {x: x-size, y: y+size}], color));
+  return g;
+}
+
+// ─── GRAPH PAPER BACKGROUND ─────────────────────────────────────────────────
+function buildBackground(viewW, viewH) {
+  const bg = new THREE.Group();
+  const gridColor = 0xB8D4E8;
+  const spacing = 1.0;
+
+  const halfW = viewW / 2 + 1;
+  const halfH = viewH / 2 + 1;
+
+  // Vertical lines
+  for (let x = -halfW; x <= halfW; x += spacing) {
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(x, -halfH, -1),
+      new THREE.Vector3(x, halfH, -1)
+    ]);
+    const mat = new THREE.LineBasicMaterial({ color: gridColor, transparent: true, opacity: 0.28 });
+    bg.add(new THREE.Line(geo, mat));
+  }
+  // Horizontal lines
+  for (let y = -halfH; y <= halfH; y += spacing) {
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-halfW, y, -1),
+      new THREE.Vector3(halfW, y, -1)
+    ]);
+    const mat = new THREE.LineBasicMaterial({ color: gridColor, transparent: true, opacity: 0.28 });
+    bg.add(new THREE.Line(geo, mat));
+  }
+  return bg;
+}
+
+// ─── ROOM DEFINITIONS ───────────────────────────────────────────────────────
+// Each room: platforms [{x,y,w,h}], enemies [{type, x, y, minX, maxX}]
+// type: 'sketcher' (patrol triangle) | 'scratcher' (chaser octagon)
+
+const ROOM_DATA = [
+  // Room 1 — intro, 3 Sketchers
+  {
+    platforms: [
+      {x: 0,    y: -3.5, w: 22, h: 0.3},   // floor
+      {x: -6,   y: -1.0, w: 5,  h: 0.3},   // left platform
+      {x: 3,    y:  0.5, w: 5,  h: 0.3},   // mid platform
+      {x: -2,   y:  2.0, w: 4,  h: 0.3},   // upper left
+    ],
+    enemies: [
+      {type: 'sketcher', x: -6,  y: -0.55, minX: -8.5, maxX: -3.5},
+      {type: 'sketcher', x:  3,  y:  0.95, minX:  0.5, maxX:  5.5},
+      {type: 'sketcher', x: -2,  y:  2.45, minX: -3.8, maxX: -0.2},
+    ],
+    playerStart: {x: -9, y: -2.8},
+    exitX: 10
+  },
+  // Room 2 — 4 Sketchers, narrower platforms
+  {
+    platforms: [
+      {x: 0,   y: -3.5, w: 22, h: 0.3},
+      {x: -7,  y: -1.5, w: 3.5, h: 0.3},
+      {x: -2,  y: -0.2, w: 3.5, h: 0.3},
+      {x:  3,  y:  1.0, w: 3.5, h: 0.3},
+      {x:  8,  y: -1.5, w: 3.5, h: 0.3},
+    ],
+    enemies: [
+      {type: 'sketcher', x: -7,   y: -1.05, minX: -8.5, maxX: -5.5},
+      {type: 'sketcher', x: -2,   y:  0.25, minX: -3.5, maxX: -0.5},
+      {type: 'sketcher', x:  3,   y:  1.45, minX:  1.5, maxX:  4.5},
+      {type: 'sketcher', x:  8,   y: -1.05, minX:  6.5, maxX:  9.5},
+    ],
+    playerStart: {x: -9.5, y: -2.8},
+    exitX: 10.5
+  },
+  // Room 3 — introduces Scratcher
+  {
+    platforms: [
+      {x: 0,   y: -3.5, w: 22, h: 0.3},
+      {x: -5,  y: -1.0, w: 4, h: 0.3},
+      {x:  5,  y: -0.5, w: 4, h: 0.3},
+      {x:  0,  y:  1.5, w: 5, h: 0.3},
+    ],
+    enemies: [
+      {type: 'sketcher', x: -5,  y: -0.55, minX: -7, maxX: -3},
+      {type: 'sketcher', x:  5,  y: -0.05, minX:  3, maxX:  7},
+      {type: 'scratcher', x: 0, y:  1.95, minX: -2.3, maxX: 2.3},
+    ],
+    playerStart: {x: -9, y: -2.8},
+    exitX: 10
+  },
+  // Room 4 — 3 Scratchers
+  {
+    platforms: [
+      {x: 0,   y: -3.5, w: 22, h: 0.3},
+      {x: -6,  y: -1.2, w: 4, h: 0.3},
+      {x:  0,  y:  0.5, w: 5, h: 0.3},
+      {x:  6,  y: -1.2, w: 4, h: 0.3},
+    ],
+    enemies: [
+      {type: 'scratcher', x: -6, y: -0.75, minX: -8, maxX: -4},
+      {type: 'scratcher', x:  0, y:  0.95, minX: -2, maxX:  2},
+      {type: 'scratcher', x:  6, y: -0.75, minX:  4, maxX:  8},
+    ],
+    playerStart: {x: -9, y: -2.8},
+    exitX: 10
+  },
+  // Room 5 — final, mixed
+  {
+    platforms: [
+      {x: 0,   y: -3.5, w: 22, h: 0.3},
+      {x: -7,  y: -1.5, w: 3,  h: 0.3},
+      {x: -2,  y: -0.2, w: 3,  h: 0.3},
+      {x:  3,  y:  0.8, w: 3,  h: 0.3},
+      {x:  8,  y: -1.5, w: 3,  h: 0.3},
+      {x:  0,  y:  2.2, w: 4,  h: 0.3},
+    ],
+    enemies: [
+      {type: 'sketcher',  x: -7,  y: -1.05, minX: -8.5, maxX: -5.5},
+      {type: 'sketcher',  x: -2,  y:  0.25, minX: -3.5, maxX: -0.5},
+      {type: 'scratcher', x:  3,  y:  1.25, minX:  1.5, maxX:  4.5},
+      {type: 'scratcher', x:  8,  y: -1.05, minX:  6.5, maxX:  9.5},
+      {type: 'scratcher', x:  0,  y:  2.65, minX: -1.5, maxX:  1.5},
+    ],
+    playerStart: {x: -9.5, y: -2.8},
+    exitX: 10.5
+  }
+];
+
+// ─── DOOR MESH ──────────────────────────────────────────────────────────────
+function buildDoor(x, y) {
+  const g = new THREE.Group();
+  // Door frame (rectangle)
+  g.add(makeLine([
+    {x: x-0.5, y: y},
+    {x: x-0.5, y: y+1.6},
+    {x: x+0.5, y: y+1.6},
+    {x: x+0.5, y: y},
+  ], 0x4A4A4A));
+  // Handle
+  g.add(makeLine([{x: x+0.3, y: y+0.8}, {x: x+0.4, y: y+0.8}], 0x4A4A4A));
+  // Arrow hint
+  g.add(makeLine([{x: x+0.7, y: y+0.8}, {x: x+1.0, y: y+0.8}], 0x888888));
+  g.add(makeLine([{x: x+0.85, y: y+0.65}, {x: x+1.0, y: y+0.8}], 0x888888));
+  g.add(makeLine([{x: x+0.85, y: y+0.95}, {x: x+1.0, y: y+0.8}], 0x888888));
+  return g;
+}
+
+// ─── LOAD ROOM ──────────────────────────────────────────────────────────────
+function loadRoom(idx) {
+  if (roomGroup) scene.remove(roomGroup);
+  enemies = [];
+  platforms = [];
+  impactParticles = [];
+  if (attackSlash) { scene.remove(attackSlash); attackSlash = null; }
+
+  const data = ROOM_DATA[idx];
+  roomGroup = new THREE.Group();
+
+  // Build platforms
+  for (const p of data.platforms) {
+    const mesh = makeRect(p.x, p.y, p.w, p.h, 0x4A4A4A);
+    roomGroup.add(mesh);
+    platforms.push({ ...p, mesh });
+  }
+
+  // Exit door
+  const doorFloor = data.platforms[0];
+  const doorMesh = buildDoor(data.exitX, doorFloor.y + doorFloor.h / 2);
+  roomGroup.add(doorMesh);
+
+  // Build enemies
+  for (const ed of data.enemies) {
+    let mesh;
+    if (ed.type === 'sketcher') {
+      mesh = makeTriangle(0, 0, 0.55, 0x5A3A1A);
+    } else {
+      mesh = makeCircle(0, 0, 0.32, 8, 0x8B0000);
+      // Add legs for scratcher (two small lines)
+      const legGroup = new THREE.Group();
+      legGroup.add(makeLine([{x: -0.25, y: -0.32}, {x: -0.35, y: -0.58}], 0x8B0000));
+      legGroup.add(makeLine([{x:  0.25, y: -0.32}, {x:  0.35, y: -0.58}], 0x8B0000));
+      mesh.add(legGroup);
+    }
+    mesh.position.set(ed.x, ed.y, 0);
+    roomGroup.add(mesh);
+    enemies.push({
+      type: ed.type,
+      x: ed.x, y: ed.y,
+      vx: ed.type === 'sketcher' ? 2.5 : 0,
+      vy: 0,
+      hp: ed.type === 'sketcher' ? 1 : 2,
+      maxHp: ed.type === 'sketcher' ? 1 : 2,
+      minX: ed.minX, maxX: ed.maxX,
+      mesh,
+      dead: false,
+      dying: false,
+      dyingTimer: 0,
+      hitTimer: 0,
+    });
+  }
+
+  // Player start
+  player.x = data.playerStart.x;
+  player.y = data.playerStart.y;
+  player.vx = 0;
+  player.vy = 0;
+  player.onGround = false;
+  player.trailPoints = [];
+  player.mesh.position.set(player.x, player.y, 0);
+
+  scene.add(roomGroup);
+}
+
+// ─── ROOM EXIT CHECK ─────────────────────────────────────────────────────────
+function checkRoomExit() {
+  if (gameState !== 'playing') return;
+  // All enemies dead?
+  const alive = enemies.filter(e => !e.dead);
+  if (alive.length > 0) return;
+  const exitX = ROOM_DATA[currentRoom].exitX;
+  if (player.x + 0.5 >= exitX) {
+    if (currentRoom === 4) {
+      triggerWin();
+    } else {
+      triggerRoomClear();
+    }
+  }
+}
+
+// ─── COLLISION ──────────────────────────────────────────────────────────────
+function resolvePlayerPlatforms() {
+  player.onGround = false;
+  for (const p of platforms) {
+    const hw = p.w / 2;
+    const hh = 0.15; // half height of platform line
+    const playerBottom = player.y - 0.42;
+    const playerTop    = player.y + 0.75;
+    const playerLeft   = player.x - 0.25;
+    const playerRight  = player.x + 0.25;
+    const platLeft   = p.x - hw;
+    const platRight  = p.x + hw;
+    const platTop    = p.y + hh;
+    const platBottom = p.y - hh;
+
+    // Check horizontal overlap
+    if (playerRight < platLeft || playerLeft > platRight) continue;
+    // Landing on top
+    if (player.vy <= 0 && playerBottom <= platTop && playerBottom >= platTop - 0.5) {
+      if (playerTop > platBottom) {
+        player.y = platTop + 0.42;
+        player.vy = 0;
+        player.onGround = true;
+      }
+    }
+  }
+}
+
+function resolveEnemyPlatforms(en) {
+  en.onGround = false;
+  for (const p of platforms) {
+    const hw = p.w / 2;
+    const hh = 0.15;
+    const enBottom = en.y - 0.3;
+    const enLeft   = en.x - 0.3;
+    const enRight  = en.x + 0.3;
+    const platLeft   = p.x - hw;
+    const platRight  = p.x + hw;
+    const platTop    = p.y + hh;
+
+    if (enRight < platLeft || enLeft > platRight) continue;
+    if (en.vy <= 0 && enBottom <= platTop && enBottom >= platTop - 0.5) {
+      en.y = platTop + 0.3;
+      en.vy = 0;
+      en.onGround = true;
+    }
+  }
+}
+
+// ─── TRAIL SYSTEM ─────────────────────────────────────────────────────────
+let trailMesh = null;
+function updateTrail(dt) {
+  // Add point
+  player.trailPoints.unshift({ x: player.x, y: player.y - 0.1, age: 0 });
+  // Age and prune
+  player.trailPoints = player.trailPoints
+    .map(p => ({ ...p, age: p.age + dt }))
+    .filter(p => p.age < 0.4);
+
+  if (trailMesh) scene.remove(trailMesh);
+  if (player.trailPoints.length < 2) return;
+
+  const pts = player.trailPoints.map(p => new THREE.Vector3(p.x, p.y, 0));
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({ color: 0x4A4A4A, transparent: true, opacity: 0.12 });
+  trailMesh = new THREE.Line(geo, mat);
+  scene.add(trailMesh);
+}
+
+// ─── ATTACK ─────────────────────────────────────────────────────────────────
+function doAttack() {
+  if (player.attackCooldown > 0) return;
+  player.attackTimer = ATTACK_DURATION;
+  player.attackCooldown = 0.5;
+  playAttackSfx();
+
+  // Slash line
+  if (attackSlash) scene.remove(attackSlash);
+  const dir = player.facingRight ? 1 : -1;
+  const pts = [];
+  for (let i = 0; i <= 8; i++) {
+    const a = (i / 8) * Math.PI * 0.6 - Math.PI * 0.3;
+    pts.push(new THREE.Vector3(
+      jitter(player.x + dir * Math.cos(a) * ATTACK_RANGE),
+      jitter(player.y + 0.2 + Math.sin(a) * ATTACK_RANGE * 0.6),
+      0
+    ));
+  }
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({ color: 0x4A4A4A, transparent: true, opacity: 0.85 });
+  attackSlash = new THREE.Line(geo, mat);
+  scene.add(attackSlash);
+
+  // Hit check
+  for (const en of enemies) {
+    if (en.dead || en.dying) continue;
+    const dx = en.x - player.x;
+    const dy = en.y - player.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < ATTACK_RANGE + 0.3 && (player.facingRight ? dx > -0.5 : dx < 0.5)) {
+      hitEnemy(en);
+    }
+  }
+}
+
+function hitEnemy(en) {
+  en.hp--;
+  en.hitTimer = 0.18;
+  spawnImpactParticles(en.x, en.y + 0.2);
+  if (en.hp <= 0) {
+    en.dead = true;
+    en.dying = true;
+    en.dyingTimer = 0.5;
+    // Replace mesh with X
+    roomGroup.remove(en.mesh);
+    const xMesh = makeX(0, 0, 0.35, 0x4A4A4A);
+    xMesh.position.set(en.x, en.y, 0);
+    roomGroup.add(xMesh);
+    en.deathMesh = xMesh;
+    score += 10;
+    playEnemyDieSfx();
+  } else {
+    playHitSfx();
+  }
+}
+
+function spawnImpactParticles(x, y) {
+  const count = 4;
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 2;
+    const len = 0.2 + Math.random() * 0.25;
+    const ex = x + Math.cos(angle + Math.PI) * len;
+    const ey = y + Math.sin(angle + Math.PI) * len;
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(x, y, 0),
+      new THREE.Vector3(ex, ey, 0)
+    ]);
+    const mat = new THREE.LineBasicMaterial({ color: 0x4A4A4A, transparent: true, opacity: 1 });
+    const line = new THREE.Line(geo, mat);
+    scene.add(line);
+    impactParticles.push({
+      mesh: line, mat,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      x, y, ex, ey, life: 0.25
+    });
+  }
+}
+
+// ─── HUD UPDATE ─────────────────────────────────────────────────────────────
+function updateHUD() {
+  const hp = Math.max(0, player.hp);
+  document.getElementById('hp-display').textContent =
+    'HP: ' + '♥'.repeat(hp) + '♡'.repeat(player.maxHp - hp);
+  document.getElementById('room-display').textContent =
+    'Room ' + (currentRoom + 1) + ' / 5';
+  document.getElementById('score-display').textContent =
+    'Score: ' + score;
+}
+
+// ─── GAME EVENTS ─────────────────────────────────────────────────────────────
+let roomClearTimeout = null;
+function triggerRoomClear() {
+  gameState = 'clearing';
+  playRoomClearSfx();
+  score += 50;
+  const el = document.getElementById('room-clear');
+  el.textContent = 'ROOM CLEAR!';
+  el.style.opacity = '1';
+  if (roomClearTimeout) clearTimeout(roomClearTimeout);
+  roomClearTimeout = setTimeout(() => {
+    el.style.opacity = '0';
+    currentRoom++;
+    loadRoom(currentRoom);
+    gameState = 'playing';
+  }, 1500);
+}
+
+function triggerWin() {
+  gameState = 'win';
+  score += 100;
+  playWinSfx();
+  const overlay = document.getElementById('overlay');
+  overlay.innerHTML = `
+    <div class="title">SKETCH COMPLETE!</div>
+    <div class="subtitle">The human finished the game.</div>
+    <div class="instruction">Score: ${score}<br><br>Every line was drawn by hand.</div>
+    <button id="start-btn" onclick="location.reload()">DRAW AGAIN</button>
+  `;
+  overlay.classList.remove('hidden');
+}
+
+function triggerDeath() {
+  gameState = 'dead';
+  playGameOverSfx();
+  // Fade player mesh
+  player.mesh.traverse(obj => {
+    if (obj.material) {
+      obj.material.transparent = true;
+      obj.material.opacity = 0.3;
+    }
+  });
+  const overlay = document.getElementById('overlay');
+  overlay.innerHTML = `
+    <div class="title">ERASED...</div>
+    <div class="subtitle">The pencil rubbed you out.</div>
+    <div class="instruction">Score: ${score}<br><br>Room ${currentRoom + 1} of 5 reached.</div>
+    <button id="start-btn" onclick="location.reload()">TRY AGAIN</button>
+  `;
+  overlay.classList.remove('hidden');
+}
+
+function damagePlayer() {
+  if (player.invTimer > 0) return;
+  player.hp--;
+  player.invTimer = INV_DURATION;
+  playHitSfx();
+  // Screen smudge effect — flash bg briefly
+  document.body.style.background = '#E8D4C0';
+  setTimeout(() => { document.body.style.background = '#F5F0E8'; }, 150);
+  if (player.hp <= 0) {
+    triggerDeath();
+  }
+  updateHUD();
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+function init() {
+  // Renderer
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0xF5F0E8);
+  document.body.appendChild(renderer.domElement);
+
+  // Scene
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xF5F0E8);
+
+  // Orthographic camera — view range
+  const aspect = window.innerWidth / window.innerHeight;
+  const viewH = 9;
+  const viewW = viewH * aspect;
+  camera = new THREE.OrthographicCamera(
+    -viewW/2, viewW/2, viewH/2, -viewH/2, 0.1, 100
+  );
+  camera.position.set(0, 0, 10);
+
+  // Background grid
+  const bg = buildBackground(viewW, viewH);
+  scene.add(bg);
+
+  // Player mesh
+  player.mesh = buildPlayerMesh();
+  player.mesh.position.set(-9, -2.8, 0);
+  scene.add(player.mesh);
+
+  // Input
+  document.addEventListener('keydown', e => {
+    keys[e.key] = true;
+    keys[e.code] = true;
+  });
+  document.addEventListener('keyup', e => {
+    keys[e.key] = false;
+    keys[e.code] = false;
+  });
+
+  // Start button
+  document.getElementById('start-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    initAudio();
+    document.getElementById('overlay').classList.add('hidden');
+    currentRoom = 0;
+    score = 0;
+    player.hp = 3;
+    player.invTimer = 0;
+    loadRoom(0);
+    gameState = 'playing';
+    updateHUD();
+  });
+
+  // Window resize
+  window.addEventListener('resize', () => {
+    const a = window.innerWidth / window.innerHeight;
+    const vH = 9;
+    const vW = vH * a;
+    camera.left = -vW/2;
+    camera.right = vW/2;
+    camera.top = vH/2;
+    camera.bottom = -vH/2;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  animate();
+}
+
+// ─── UPDATE LOOP ─────────────────────────────────────────────────────────────
+function update(dt) {
+  if (gameState !== 'playing') return;
+
+  // Timers
+  if (player.invTimer > 0) player.invTimer -= dt;
+  if (player.attackTimer > 0) {
+    player.attackTimer -= dt;
+    if (player.attackTimer <= 0 && attackSlash) {
+      scene.remove(attackSlash);
+      attackSlash = null;
+    }
+  }
+  if (player.attackCooldown > 0) player.attackCooldown -= dt;
+
+  // Player blink during invincibility
+  if (player.invTimer > 0) {
+    const visible = Math.floor(player.invTimer * 8) % 2 === 0;
+    player.mesh.visible = visible;
+  } else {
+    player.mesh.visible = true;
+  }
+
+  // Movement
+  let moving = false;
+  if (keys['ArrowLeft'] || keys['KeyA'] || keys['a']) {
+    player.vx = -PLAYER_SPEED;
+    player.facingRight = false;
+    moving = true;
+  } else if (keys['ArrowRight'] || keys['KeyD'] || keys['d']) {
+    player.vx = PLAYER_SPEED;
+    player.facingRight = true;
+    moving = true;
+  } else {
+    player.vx *= 0.7;
+  }
+
+  // Jump
+  if ((keys['ArrowUp'] || keys['KeyW'] || keys['w'] || keys['Space']) && player.onGround) {
+    player.vy = JUMP_VEL;
+    player.onGround = false;
+  }
+
+  // Attack
+  if ((keys['KeyZ'] || keys['z'] || keys['KeyX'] || keys['x']) && player.attackCooldown <= 0) {
+    doAttack();
+  }
+
+  // Gravity
+  player.vy += GRAVITY * dt;
+
+  // Integrate
+  player.x += player.vx * dt;
+  player.y += player.vy * dt;
+
+  // Bounds clamp (don't fall below screen)
+  if (player.y < -5.5) {
+    player.y = -5.5;
+    player.vy = 0;
+    player.onGround = true;
+  }
+
+  // Platform collisions
+  resolvePlayerPlatforms();
+
+  // Flip player based on direction
+  player.mesh.scale.x = player.facingRight ? 1 : -1;
+  player.mesh.position.set(player.x, player.y, 0);
+
+  // Trail
+  if (moving) updateTrail(dt);
+
+  // Camera follows player loosely
+  const targetCamX = player.x;
+  camera.position.x += (targetCamX - camera.position.x) * 3 * dt;
+  camera.updateProjectionMatrix();
+
+  // Update enemies
+  for (const en of enemies) {
+    if (en.dead && !en.dying) continue;
+    if (en.dying) {
+      en.dyingTimer -= dt;
+      if (en.dyingTimer <= 0) {
+        en.dying = false;
+        if (en.deathMesh) {
+          en.deathMesh.traverse(obj => {
+            if (obj.material) { obj.material.transparent = true; obj.material.opacity = 0; }
+          });
+        }
+      }
+      continue;
+    }
+
+    if (en.hitTimer > 0) {
+      en.hitTimer -= dt;
+      en.mesh.traverse(obj => {
+        if (obj.material) obj.material.color.set(en.hitTimer > 0 ? 0xFF4444 : (en.type === 'sketcher' ? 0x5A3A1A : 0x8B0000));
+      });
+    }
+
+    // Gravity
+    en.vy += GRAVITY * dt;
+    en.y += en.vy * dt;
+    resolveEnemyPlatforms(en);
+
+    if (en.type === 'sketcher') {
+      // Patrol
+      en.x += en.vx * dt;
+      if (en.x >= en.maxX) { en.vx = -Math.abs(en.vx); }
+      if (en.x <= en.minX) { en.vx =  Math.abs(en.vx); }
+    } else {
+      // Scratcher — chase if close
+      const dx = player.x - en.x;
+      const dy = player.y - en.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < 7) {
+        const dir = dx > 0 ? 1 : -1;
+        en.x += dir * 3.5 * dt;
+        if (en.x < en.minX) en.x = en.minX;
+        if (en.x > en.maxX) en.x = en.maxX;
+      } else {
+        // Idle patrol
+        en.x += en.vx * dt;
+        if (en.x >= en.maxX) { en.vx = -1.5; }
+        if (en.x <= en.minX) { en.vx =  1.5; }
+        if (en.vx === 0) en.vx = 1.5;
+      }
+    }
+
+    en.mesh.position.set(en.x, en.y, 0);
+
+    // Slight wobble rotation for sketcher
+    if (en.type === 'sketcher') {
+      en.mesh.rotation.z = Math.sin(Date.now() * 0.003) * 0.1;
+    }
+
+    // Enemy damages player
+    const dx = en.x - player.x;
+    const dy = en.y - player.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < 0.7 && player.invTimer <= 0) {
+      damagePlayer();
+    }
+  }
+
+  // Impact particles
+  for (let i = impactParticles.length - 1; i >= 0; i--) {
+    const p = impactParticles[i];
+    p.life -= dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.mat.opacity = Math.max(0, p.life / 0.25);
+    // Update geometry
+    const pts = [
+      new THREE.Vector3(p.x, p.y, 0),
+      new THREE.Vector3(p.x + (p.ex - p.x) * 0.5, p.y + (p.ey - p.y) * 0.5, 0)
+    ];
+    p.mesh.geometry.setFromPoints(pts);
+    if (p.life <= 0) {
+      scene.remove(p.mesh);
+      impactParticles.splice(i, 1);
+    }
+  }
+
+  // Check room exit
+  checkRoomExit();
+  updateHUD();
+}
+
+// ─── ANIMATE ─────────────────────────────────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  update(dt);
+  renderer.render(scene, camera);
+}
+
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

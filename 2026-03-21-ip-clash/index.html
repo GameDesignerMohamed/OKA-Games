@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IP CLASH</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a1a; overflow: hidden; font-family: 'Courier New', monospace; }
+canvas { display: block; }
+
+#ui {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;
+}
+#wave-display {
+  position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+  color: #fff; font-size: 20px; letter-spacing: 3px; text-shadow: 0 0 10px #00ffff;
+}
+#score-display {
+  position: absolute; top: 18px; right: 24px;
+  color: #fff; font-size: 16px; letter-spacing: 2px; text-shadow: 0 0 8px #fff;
+}
+#hp-display {
+  position: absolute; top: 14px; left: 24px;
+  display: flex; gap: 6px; align-items: center;
+}
+.hp-dot {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #00ffee; box-shadow: 0 0 8px #00ffee; transition: background 0.2s;
+}
+.hp-dot.dead { background: #333; box-shadow: none; }
+
+#cards-display {
+  position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 16px;
+}
+.card {
+  padding: 10px 16px; border-radius: 8px; border: 2px solid #555;
+  color: #ccc; font-size: 13px; text-align: center; min-width: 130px;
+  background: rgba(0,0,0,0.7); transition: all 0.2s; line-height: 1.4;
+}
+.card .card-key { font-size: 20px; font-weight: bold; display: block; }
+.card .card-name { font-size: 11px; letter-spacing: 1px; display: block; }
+.card.arcade { border-color: #ff69b4; color: #ff69b4; box-shadow: 0 0 12px #ff69b480; }
+.card.dungeon { border-color: #9b59b6; color: #bb8fce; box-shadow: 0 0 12px #9b59b680; }
+.card.neon { border-color: #00ffff; color: #00ffff; box-shadow: 0 0 12px #00ffff80; }
+.card.used { border-color: #333; color: #444; box-shadow: none; opacity: 0.4; }
+.card.active { transform: scale(1.08); }
+.card.active.arcade { box-shadow: 0 0 25px #ff69b4; }
+.card.active.dungeon { box-shadow: 0 0 25px #9b59b6; }
+.card.active.neon { box-shadow: 0 0 25px #00ffff; }
+.card-timer { font-size: 10px; color: #aaa; display: block; }
+
+#center-message {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  text-align: center; display: none;
+}
+#center-message h1 { font-size: 56px; letter-spacing: 6px; text-shadow: 0 0 30px currentColor; }
+#center-message p { font-size: 18px; color: #aaa; margin-top: 12px; letter-spacing: 2px; }
+
+#flash-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; opacity: 0; z-index: 20;
+}
+#hit-flash {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(255,0,0,0.4); pointer-events: none; opacity: 0; z-index: 19;
+}
+
+#menu {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.88); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; z-index: 30; color: #fff;
+}
+#menu h1 { font-size: 72px; letter-spacing: 12px; color: #00ffff; text-shadow: 0 0 40px #00ffff; margin-bottom: 8px; }
+#menu .subtitle { font-size: 16px; color: #666; letter-spacing: 4px; margin-bottom: 40px; }
+.card-preview { display: flex; gap: 20px; margin-bottom: 40px; }
+.card-preview .card { pointer-events: none; }
+#menu .start-prompt { font-size: 20px; letter-spacing: 4px; color: #fff; animation: blink 1.2s infinite; }
+@keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+</style>
+</head>
+<body>
+
+<div id="menu">
+  <h1>IP CLASH</h1>
+  <div class="subtitle">IP PORTFOLIO WARFARE</div>
+  <div class="card-preview">
+    <div class="card arcade">
+      <span class="card-key">1</span>
+      <span class="card-name">🕹️ ARCADE DYNASTY</span>
+      <span class="card-timer">Triple split shots · 8s</span>
+    </div>
+    <div class="card dungeon">
+      <span class="card-key">2</span>
+      <span class="card-name">⚔️ DUNGEON LORD</span>
+      <span class="card-timer">Enemy slow-mo · 8s</span>
+    </div>
+    <div class="card neon">
+      <span class="card-key">3</span>
+      <span class="card-name">💫 NEON SYNDICATE</span>
+      <span class="card-timer">Enemies collide · 8s</span>
+    </div>
+  </div>
+  <div class="start-prompt">[ PRESS SPACE TO START ]</div>
+</div>
+
+<div id="ui">
+  <div id="wave-display">WAVE 1 / 3</div>
+  <div id="score-display">SCORE: 0</div>
+  <div id="hp-display">
+    <div class="hp-dot" id="hp0"></div>
+    <div class="hp-dot" id="hp1"></div>
+    <div class="hp-dot" id="hp2"></div>
+    <div class="hp-dot" id="hp3"></div>
+    <div class="hp-dot" id="hp4"></div>
+  </div>
+  <div id="cards-display">
+    <div class="card arcade" id="card0">
+      <span class="card-key">1</span>
+      <span class="card-name">🕹️ ARCADE DYNASTY</span>
+      <span class="card-timer" id="ct0">Ready</span>
+    </div>
+    <div class="card dungeon" id="card1">
+      <span class="card-key">2</span>
+      <span class="card-name">⚔️ DUNGEON LORD</span>
+      <span class="card-timer" id="ct1">Ready</span>
+    </div>
+    <div class="card neon" id="card2">
+      <span class="card-key">3</span>
+      <span class="card-name">💫 NEON SYNDICATE</span>
+      <span class="card-timer" id="ct2">Ready</span>
+    </div>
+  </div>
+  <div id="center-message">
+    <h1 id="cm-title"></h1>
+    <p id="cm-sub"></p>
+  </div>
+</div>
+
+<div id="flash-overlay"></div>
+<div id="hit-flash"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// ========== MODULE-SCOPE STATE ==========
+let scene, camera, renderer, composer, useComposer = false;
+let clock = new THREE.Clock();
+let audioCtx = null;
+
+let gameState = 'MENU'; // MENU / PLAYING / WAVE_CLEAR / GAME_OVER / WIN
+let playerHP = 5;
+let score = 0;
+let currentWave = 1;
+let waveTimer = 0;
+let spawnTimer = 0;
+let enemiesToSpawn = 0;
+let spawnInterval = 1.2;
+
+// Player
+let player;
+const playerSpeed = 5.5;
+let playerPos = new THREE.Vector3(0, 0, 0);
+let playerInvTime = 0;
+const PLAYER_INVINCIBLE = 1.0;
+
+// Mouse
+let mouseWorld = new THREE.Vector3(0, 0, 0);
+let mouseNDC = new THREE.Vector2(0, 0);
+let shootTimer = 0;
+const SHOOT_INTERVAL = 0.22;
+
+// Collections
+let enemies = [];
+let projectiles = [];
+let particles = [];
+let stars;
+
+// Camera shake
+let shakeAmt = 0;
+let shakeTime = 0;
+
+// IP Cards
+const CARDS = [
+  { name: 'ARCADE DYNASTY', color: 0xff69b4, cssClass: 'arcade', duration: 8, active: false, used: false, timer: 0 },
+  { name: 'DUNGEON LORD',   color: 0x9b59b6, cssClass: 'dungeon', duration: 8, active: false, used: false, timer: 0 },
+  { name: 'NEON SYNDICATE', color: 0x00ffff, cssClass: 'neon',    duration: 8, active: false, used: false, timer: 0 }
+];
+
+// Active card effect flags
+let arcadeActive = false;
+let dungeonActive = false;
+let neonActive = false;
+
+// Keys
+const keys = {};
+document.addEventListener('keydown', e => { keys[e.code] = true; onKey(e.code); });
+document.addEventListener('keyup',   e => { keys[e.code] = false; });
+
+// ========== WAVE CONFIG ==========
+const WAVE_CONFIG = [
+  { count: 8,  hp: 2, speed: 2.2, color: 0xff4444, geo: new THREE.TetrahedronGeometry(0.4, 0) },
+  { count: 14, hp: 3, speed: 2.6, color: 0xff8c00, geo: new THREE.IcosahedronGeometry(0.4, 0) },
+  { count: 20, hp: 4, speed: 3.1, color: 0xaa44ff, geo: new THREE.DodecahedronGeometry(0.45, 0) },
+];
+
+// ========== INIT ==========
+function init() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0a1a);
+  scene.fog = new THREE.FogExp2(0x0a0a1a, 0.025);
+
+  camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 200);
+  camera.position.set(0, 12, 10);
+  camera.lookAt(0, 0, 0);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  document.body.appendChild(renderer.domElement);
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+  const sun = new THREE.DirectionalLight(0xffffff, 2.0);
+  sun.position.set(5, 10, 5);
+  scene.add(sun);
+
+  // Bloom
+  try {
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.4, 0.85);
+    composer.addPass(bloom);
+    useComposer = true;
+  } catch(e) { useComposer = false; }
+
+  // Stars
+  const starGeo = new THREE.BufferGeometry();
+  const starVerts = [];
+  for (let i = 0; i < 200; i++) {
+    starVerts.push((Math.random()-0.5)*120, (Math.random()-0.5)*60 + 5, (Math.random()-0.5)*120);
+  }
+  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVerts, 3));
+  stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.18, transparent: true, opacity: 1.0 }));
+  scene.add(stars);
+
+  // Floor grid
+  const grid = new THREE.GridHelper(30, 30, 0x112244, 0x112244);
+  scene.add(grid);
+
+  // Arena boundary ring
+  const ringGeo = new THREE.TorusGeometry(10, 0.08, 8, 64);
+  const ringMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x003333 });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = Math.PI / 2;
+  scene.add(ring);
+
+  // Player mesh
+  const pGeo = new THREE.OctahedronGeometry(0.55, 0);
+  const pMat = new THREE.MeshStandardMaterial({ color: 0x00ddee, emissive: 0x003344, emissiveIntensity: 0.8 });
+  player = new THREE.Mesh(pGeo, pMat);
+  player.position.set(0, 0.55, 0);
+  scene.add(player);
+
+  // Player glow light
+  const pLight = new THREE.PointLight(0x00ddee, 2, 4);
+  player.add(pLight);
+
+  // Mouse tracking
+  document.addEventListener('mousemove', e => {
+    mouseNDC.set((e.clientX/innerWidth)*2-1, -(e.clientY/innerHeight)*2+1);
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(mouseNDC, camera);
+    const plane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
+    ray.ray.intersectPlane(plane, mouseWorld);
+  });
+
+  // Resize
+  window.addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+    if (useComposer) composer.setSize(innerWidth, innerHeight);
+  });
+
+  animate();
+}
+
+// ========== AUDIO ==========
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function playNote(freq, type='sine', dur=0.1, vol=0.3, delay=0) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, audioCtx.currentTime + delay);
+  gain.gain.setValueAtTime(0, audioCtx.currentTime + delay);
+  gain.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + delay + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + dur);
+  osc.start(audioCtx.currentTime + delay);
+  osc.stop(audioCtx.currentTime + delay + dur + 0.05);
+}
+
+let bgmNodes = [];
+function startBGM() {
+  if (!audioCtx || bgmNodes.length > 0) return;
+  const bpm = 140;
+  const beat = 60 / bpm;
+  const pattern = [220, 0, 165, 0, 196, 0, 146, 0]; // minor arpeggio
+  let step = 0;
+  const tick = () => {
+    if (!audioCtx) return;
+    const freq = pattern[step % pattern.length];
+    if (freq > 0) {
+      playNote(freq, 'sawtooth', beat * 0.7, 0.04);
+      playNote(freq * 2, 'triangle', beat * 0.5, 0.025);
+    }
+    step++;
+    setTimeout(tick, beat * 1000);
+  };
+  tick();
+  bgmNodes.push(tick);
+}
+
+function sfxShoot() { playNote(880, 'sine', 0.05, 0.15); }
+function sfxHit()   { playNote(330, 'triangle', 0.08, 0.2); }
+function sfxDie()   {
+  playNote(440, 'sine', 0.06, 0.15, 0);
+  playNote(330, 'sine', 0.06, 0.12, 0.06);
+  playNote(220, 'sine', 0.08, 0.1,  0.12);
+}
+function sfxPlayerHit() { playNote(110, 'sawtooth', 0.12, 0.25); }
+function sfxWaveClear() {
+  [523, 659, 784, 1047].forEach((f,i) => playNote(f, 'triangle', 0.15, 0.3, i*0.1));
+}
+function sfxWin() {
+  [523,587,659,698,784,880,988,1047].forEach((f,i) => playNote(f, 'triangle', 0.2, 0.3, i*0.08));
+}
+function sfxGameOver() {
+  [523,440,392,330,261].forEach((f,i) => playNote(f, 'sine', 0.25, 0.25, i*0.12));
+}
+function sfxCardActivate(cardIdx) {
+  const freqs = [[523,659,784,1047], [392,494,587,740], [587,740,880,1047]];
+  freqs[cardIdx].forEach((f,i) => playNote(f, 'triangle', 0.35, 0.25, i*0.07));
+}
+function sfxCardExpire() {
+  [523,440,330].forEach((f,i) => playNote(f, 'sine', 0.15, 0.15, i*0.07));
+}
+
+// ========== GAME LOGIC ==========
+function startGame() {
+  gameState = 'PLAYING';
+  currentWave = 1;
+  playerHP = 5;
+  score = 0;
+  playerPos.set(0, 0, 0);
+  player.position.set(0, 0.55, 0);
+  playerInvTime = 0;
+
+  enemies.forEach(e => scene.remove(e.mesh)); enemies = [];
+  projectiles.forEach(p => scene.remove(p.mesh)); projectiles = [];
+  particles.forEach(p => scene.remove(p.mesh)); particles = [];
+
+  CARDS.forEach((c,i) => {
+    c.active = false; c.used = false; c.timer = 0;
+    document.getElementById('card'+i).className = 'card ' + c.cssClass;
+    document.getElementById('ct'+i).textContent = 'Ready';
+  });
+  arcadeActive = dungeonActive = neonActive = false;
+
+  updateHPUI();
+  updateScoreUI();
+  updateWaveUI();
+  hideCenterMessage();
+  document.getElementById('menu').style.display = 'none';
+
+  startBGM();
+  spawnWave(currentWave);
+}
+
+function spawnWave(wn) {
+  const cfg = WAVE_CONFIG[wn-1];
+  enemiesToSpawn = cfg.count;
+  spawnTimer = 0;
+  spawnInterval = Math.max(0.3, 1.2 - (wn-1)*0.25);
+}
+
+function spawnEnemy(wn) {
+  const cfg = WAVE_CONFIG[wn-1];
+  const angle = Math.random() * Math.PI * 2;
+  const r = 9.5 + Math.random() * 0.5;
+  const x = Math.cos(angle) * r;
+  const z = Math.sin(angle) * r;
+  const mat = new THREE.MeshStandardMaterial({ color: cfg.color, emissive: new THREE.Color(cfg.color).multiplyScalar(0.3) });
+  const mesh = new THREE.Mesh(cfg.geo.clone(), mat);
+  mesh.position.set(x, 0.4, z);
+  scene.add(mesh);
+  const light = new THREE.PointLight(cfg.color, 1, 2.5);
+  mesh.add(light);
+  enemies.push({ mesh, hp: cfg.hp, maxHp: cfg.hp, speed: cfg.speed, hitFlash: 0, wave: wn, vel: new THREE.Vector3() });
+}
+
+function fireProjectile(pos, dir, split=false) {
+  const directions = split
+    ? [dir.clone(), dir.clone().applyAxisAngle(new THREE.Vector3(0,1,0), 0.28), dir.clone().applyAxisAngle(new THREE.Vector3(0,1,0), -0.28)]
+    : [dir.clone()];
+  directions.forEach(d => {
+    const geo = new THREE.SphereGeometry(0.12, 6, 6);
+    const col = arcadeActive ? 0xff69b4 : 0xffffff;
+    const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 1.2 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(pos);
+    mesh.position.y = 0.55;
+    scene.add(mesh);
+    const pLight = new THREE.PointLight(col, 1.5, 1.5);
+    mesh.add(pLight);
+    projectiles.push({ mesh, vel: d.clone().multiplyScalar(14), life: 2.0 });
+  });
+}
+
+function spawnParticles(pos, color, count=10) {
+  for (let i = 0; i < count; i++) {
+    const geo = new THREE.TetrahedronGeometry(0.1, 0);
+    const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.8, transparent: true, opacity: 1.0 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(pos);
+    const vel = new THREE.Vector3((Math.random()-0.5)*6, Math.random()*4+1, (Math.random()-0.5)*6);
+    scene.add(mesh);
+    particles.push({ mesh, vel, life: 0.5 + Math.random()*0.3 });
+  }
+}
+
+function activateCard(idx) {
+  const c = CARDS[idx];
+  if (c.used || c.active || gameState !== 'PLAYING') return;
+  c.active = true;
+  c.used = true;
+  c.timer = c.duration;
+  if (idx === 0) arcadeActive = true;
+  if (idx === 1) dungeonActive = true;
+  if (idx === 2) neonActive = true;
+  document.getElementById('card'+idx).classList.add('active');
+  sfxCardActivate(idx);
+  flashCard(idx, c.color);
+}
+
+function flashCard(idx, hexColor) {
+  const overlay = document.getElementById('flash-overlay');
+  const names = ['ARCADE DYNASTY', 'DUNGEON LORD', 'NEON SYNDICATE'];
+  overlay.style.background = `rgba(${(hexColor>>16)&255}, ${(hexColor>>8)&255}, ${hexColor&255}, 0.65)`;
+  overlay.style.transition = 'none';
+  overlay.style.opacity = '1';
+
+  const cm = document.getElementById('center-message');
+  const cmTitle = document.getElementById('cm-title');
+  const cmSub = document.getElementById('cm-sub');
+  cmTitle.textContent = names[idx];
+  cmTitle.style.color = `#${hexColor.toString(16).padStart(6,'0')}`;
+  cmSub.textContent = ['TRIPLE SHOT ACTIVATED!', 'TIME DILATION ENGAGED!', 'SYNDICATE PROTOCOL ONLINE!'][idx];
+  cmSub.style.color = '#fff';
+  cm.style.display = 'block';
+
+  setTimeout(() => {
+    overlay.style.transition = 'opacity 0.8s';
+    overlay.style.opacity = '0';
+    setTimeout(() => { cm.style.display = 'none'; }, 800);
+  }, 1500);
+}
+
+function onKey(code) {
+  if (code === 'Space') {
+    if (gameState === 'MENU') { initAudio(); startGame(); }
+    else if (gameState === 'WIN' || gameState === 'GAME_OVER') { startGame(); }
+  }
+  if (code === 'KeyR' && (gameState === 'WIN' || gameState === 'GAME_OVER')) startGame();
+  if (code === 'Digit1') activateCard(0);
+  if (code === 'Digit2') activateCard(1);
+  if (code === 'Digit3') activateCard(2);
+}
+
+function playerHit() {
+  if (playerInvTime > 0) return;
+  playerHP--;
+  playerInvTime = PLAYER_INVINCIBLE;
+  sfxPlayerHit();
+  updateHPUI();
+  // Red flash
+  const hf = document.getElementById('hit-flash');
+  hf.style.transition = 'none'; hf.style.opacity = '0.5';
+  setTimeout(() => { hf.style.transition = 'opacity 0.3s'; hf.style.opacity = '0'; }, 60);
+  // Camera shake
+  shakeAmt = 0.35; shakeTime = 0.25;
+  if (playerHP <= 0) triggerGameOver();
+}
+
+function triggerGameOver() {
+  gameState = 'GAME_OVER';
+  sfxGameOver();
+  showCenterMessage('GAME OVER', `SCORE: ${score} — PRESS SPACE TO RETRY`);
+  document.getElementById('center-message').querySelector('h1').style.color = '#ff4444';
+}
+
+function triggerWin() {
+  gameState = 'WIN';
+  sfxWin();
+  showCenterMessage('YOU WIN', `FINAL SCORE: ${score} — PRESS SPACE TO PLAY AGAIN`);
+  document.getElementById('center-message').querySelector('h1').style.color = '#00ffff';
+}
+
+function showCenterMessage(title, sub) {
+  const cm = document.getElementById('center-message');
+  document.getElementById('cm-title').textContent = title;
+  document.getElementById('cm-sub').textContent = sub;
+  cm.style.display = 'block';
+}
+
+function hideCenterMessage() {
+  document.getElementById('center-message').style.display = 'none';
+}
+
+function updateHPUI() {
+  for (let i = 0; i < 5; i++) {
+    const el = document.getElementById('hp'+i);
+    el.className = i < playerHP ? 'hp-dot' : 'hp-dot dead';
+  }
+}
+function updateScoreUI() {
+  document.getElementById('score-display').textContent = `SCORE: ${score}`;
+}
+function updateWaveUI() {
+  document.getElementById('wave-display').textContent = `WAVE ${currentWave} / 3`;
+}
+
+// ========== UPDATE ==========
+function update(dt) {
+  if (gameState !== 'PLAYING') return;
+
+  // Player movement
+  const moveDir = new THREE.Vector3();
+  if (keys['KeyW'] || keys['ArrowUp'])    moveDir.z -= 1;
+  if (keys['KeyS'] || keys['ArrowDown'])  moveDir.z += 1;
+  if (keys['KeyA'] || keys['ArrowLeft'])  moveDir.x -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) moveDir.x += 1;
+  if (moveDir.lengthSq() > 0) {
+    moveDir.normalize().multiplyScalar(playerSpeed * dt);
+    playerPos.add(moveDir);
+    playerPos.x = Math.max(-9, Math.min(9, playerPos.x));
+    playerPos.z = Math.max(-9, Math.min(9, playerPos.z));
+    player.position.set(playerPos.x, 0.55, playerPos.z);
+  }
+
+  // Player rotation toward mouse
+  const dx = mouseWorld.x - playerPos.x;
+  const dz = mouseWorld.z - playerPos.z;
+  if (Math.abs(dx) + Math.abs(dz) > 0.1) {
+    player.rotation.y = Math.atan2(dx, dz);
+  }
+  player.rotation.x += dt * 1.5;
+  player.rotation.z += dt * 0.8;
+
+  // Invincibility timer
+  if (playerInvTime > 0) {
+    playerInvTime -= dt;
+    player.visible = Math.floor(playerInvTime * 10) % 2 === 0;
+  } else {
+    player.visible = true;
+  }
+
+  // Auto-shoot
+  shootTimer -= dt;
+  if (shootTimer <= 0) {
+    const dir = new THREE.Vector3(mouseWorld.x - playerPos.x, 0, mouseWorld.z - playerPos.z).normalize();
+    if (dir.lengthSq() > 0) {
+      fireProjectile(playerPos.clone(), dir, arcadeActive);
+      sfxShoot();
+      shootTimer = SHOOT_INTERVAL;
+    }
+  }
+
+  // Card timers
+  CARDS.forEach((c, idx) => {
+    if (c.active) {
+      c.timer -= dt;
+      document.getElementById('ct'+idx).textContent = c.timer > 0 ? c.timer.toFixed(1)+'s' : '';
+      if (c.timer <= 0) {
+        c.active = false;
+        if (idx === 0) arcadeActive = false;
+        if (idx === 1) dungeonActive = false;
+        if (idx === 2) neonActive = false;
+        document.getElementById('card'+idx).classList.remove('active');
+        document.getElementById('card'+idx).classList.add('used');
+        document.getElementById('ct'+idx).textContent = 'Used';
+        sfxCardExpire();
+      }
+    }
+  });
+
+  // Spawn enemies
+  if (enemiesToSpawn > 0) {
+    spawnTimer -= dt;
+    if (spawnTimer <= 0) {
+      spawnEnemy(currentWave);
+      enemiesToSpawn--;
+      spawnTimer = spawnInterval;
+    }
+  }
+
+  // Enemy movement
+  enemies.forEach(e => {
+    const speedMul = dungeonActive ? 0.2 : 1.0;
+    if (neonActive) {
+      // Enemies home toward nearest OTHER enemy
+      let nearest = null;
+      let nearDist = Infinity;
+      enemies.forEach(other => {
+        if (other === e) return;
+        const d = other.mesh.position.distanceTo(e.mesh.position);
+        if (d < nearDist) { nearDist = d; nearest = other; }
+      });
+      if (nearest) {
+        const dir = nearest.mesh.position.clone().sub(e.mesh.position).normalize();
+        e.vel.lerp(dir.multiplyScalar(e.speed * 1.5), 0.1);
+      } else {
+        const toPlayer = playerPos.clone().sub(e.mesh.position).normalize();
+        e.vel.lerp(toPlayer.multiplyScalar(e.speed), 0.1);
+      }
+    } else {
+      const toPlayer = playerPos.clone().sub(e.mesh.position).normalize();
+      e.vel.lerp(toPlayer.multiplyScalar(e.speed), 0.08);
+    }
+    e.mesh.position.add(e.vel.clone().multiplyScalar(dt * speedMul));
+    e.mesh.rotation.y += dt * 1.2;
+    e.mesh.rotation.x += dt * 0.6;
+
+    // Hit flash
+    if (e.hitFlash > 0) {
+      e.hitFlash -= dt;
+      e.mesh.material.emissiveIntensity = 2.0 * (e.hitFlash / 0.12);
+    } else {
+      e.mesh.material.emissiveIntensity = 0.3;
+    }
+
+    // Player collision
+    if (e.mesh.position.distanceTo(player.position) < 0.9) {
+      playerHit();
+    }
+  });
+
+  // Neon Syndicate collisions between enemies
+  if (neonActive) {
+    for (let i = 0; i < enemies.length; i++) {
+      for (let j = i + 1; j < enemies.length; j++) {
+        const d = enemies[i].mesh.position.distanceTo(enemies[j].mesh.position);
+        if (d < 0.9) {
+          enemies[i].hp -= 1;
+          enemies[j].hp -= 1;
+          sfxHit();
+        }
+      }
+    }
+  }
+
+  // Projectile update
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.mesh.position.add(p.vel.clone().multiplyScalar(dt));
+    p.life -= dt;
+    if (p.life <= 0 || p.mesh.position.length() > 15) {
+      scene.remove(p.mesh); projectiles.splice(i, 1); continue;
+    }
+    // Projectile-enemy collision
+    let hit = false;
+    for (let j = enemies.length - 1; j >= 0; j--) {
+      if (p.mesh.position.distanceTo(enemies[j].mesh.position) < 0.55) {
+        enemies[j].hp--;
+        enemies[j].hitFlash = 0.12;
+        enemies[j].mesh.scale.setScalar(1.25);
+        sfxHit();
+        if (enemies[j].hp <= 0) {
+          spawnParticles(enemies[j].mesh.position.clone(), WAVE_CONFIG[currentWave-1].color);
+          sfxDie();
+          score += 10 * currentWave;
+          updateScoreUI();
+          scene.remove(enemies[j].mesh);
+          enemies.splice(j, 1);
+        }
+        scene.remove(p.mesh); projectiles.splice(i, 1);
+        hit = true; break;
+      }
+    }
+  }
+
+  // Scale-back pulse for hit enemies
+  enemies.forEach(e => {
+    if (e.mesh.scale.x > 1.0) {
+      e.mesh.scale.setScalar(Math.max(1.0, e.mesh.scale.x - dt * 8));
+    }
+  });
+
+  // Remove dead enemies (hp already handled)
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    if (enemies[i].hp <= 0) {
+      spawnParticles(enemies[i].mesh.position.clone(), WAVE_CONFIG[currentWave-1].color);
+      sfxDie();
+      score += 10 * currentWave;
+      updateScoreUI();
+      scene.remove(enemies[i].mesh);
+      enemies.splice(i, 1);
+    }
+  }
+
+  // Particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.mesh.position.add(p.vel.clone().multiplyScalar(dt));
+    p.vel.y -= 9.8 * dt;
+    p.life -= dt;
+    p.mesh.material.opacity = Math.max(0, p.life / 0.7);
+    if (p.life <= 0) { scene.remove(p.mesh); particles.splice(i, 1); }
+  }
+
+  // Wave complete check
+  if (enemiesToSpawn <= 0 && enemies.length === 0 && gameState === 'PLAYING') {
+    if (currentWave >= 3) {
+      triggerWin();
+    } else {
+      gameState = 'WAVE_CLEAR';
+      sfxWaveClear();
+      currentWave++;
+      showCenterMessage(`WAVE ${currentWave}`, 'GET READY...');
+      updateWaveUI();
+      setTimeout(() => {
+        if (gameState === 'WAVE_CLEAR') {
+          hideCenterMessage();
+          gameState = 'PLAYING';
+          spawnWave(currentWave);
+        }
+      }, 2000);
+    }
+  }
+}
+
+// ========== ANIMATE ==========
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  // Camera shake
+  if (shakeTime > 0) {
+    shakeTime -= dt;
+    const sx = (Math.random()-0.5) * shakeAmt;
+    const sz = (Math.random()-0.5) * shakeAmt;
+    camera.position.x = sx;
+    camera.position.z = 10 + sz;
+  } else {
+    camera.position.x = 0;
+    camera.position.z = 10;
+  }
+
+  // Stars drift
+  if (stars) stars.rotation.y += dt * 0.01;
+
+  update(dt);
+
+  if (useComposer) composer.render();
+  else renderer.render(scene, camera);
+}
+
+// ========== BOOT ==========
+document.addEventListener('click', () => { initAudio(); }, { once: true });
+document.addEventListener('keydown', () => { initAudio(); }, { once: true });
+init();
+</script>
+</body>
+</html>

@@ -1,792 +1,769 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IP CLASH</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IP Clash</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+    canvas { display: block; }
+
+    #ui {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    #hud {
+      position: absolute;
+      top: 16px; left: 16px;
+      color: #fff;
+      font-size: 14px;
+      text-shadow: 0 0 8px #fff;
+    }
+    #hud .stat { margin-bottom: 4px; }
+
+    #hp-bar-wrap {
+      width: 200px;
+      height: 10px;
+      background: #333;
+      border: 1px solid #666;
+      border-radius: 5px;
+      margin-top: 6px;
+    }
+    #hp-bar {
+      height: 100%;
+      background: #e74c3c;
+      border-radius: 5px;
+      transition: width 0.1s;
+    }
+
+    #cards-ui {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 16px;
+    }
+
+    .card {
+      width: 100px;
+      height: 140px;
+      border: 2px solid #fff;
+      border-radius: 10px;
+      padding: 10px;
+      cursor: pointer;
+      pointer-events: all;
+      text-align: center;
+      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.15s, box-shadow 0.15s;
+      user-select: none;
+    }
+    .card:hover:not(.used) { transform: translateY(-8px); }
+    .card.used { opacity: 0.3; cursor: default; border-style: dashed; }
+    .card .card-name { font-size: 12px; font-weight: bold; line-height: 1.2; }
+    .card .card-key { font-size: 20px; font-weight: bold; margin: 4px 0; }
+    .card .card-desc { font-size: 9px; line-height: 1.3; opacity: 0.85; }
+
+    .card-0 { background: #1a0040; border-color: #aa44ff; color: #cc88ff; }
+    .card-1 { background: #002200; border-color: #44ff44; color: #88ff88; }
+    .card-2 { background: #001133; border-color: #44aaff; color: #88ccff; }
+
+    #flash-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.1s;
+    }
+
+    #ip-title {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 48px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      opacity: 0;
+      text-align: center;
+      text-shadow: 0 0 30px currentColor;
+      pointer-events: none;
+      transition: opacity 0.15s;
+      line-height: 1.1;
+    }
+    #ip-subtitle {
+      font-size: 16px;
+      font-weight: 400;
+      letter-spacing: 2px;
+      margin-top: 8px;
+    }
+
+    #wave-announce {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 36px;
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 0 0 20px #fff;
+      opacity: 0;
+      pointer-events: none;
+      text-align: center;
+    }
+
+    #screen-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      pointer-events: all;
+      text-align: center;
+      padding: 40px;
+    }
+    #screen-overlay h1 { font-size: 48px; margin-bottom: 12px; }
+    #screen-overlay p { font-size: 16px; margin-bottom: 6px; opacity: 0.8; }
+    #screen-overlay button {
+      margin-top: 24px;
+      padding: 12px 32px;
+      font-size: 18px;
+      background: #fff;
+      color: #000;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: bold;
+      letter-spacing: 2px;
+    }
+    #screen-overlay button:hover { background: #ccc; }
+
+    #wave-hud {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      color: #fff;
+      font-size: 18px;
+      font-weight: bold;
+      text-shadow: 0 0 8px #fff;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+<div id="ui">
+  <div id="hud">
+    <div class="stat">SCORE: <span id="score-val">0</span></div>
+    <div class="stat">HP</div>
+    <div id="hp-bar-wrap"><div id="hp-bar" style="width:100%"></div></div>
+  </div>
+
+  <div id="wave-hud">
+    WAVE <span id="wave-val">1</span>/3
+  </div>
+
+  <div id="cards-ui">
+    <div class="card card-0" id="card-0" onclick="activateCard(0)">
+      <div class="card-name">ARCADE DYNASTY</div>
+      <div class="card-key">[1]</div>
+      <div class="card-desc">Your shots split into 3 spread projectiles</div>
+    </div>
+    <div class="card card-1" id="card-1" onclick="activateCard(1)">
+      <div class="card-name">DUNGEON LORD</div>
+      <div class="card-key">[2]</div>
+      <div class="card-desc">Time slows to 40% for 6 seconds</div>
+    </div>
+    <div class="card card-2" id="card-2" onclick="activateCard(2)">
+      <div class="card-name">NEON SYNDICATE</div>
+      <div class="card-key">[3]</div>
+      <div class="card-desc">Enemies home toward each other for 5 seconds</div>
+    </div>
+  </div>
+
+  <div id="flash-overlay"></div>
+  <div id="ip-title">
+    <div id="ip-name"></div>
+    <div id="ip-subtitle"></div>
+  </div>
+
+  <div id="wave-announce"></div>
+
+  <div id="screen-overlay" id="start-screen">
+    <h1>⚡ IP CLASH</h1>
+    <p>Real-time card battle. Each IP bends the rules.</p>
+    <p style="margin-top:12px; font-size:13px;">WASD / Arrows to move · Mouse to aim & shoot</p>
+    <p style="font-size:13px;">Press 1, 2, 3 (or click cards) to activate IP cards</p>
+    <p style="font-size:13px; margin-top:8px;">Survive 3 waves to win.</p>
+    <button onclick="startGame()">LAUNCH</button>
+  </div>
+</div>
+
 <script type="importmap">
 {
   "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+    "three": "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/"
   }
 }
 </script>
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #0a0a1a; overflow: hidden; font-family: 'Courier New', monospace; }
-canvas { display: block; }
-
-#ui {
-  position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;
-}
-#wave-display {
-  position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
-  color: #fff; font-size: 20px; letter-spacing: 3px; text-shadow: 0 0 10px #00ffff;
-}
-#score-display {
-  position: absolute; top: 18px; right: 24px;
-  color: #fff; font-size: 16px; letter-spacing: 2px; text-shadow: 0 0 8px #fff;
-}
-#hp-display {
-  position: absolute; top: 14px; left: 24px;
-  display: flex; gap: 6px; align-items: center;
-}
-.hp-dot {
-  width: 14px; height: 14px; border-radius: 50%;
-  background: #00ffee; box-shadow: 0 0 8px #00ffee; transition: background 0.2s;
-}
-.hp-dot.dead { background: #333; box-shadow: none; }
-
-#cards-display {
-  position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-  display: flex; gap: 16px;
-}
-.card {
-  padding: 10px 16px; border-radius: 8px; border: 2px solid #555;
-  color: #ccc; font-size: 13px; text-align: center; min-width: 130px;
-  background: rgba(0,0,0,0.7); transition: all 0.2s; line-height: 1.4;
-}
-.card .card-key { font-size: 20px; font-weight: bold; display: block; }
-.card .card-name { font-size: 11px; letter-spacing: 1px; display: block; }
-.card.arcade { border-color: #ff69b4; color: #ff69b4; box-shadow: 0 0 12px #ff69b480; }
-.card.dungeon { border-color: #9b59b6; color: #bb8fce; box-shadow: 0 0 12px #9b59b680; }
-.card.neon { border-color: #00ffff; color: #00ffff; box-shadow: 0 0 12px #00ffff80; }
-.card.used { border-color: #333; color: #444; box-shadow: none; opacity: 0.4; }
-.card.active { transform: scale(1.08); }
-.card.active.arcade { box-shadow: 0 0 25px #ff69b4; }
-.card.active.dungeon { box-shadow: 0 0 25px #9b59b6; }
-.card.active.neon { box-shadow: 0 0 25px #00ffff; }
-.card-timer { font-size: 10px; color: #aaa; display: block; }
-
-#center-message {
-  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  text-align: center; display: none;
-}
-#center-message h1 { font-size: 56px; letter-spacing: 6px; text-shadow: 0 0 30px currentColor; }
-#center-message p { font-size: 18px; color: #aaa; margin-top: 12px; letter-spacing: 2px; }
-
-#flash-overlay {
-  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  pointer-events: none; opacity: 0; z-index: 20;
-}
-#hit-flash {
-  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(255,0,0,0.4); pointer-events: none; opacity: 0; z-index: 19;
-}
-
-#menu {
-  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0,0,0,0.88); display: flex; flex-direction: column;
-  align-items: center; justify-content: center; z-index: 30; color: #fff;
-}
-#menu h1 { font-size: 72px; letter-spacing: 12px; color: #00ffff; text-shadow: 0 0 40px #00ffff; margin-bottom: 8px; }
-#menu .subtitle { font-size: 16px; color: #666; letter-spacing: 4px; margin-bottom: 40px; }
-.card-preview { display: flex; gap: 20px; margin-bottom: 40px; }
-.card-preview .card { pointer-events: none; }
-#menu .start-prompt { font-size: 20px; letter-spacing: 4px; color: #fff; animation: blink 1.2s infinite; }
-@keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
-</style>
-</head>
-<body>
-
-<div id="menu">
-  <h1>IP CLASH</h1>
-  <div class="subtitle">IP PORTFOLIO WARFARE</div>
-  <div class="card-preview">
-    <div class="card arcade">
-      <span class="card-key">1</span>
-      <span class="card-name">🕹️ ARCADE DYNASTY</span>
-      <span class="card-timer">Triple split shots · 8s</span>
-    </div>
-    <div class="card dungeon">
-      <span class="card-key">2</span>
-      <span class="card-name">⚔️ DUNGEON LORD</span>
-      <span class="card-timer">Enemy slow-mo · 8s</span>
-    </div>
-    <div class="card neon">
-      <span class="card-key">3</span>
-      <span class="card-name">💫 NEON SYNDICATE</span>
-      <span class="card-timer">Enemies collide · 8s</span>
-    </div>
-  </div>
-  <div class="start-prompt">[ PRESS SPACE TO START ]</div>
-</div>
-
-<div id="ui">
-  <div id="wave-display">WAVE 1 / 3</div>
-  <div id="score-display">SCORE: 0</div>
-  <div id="hp-display">
-    <div class="hp-dot" id="hp0"></div>
-    <div class="hp-dot" id="hp1"></div>
-    <div class="hp-dot" id="hp2"></div>
-    <div class="hp-dot" id="hp3"></div>
-    <div class="hp-dot" id="hp4"></div>
-  </div>
-  <div id="cards-display">
-    <div class="card arcade" id="card0">
-      <span class="card-key">1</span>
-      <span class="card-name">🕹️ ARCADE DYNASTY</span>
-      <span class="card-timer" id="ct0">Ready</span>
-    </div>
-    <div class="card dungeon" id="card1">
-      <span class="card-key">2</span>
-      <span class="card-name">⚔️ DUNGEON LORD</span>
-      <span class="card-timer" id="ct1">Ready</span>
-    </div>
-    <div class="card neon" id="card2">
-      <span class="card-key">3</span>
-      <span class="card-name">💫 NEON SYNDICATE</span>
-      <span class="card-timer" id="ct2">Ready</span>
-    </div>
-  </div>
-  <div id="center-message">
-    <h1 id="cm-title"></h1>
-    <p id="cm-sub"></p>
-  </div>
-</div>
-
-<div id="flash-overlay"></div>
-<div id="hit-flash"></div>
 
 <script type="module">
 import * as THREE from 'three';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { WebGPURenderer } from 'three/addons/renderers/common/Renderer.js';
 
-// ========== MODULE-SCOPE STATE ==========
-let scene, camera, renderer, composer, useComposer = false;
-let clock = new THREE.Clock();
-let audioCtx = null;
-
-let gameState = 'MENU'; // MENU / PLAYING / WAVE_CLEAR / GAME_OVER / WIN
-let playerHP = 5;
+// ── GLOBALS ──────────────────────────────────────────────────────
+let renderer, scene, camera;
+let gameState = 'start'; // start | playing | dead | win
 let score = 0;
+let playerHP = 100;
 let currentWave = 1;
-let waveTimer = 0;
-let spawnTimer = 0;
-let enemiesToSpawn = 0;
-let spawnInterval = 1.2;
+const TOTAL_WAVES = 3;
 
-// Player
+// Timing
+let clock;
+let timeScale = 1.0; // Dungeon Lord effect
+let slowTimer = 0;
+let neonTimer = 0; // Neon Syndicate effect
+let arcadeActive = false; // Arcade Dynasty
+
+// Cards
+const cardUsed = [false, false, false];
+
+// Entities
 let player;
-const playerSpeed = 5.5;
-let playerPos = new THREE.Vector3(0, 0, 0);
-let playerInvTime = 0;
-const PLAYER_INVINCIBLE = 1.0;
-
-// Mouse
-let mouseWorld = new THREE.Vector3(0, 0, 0);
-let mouseNDC = new THREE.Vector2(0, 0);
-let shootTimer = 0;
-const SHOOT_INTERVAL = 0.22;
-
-// Collections
+let playerBullets = [];
 let enemies = [];
-let projectiles = [];
 let particles = [];
-let stars;
+let floatingTexts = [];
 
-// Camera shake
-let shakeAmt = 0;
-let shakeTime = 0;
-
-// IP Cards
-const CARDS = [
-  { name: 'ARCADE DYNASTY', color: 0xff69b4, cssClass: 'arcade', duration: 8, active: false, used: false, timer: 0 },
-  { name: 'DUNGEON LORD',   color: 0x9b59b6, cssClass: 'dungeon', duration: 8, active: false, used: false, timer: 0 },
-  { name: 'NEON SYNDICATE', color: 0x00ffff, cssClass: 'neon',    duration: 8, active: false, used: false, timer: 0 }
-];
-
-// Active card effect flags
-let arcadeActive = false;
-let dungeonActive = false;
-let neonActive = false;
-
-// Keys
+// Input
 const keys = {};
-document.addEventListener('keydown', e => { keys[e.code] = true; onKey(e.code); });
-document.addEventListener('keyup',   e => { keys[e.code] = false; });
+const mouse = { x: 0, y: 0, down: false };
+let shootCooldown = 0;
 
-// ========== WAVE CONFIG ==========
-const WAVE_CONFIG = [
-  { count: 8,  hp: 2, speed: 2.2, color: 0xff4444, geo: new THREE.TetrahedronGeometry(0.4, 0) },
-  { count: 14, hp: 3, speed: 2.6, color: 0xff8c00, geo: new THREE.IcosahedronGeometry(0.4, 0) },
-  { count: 20, hp: 4, speed: 3.1, color: 0xaa44ff, geo: new THREE.DodecahedronGeometry(0.45, 0) },
+// Arena size (world units)
+const ARENA_W = 20;
+const ARENA_H = 14;
+
+// Wave config
+const waveConfigs = [
+  { count: 6,  speed: 2.5, hp: 1 },
+  { count: 10, speed: 3.2, hp: 2 },
+  { count: 16, speed: 4.0, hp: 2, shootBack: true },
 ];
 
-// ========== INIT ==========
-function init() {
+let waveEnemiesLeft = 0;
+let waveKilled = 0;
+let waveActive = false;
+let enemyBullets = [];
+
+// Canvas / DOM
+const flashEl = document.getElementById('flash-overlay');
+const ipTitleEl = document.getElementById('ip-title');
+const ipNameEl = document.getElementById('ip-name');
+const ipSubtitleEl = document.getElementById('ip-subtitle');
+const waveAnnounceEl = document.getElementById('wave-announce');
+const scoreEl = document.getElementById('score-val');
+const hpBarEl = document.getElementById('hp-bar');
+const waveValEl = document.getElementById('wave-val');
+const overlayEl = document.getElementById('screen-overlay');
+
+// ── INIT ─────────────────────────────────────────────────────────
+async function init() {
+  clock = new THREE.Clock();
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0a1a);
-  scene.fog = new THREE.FogExp2(0x0a0a1a, 0.025);
+  scene.background = new THREE.Color(0x050510);
 
-  camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 200);
-  camera.position.set(0, 12, 10);
-  camera.lookAt(0, 0, 0);
+  camera = new THREE.OrthographicCamera(
+    -ARENA_W/2, ARENA_W/2,
+    ARENA_H/2, -ARENA_H/2,
+    0.1, 100
+  );
+  camera.position.z = 10;
 
-  renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  // Try WebGPU, fall back to WebGL
+  try {
+    const { default: WGPURenderer } = await import('three/addons/renderers/webgpu/WebGPURenderer.js');
+    renderer = new WGPURenderer({ antialias: true });
+    await renderer.init();
+    console.log('WebGPU renderer active');
+  } catch(e) {
+    console.warn('WebGPU unavailable, using WebGL:', e.message);
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+  }
+
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(window.innerWidth, window.innerHeight);
   document.body.appendChild(renderer.domElement);
 
-  // Lights
-  scene.add(new THREE.AmbientLight(0xffffff, 1.5));
-  const sun = new THREE.DirectionalLight(0xffffff, 2.0);
-  sun.position.set(5, 10, 5);
-  scene.add(sun);
+  // Resize camera on window resize
+  window.addEventListener('resize', onResize);
 
-  // Bloom
-  try {
-    composer = new EffectComposer(renderer);
-    composer.addPass(new RenderPass(scene, camera));
-    const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.4, 0.85);
-    composer.addPass(bloom);
-    useComposer = true;
-  } catch(e) { useComposer = false; }
+  // Grid floor
+  addGrid();
 
-  // Stars
-  const starGeo = new THREE.BufferGeometry();
-  const starVerts = [];
-  for (let i = 0; i < 200; i++) {
-    starVerts.push((Math.random()-0.5)*120, (Math.random()-0.5)*60 + 5, (Math.random()-0.5)*120);
-  }
-  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVerts, 3));
-  stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.18, transparent: true, opacity: 1.0 }));
-  scene.add(stars);
+  // Input
+  window.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if (gameState === 'playing') {
+      if (e.code === 'Digit1' || e.code === 'Numpad1') activateCard(0);
+      if (e.code === 'Digit2' || e.code === 'Numpad2') activateCard(1);
+      if (e.code === 'Digit3' || e.code === 'Numpad3') activateCard(2);
+    }
+  });
+  window.addEventListener('keyup', e => { keys[e.code] = false; });
 
-  // Floor grid
-  const grid = new THREE.GridHelper(30, 30, 0x112244, 0x112244);
-  scene.add(grid);
+  renderer.domElement.addEventListener('mousemove', e => {
+    // Convert screen to world
+    mouse.x = (e.clientX / window.innerWidth) * ARENA_W - ARENA_W/2;
+    mouse.y = -((e.clientY / window.innerHeight) * ARENA_H - ARENA_H/2);
+  });
+  renderer.domElement.addEventListener('mousedown', () => { mouse.down = true; });
+  renderer.domElement.addEventListener('mouseup', () => { mouse.down = false; });
 
-  // Arena boundary ring
-  const ringGeo = new THREE.TorusGeometry(10, 0.08, 8, 64);
-  const ringMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x003333 });
-  const ring = new THREE.Mesh(ringGeo, ringMat);
-  ring.rotation.x = Math.PI / 2;
-  scene.add(ring);
+  // Expose functions globally
+  window.startGame = startGame;
+  window.activateCard = activateCard;
 
-  // Player mesh
-  const pGeo = new THREE.OctahedronGeometry(0.55, 0);
-  const pMat = new THREE.MeshStandardMaterial({ color: 0x00ddee, emissive: 0x003344, emissiveIntensity: 0.8 });
-  player = new THREE.Mesh(pGeo, pMat);
-  player.position.set(0, 0.55, 0);
+  renderer.setAnimationLoop(animate);
+}
+
+function onResize() {
+  const aspect = window.innerWidth / window.innerHeight;
+  const h = ARENA_H;
+  const w = h * aspect;
+  camera.left = -w/2; camera.right = w/2;
+  camera.top = h/2; camera.bottom = -h/2;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  // Recalculate ARENA_W implicitly via mouse mapping
+}
+
+function addGrid() {
+  const gridHelper = new THREE.GridHelper(Math.max(ARENA_W, ARENA_H)*2, 40, 0x111133, 0x111133);
+  gridHelper.rotation.x = Math.PI / 2;
+  gridHelper.position.z = -0.5;
+  scene.add(gridHelper);
+}
+
+// ── PLAYER ───────────────────────────────────────────────────────
+function createPlayer() {
+  const geo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+  const mat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+  player = new THREE.Mesh(geo, mat);
+  player.position.set(0, 0, 0);
+  player.userData = { speed: 6, hp: 100 };
   scene.add(player);
-
-  // Player glow light
-  const pLight = new THREE.PointLight(0x00ddee, 2, 4);
-  player.add(pLight);
-
-  // Mouse tracking
-  document.addEventListener('mousemove', e => {
-    mouseNDC.set((e.clientX/innerWidth)*2-1, -(e.clientY/innerHeight)*2+1);
-    const ray = new THREE.Raycaster();
-    ray.setFromCamera(mouseNDC, camera);
-    const plane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
-    ray.ray.intersectPlane(plane, mouseWorld);
-  });
-
-  // Resize
-  window.addEventListener('resize', () => {
-    camera.aspect = innerWidth / innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight);
-    if (useComposer) composer.setSize(innerWidth, innerHeight);
-  });
-
-  animate();
 }
 
-// ========== AUDIO ==========
-function initAudio() {
-  if (audioCtx) return;
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-}
+// ── ENEMIES ──────────────────────────────────────────────────────
+function spawnEnemy(waveIdx) {
+  const cfg = waveConfigs[waveIdx];
+  const side = Math.floor(Math.random() * 4);
+  let x, y;
+  if (side === 0) { x = -ARENA_W/2 - 1; y = (Math.random()-0.5)*ARENA_H; }
+  else if (side === 1) { x = ARENA_W/2 + 1; y = (Math.random()-0.5)*ARENA_H; }
+  else if (side === 2) { x = (Math.random()-0.5)*ARENA_W; y = ARENA_H/2 + 1; }
+  else { x = (Math.random()-0.5)*ARENA_W; y = -ARENA_H/2 - 1; }
 
-function playNote(freq, type='sine', dur=0.1, vol=0.3, delay=0) {
-  if (!audioCtx) return;
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.connect(gain); gain.connect(audioCtx.destination);
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, audioCtx.currentTime + delay);
-  gain.gain.setValueAtTime(0, audioCtx.currentTime + delay);
-  gain.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + delay + 0.01);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + dur);
-  osc.start(audioCtx.currentTime + delay);
-  osc.stop(audioCtx.currentTime + delay + dur + 0.05);
-}
-
-let bgmNodes = [];
-function startBGM() {
-  if (!audioCtx || bgmNodes.length > 0) return;
-  const bpm = 140;
-  const beat = 60 / bpm;
-  const pattern = [220, 0, 165, 0, 196, 0, 146, 0]; // minor arpeggio
-  let step = 0;
-  const tick = () => {
-    if (!audioCtx) return;
-    const freq = pattern[step % pattern.length];
-    if (freq > 0) {
-      playNote(freq, 'sawtooth', beat * 0.7, 0.04);
-      playNote(freq * 2, 'triangle', beat * 0.5, 0.025);
-    }
-    step++;
-    setTimeout(tick, beat * 1000);
-  };
-  tick();
-  bgmNodes.push(tick);
-}
-
-function sfxShoot() { playNote(880, 'sine', 0.05, 0.15); }
-function sfxHit()   { playNote(330, 'triangle', 0.08, 0.2); }
-function sfxDie()   {
-  playNote(440, 'sine', 0.06, 0.15, 0);
-  playNote(330, 'sine', 0.06, 0.12, 0.06);
-  playNote(220, 'sine', 0.08, 0.1,  0.12);
-}
-function sfxPlayerHit() { playNote(110, 'sawtooth', 0.12, 0.25); }
-function sfxWaveClear() {
-  [523, 659, 784, 1047].forEach((f,i) => playNote(f, 'triangle', 0.15, 0.3, i*0.1));
-}
-function sfxWin() {
-  [523,587,659,698,784,880,988,1047].forEach((f,i) => playNote(f, 'triangle', 0.2, 0.3, i*0.08));
-}
-function sfxGameOver() {
-  [523,440,392,330,261].forEach((f,i) => playNote(f, 'sine', 0.25, 0.25, i*0.12));
-}
-function sfxCardActivate(cardIdx) {
-  const freqs = [[523,659,784,1047], [392,494,587,740], [587,740,880,1047]];
-  freqs[cardIdx].forEach((f,i) => playNote(f, 'triangle', 0.35, 0.25, i*0.07));
-}
-function sfxCardExpire() {
-  [523,440,330].forEach((f,i) => playNote(f, 'sine', 0.15, 0.15, i*0.07));
-}
-
-// ========== GAME LOGIC ==========
-function startGame() {
-  gameState = 'PLAYING';
-  currentWave = 1;
-  playerHP = 5;
-  score = 0;
-  playerPos.set(0, 0, 0);
-  player.position.set(0, 0.55, 0);
-  playerInvTime = 0;
-
-  enemies.forEach(e => scene.remove(e.mesh)); enemies = [];
-  projectiles.forEach(p => scene.remove(p.mesh)); projectiles = [];
-  particles.forEach(p => scene.remove(p.mesh)); particles = [];
-
-  CARDS.forEach((c,i) => {
-    c.active = false; c.used = false; c.timer = 0;
-    document.getElementById('card'+i).className = 'card ' + c.cssClass;
-    document.getElementById('ct'+i).textContent = 'Ready';
-  });
-  arcadeActive = dungeonActive = neonActive = false;
-
-  updateHPUI();
-  updateScoreUI();
-  updateWaveUI();
-  hideCenterMessage();
-  document.getElementById('menu').style.display = 'none';
-
-  startBGM();
-  spawnWave(currentWave);
-}
-
-function spawnWave(wn) {
-  const cfg = WAVE_CONFIG[wn-1];
-  enemiesToSpawn = cfg.count;
-  spawnTimer = 0;
-  spawnInterval = Math.max(0.3, 1.2 - (wn-1)*0.25);
-}
-
-function spawnEnemy(wn) {
-  const cfg = WAVE_CONFIG[wn-1];
-  const angle = Math.random() * Math.PI * 2;
-  const r = 9.5 + Math.random() * 0.5;
-  const x = Math.cos(angle) * r;
-  const z = Math.sin(angle) * r;
-  const mat = new THREE.MeshStandardMaterial({ color: cfg.color, emissive: new THREE.Color(cfg.color).multiplyScalar(0.3) });
-  const mesh = new THREE.Mesh(cfg.geo.clone(), mat);
-  mesh.position.set(x, 0.4, z);
+  const colors = [0xff4444, 0xff8800, 0xff00aa, 0xffcc00];
+  const color = colors[Math.floor(Math.random()*colors.length)];
+  const geo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
+  const mat = new THREE.MeshBasicMaterial({ color });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, y, 0);
+  mesh.userData = { hp: cfg.hp, speed: cfg.speed, shootBack: cfg.shootBack || false, shootTimer: 1+Math.random() };
   scene.add(mesh);
-  const light = new THREE.PointLight(cfg.color, 1, 2.5);
-  mesh.add(light);
-  enemies.push({ mesh, hp: cfg.hp, maxHp: cfg.hp, speed: cfg.speed, hitFlash: 0, wave: wn, vel: new THREE.Vector3() });
+  enemies.push(mesh);
 }
 
-function fireProjectile(pos, dir, split=false) {
-  const directions = split
-    ? [dir.clone(), dir.clone().applyAxisAngle(new THREE.Vector3(0,1,0), 0.28), dir.clone().applyAxisAngle(new THREE.Vector3(0,1,0), -0.28)]
-    : [dir.clone()];
-  directions.forEach(d => {
-    const geo = new THREE.SphereGeometry(0.12, 6, 6);
-    const col = arcadeActive ? 0xff69b4 : 0xffffff;
-    const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 1.2 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.copy(pos);
-    mesh.position.y = 0.55;
-    scene.add(mesh);
-    const pLight = new THREE.PointLight(col, 1.5, 1.5);
-    mesh.add(pLight);
-    projectiles.push({ mesh, vel: d.clone().multiplyScalar(14), life: 2.0 });
-  });
+// ── BULLETS ──────────────────────────────────────────────────────
+function fireBullet(ox, oy, dx, dy, color = 0xffff00, speed = 14, isEnemy = false) {
+  const geo = new THREE.BoxGeometry(0.25, 0.25, 0.25);
+  const mat = new THREE.MeshBasicMaterial({ color });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(ox, oy, 0);
+  const len = Math.sqrt(dx*dx+dy*dy);
+  mesh.userData = { vx: dx/len*speed, vy: dy/len*speed, isEnemy };
+  scene.add(mesh);
+  return mesh;
 }
 
-function spawnParticles(pos, color, count=10) {
-  for (let i = 0; i < count; i++) {
-    const geo = new THREE.TetrahedronGeometry(0.1, 0);
-    const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.8, transparent: true, opacity: 1.0 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.copy(pos);
-    const vel = new THREE.Vector3((Math.random()-0.5)*6, Math.random()*4+1, (Math.random()-0.5)*6);
-    scene.add(mesh);
-    particles.push({ mesh, vel, life: 0.5 + Math.random()*0.3 });
-  }
-}
+function shootPlayer() {
+  const dx = mouse.x - player.position.x;
+  const dy = mouse.y - player.position.y;
+  if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return;
 
-function activateCard(idx) {
-  const c = CARDS[idx];
-  if (c.used || c.active || gameState !== 'PLAYING') return;
-  c.active = true;
-  c.used = true;
-  c.timer = c.duration;
-  if (idx === 0) arcadeActive = true;
-  if (idx === 1) dungeonActive = true;
-  if (idx === 2) neonActive = true;
-  document.getElementById('card'+idx).classList.add('active');
-  sfxCardActivate(idx);
-  flashCard(idx, c.color);
-}
-
-function flashCard(idx, hexColor) {
-  const overlay = document.getElementById('flash-overlay');
-  const names = ['ARCADE DYNASTY', 'DUNGEON LORD', 'NEON SYNDICATE'];
-  overlay.style.background = `rgba(${(hexColor>>16)&255}, ${(hexColor>>8)&255}, ${hexColor&255}, 0.65)`;
-  overlay.style.transition = 'none';
-  overlay.style.opacity = '1';
-
-  const cm = document.getElementById('center-message');
-  const cmTitle = document.getElementById('cm-title');
-  const cmSub = document.getElementById('cm-sub');
-  cmTitle.textContent = names[idx];
-  cmTitle.style.color = `#${hexColor.toString(16).padStart(6,'0')}`;
-  cmSub.textContent = ['TRIPLE SHOT ACTIVATED!', 'TIME DILATION ENGAGED!', 'SYNDICATE PROTOCOL ONLINE!'][idx];
-  cmSub.style.color = '#fff';
-  cm.style.display = 'block';
-
-  setTimeout(() => {
-    overlay.style.transition = 'opacity 0.8s';
-    overlay.style.opacity = '0';
-    setTimeout(() => { cm.style.display = 'none'; }, 800);
-  }, 1500);
-}
-
-function onKey(code) {
-  if (code === 'Space') {
-    if (gameState === 'MENU') { initAudio(); startGame(); }
-    else if (gameState === 'WIN' || gameState === 'GAME_OVER') { startGame(); }
-  }
-  if (code === 'KeyR' && (gameState === 'WIN' || gameState === 'GAME_OVER')) startGame();
-  if (code === 'Digit1') activateCard(0);
-  if (code === 'Digit2') activateCard(1);
-  if (code === 'Digit3') activateCard(2);
-}
-
-function playerHit() {
-  if (playerInvTime > 0) return;
-  playerHP--;
-  playerInvTime = PLAYER_INVINCIBLE;
-  sfxPlayerHit();
-  updateHPUI();
-  // Red flash
-  const hf = document.getElementById('hit-flash');
-  hf.style.transition = 'none'; hf.style.opacity = '0.5';
-  setTimeout(() => { hf.style.transition = 'opacity 0.3s'; hf.style.opacity = '0'; }, 60);
-  // Camera shake
-  shakeAmt = 0.35; shakeTime = 0.25;
-  if (playerHP <= 0) triggerGameOver();
-}
-
-function triggerGameOver() {
-  gameState = 'GAME_OVER';
-  sfxGameOver();
-  showCenterMessage('GAME OVER', `SCORE: ${score} — PRESS SPACE TO RETRY`);
-  document.getElementById('center-message').querySelector('h1').style.color = '#ff4444';
-}
-
-function triggerWin() {
-  gameState = 'WIN';
-  sfxWin();
-  showCenterMessage('YOU WIN', `FINAL SCORE: ${score} — PRESS SPACE TO PLAY AGAIN`);
-  document.getElementById('center-message').querySelector('h1').style.color = '#00ffff';
-}
-
-function showCenterMessage(title, sub) {
-  const cm = document.getElementById('center-message');
-  document.getElementById('cm-title').textContent = title;
-  document.getElementById('cm-sub').textContent = sub;
-  cm.style.display = 'block';
-}
-
-function hideCenterMessage() {
-  document.getElementById('center-message').style.display = 'none';
-}
-
-function updateHPUI() {
-  for (let i = 0; i < 5; i++) {
-    const el = document.getElementById('hp'+i);
-    el.className = i < playerHP ? 'hp-dot' : 'hp-dot dead';
-  }
-}
-function updateScoreUI() {
-  document.getElementById('score-display').textContent = `SCORE: ${score}`;
-}
-function updateWaveUI() {
-  document.getElementById('wave-display').textContent = `WAVE ${currentWave} / 3`;
-}
-
-// ========== UPDATE ==========
-function update(dt) {
-  if (gameState !== 'PLAYING') return;
-
-  // Player movement
-  const moveDir = new THREE.Vector3();
-  if (keys['KeyW'] || keys['ArrowUp'])    moveDir.z -= 1;
-  if (keys['KeyS'] || keys['ArrowDown'])  moveDir.z += 1;
-  if (keys['KeyA'] || keys['ArrowLeft'])  moveDir.x -= 1;
-  if (keys['KeyD'] || keys['ArrowRight']) moveDir.x += 1;
-  if (moveDir.lengthSq() > 0) {
-    moveDir.normalize().multiplyScalar(playerSpeed * dt);
-    playerPos.add(moveDir);
-    playerPos.x = Math.max(-9, Math.min(9, playerPos.x));
-    playerPos.z = Math.max(-9, Math.min(9, playerPos.z));
-    player.position.set(playerPos.x, 0.55, playerPos.z);
-  }
-
-  // Player rotation toward mouse
-  const dx = mouseWorld.x - playerPos.x;
-  const dz = mouseWorld.z - playerPos.z;
-  if (Math.abs(dx) + Math.abs(dz) > 0.1) {
-    player.rotation.y = Math.atan2(dx, dz);
-  }
-  player.rotation.x += dt * 1.5;
-  player.rotation.z += dt * 0.8;
-
-  // Invincibility timer
-  if (playerInvTime > 0) {
-    playerInvTime -= dt;
-    player.visible = Math.floor(playerInvTime * 10) % 2 === 0;
+  if (arcadeActive) {
+    // Split shot: 3 spread
+    const angles = [-0.25, 0, 0.25];
+    for (const a of angles) {
+      const cos = Math.cos(a), sin = Math.sin(a);
+      const rx = dx*cos - dy*sin;
+      const ry = dx*sin + dy*cos;
+      playerBullets.push(fireBullet(player.position.x, player.position.y, rx, ry, 0xaa44ff));
+    }
   } else {
-    player.visible = true;
+    playerBullets.push(fireBullet(player.position.x, player.position.y, dx, dy));
+  }
+}
+
+// ── PARTICLES ────────────────────────────────────────────────────
+function spawnParticles(x, y, color, count = 8) {
+  for (let i = 0; i < count; i++) {
+    const geo = new THREE.BoxGeometry(0.15, 0.15, 0.15);
+    const mat = new THREE.MeshBasicMaterial({ color });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, y, 0);
+    const angle = Math.random() * Math.PI * 2;
+    const spd = 3 + Math.random() * 5;
+    mesh.userData = { vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd, life: 0.5+Math.random()*0.3 };
+    scene.add(mesh);
+    particles.push(mesh);
+  }
+}
+
+// ── FLOATING TEXT ─────────────────────────────────────────────────
+// (done via DOM overlay for simplicity — Three.js sprites for heavy builds)
+function spawnFloatingText(x, y, text, color) {
+  // Convert world to screen
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const arenaW = camera.right - camera.left;
+  const arenaH = camera.top - camera.bottom;
+  const sx = ((x - camera.left) / arenaW) * w;
+  const sy = ((camera.top - y) / arenaH) * h;
+
+  const el = document.createElement('div');
+  el.style.cssText = `position:fixed;left:${sx}px;top:${sy}px;color:${color};font-size:18px;font-weight:bold;pointer-events:none;z-index:20;text-shadow:0 0 8px ${color};transform:translate(-50%,-50%);transition:all 0.8s;`;
+  el.textContent = text;
+  document.body.appendChild(el);
+  floatingTexts.push({ el, life: 0.8, vy: -60 });
+  setTimeout(() => { el.style.top = (sy - 40) + 'px'; el.style.opacity = '0'; }, 50);
+  setTimeout(() => { el.remove(); }, 850);
+}
+
+// ── CARDS ────────────────────────────────────────────────────────
+window.activateCard = function(idx) {
+  if (gameState !== 'playing') return;
+  if (cardUsed[idx]) return;
+  cardUsed[idx] = true;
+  document.getElementById('card-' + idx).classList.add('used');
+
+  if (idx === 0) activateArcadeDynasty();
+  else if (idx === 1) activateDungeonLord();
+  else if (idx === 2) activateNeonSyndicate();
+};
+
+function showIPFlash(name, subtitle, bgColor, textColor) {
+  flashEl.style.background = bgColor;
+  flashEl.style.opacity = '0.35';
+  ipNameEl.textContent = name;
+  ipSubtitleEl.textContent = subtitle;
+  ipTitleEl.style.color = textColor;
+  ipTitleEl.style.opacity = '1';
+  setTimeout(() => { flashEl.style.opacity = '0'; }, 200);
+  setTimeout(() => { ipTitleEl.style.opacity = '0'; }, 1500);
+}
+
+function activateArcadeDynasty() {
+  arcadeActive = true;
+  showIPFlash('ARCADE DYNASTY', '✦ SPLIT SHOTS ACTIVATED ✦', '#220044', '#cc88ff');
+  // Lasts until end of wave
+}
+
+function activateDungeonLord() {
+  timeScale = 0.4;
+  slowTimer = 6.0;
+  showIPFlash('DUNGEON LORD', '⏳ TIME FRACTURE ⏳', '#002200', '#88ff88');
+}
+
+function activateNeonSyndicate() {
+  neonTimer = 5.0;
+  showIPFlash('NEON SYNDICATE', '⚡ ENEMY CHAOS ⚡', '#001133', '#88ccff');
+}
+
+// ── GAME FLOW ────────────────────────────────────────────────────
+window.startGame = function() {
+  overlayEl.style.display = 'none';
+  resetGame();
+  gameState = 'playing';
+  startWave(0);
+};
+
+function resetGame() {
+  score = 0;
+  playerHP = 100;
+  currentWave = 1;
+  timeScale = 1;
+  slowTimer = 0;
+  neonTimer = 0;
+  arcadeActive = false;
+  cardUsed.fill(false);
+  for (let i = 0; i < 3; i++) document.getElementById('card-'+i).classList.remove('used');
+
+  // Clear entities
+  [...playerBullets, ...enemies, ...particles, ...enemyBullets].forEach(m => scene.remove(m));
+  playerBullets = []; enemies = []; particles = []; enemyBullets = [];
+
+  if (player) scene.remove(player);
+  createPlayer();
+
+  updateHUD();
+}
+
+function startWave(waveIdx) {
+  const cfg = waveConfigs[waveIdx];
+  waveEnemiesLeft = cfg.count;
+  waveKilled = 0;
+  waveActive = false;
+  arcadeActive = false; // reset Arcade Dynasty each wave
+
+  // Announce
+  waveAnnounceEl.textContent = `WAVE ${waveIdx+1}`;
+  waveAnnounceEl.style.opacity = '1';
+  setTimeout(() => { waveAnnounceEl.style.opacity = '0'; }, 1500);
+
+  // Spawn enemies staggered
+  waveActive = true;
+  let spawned = 0;
+  const spawnInterval = setInterval(() => {
+    if (spawned >= cfg.count || gameState !== 'playing') {
+      clearInterval(spawnInterval);
+      return;
+    }
+    spawnEnemy(waveIdx);
+    spawned++;
+  }, 350);
+}
+
+function onEnemyKilled(enemy) {
+  spawnParticles(enemy.position.x, enemy.position.y, enemy.material.color.getHex());
+  spawnFloatingText(enemy.position.x, enemy.position.y, '+10', '#ffff00');
+  score += 10;
+  waveKilled++;
+  scene.remove(enemy);
+  const idx = enemies.indexOf(enemy);
+  if (idx > -1) enemies.splice(idx, 1);
+
+  if (waveKilled >= waveConfigs[currentWave-1].count) {
+    // Wave cleared
+    setTimeout(() => nextWave(), 1200);
+  }
+  updateHUD();
+}
+
+function nextWave() {
+  if (gameState !== 'playing') return;
+  if (currentWave >= TOTAL_WAVES) {
+    winGame();
+    return;
+  }
+  currentWave++;
+  waveValEl.textContent = currentWave;
+  startWave(currentWave - 1);
+}
+
+function winGame() {
+  gameState = 'win';
+  overlayEl.innerHTML = `
+    <h1>🏆 YOU WIN</h1>
+    <p>All 3 waves cleared.</p>
+    <p>Final Score: ${score}</p>
+    <button onclick="location.reload()">PLAY AGAIN</button>
+  `;
+  overlayEl.style.display = 'flex';
+}
+
+function dieGame() {
+  gameState = 'dead';
+  overlayEl.innerHTML = `
+    <h1>💀 GAME OVER</h1>
+    <p>Wave ${currentWave} / ${TOTAL_WAVES}</p>
+    <p>Score: ${score}</p>
+    <button onclick="location.reload()">TRY AGAIN</button>
+  `;
+  overlayEl.style.display = 'flex';
+}
+
+// ── HUD ──────────────────────────────────────────────────────────
+function updateHUD() {
+  scoreEl.textContent = score;
+  hpBarEl.style.width = Math.max(0, playerHP) + '%';
+}
+
+// ── MAIN LOOP ────────────────────────────────────────────────────
+function animate() {
+  const rawDt = clock.getDelta();
+  if (gameState !== 'playing') {
+    renderer.render(scene, camera);
+    return;
   }
 
-  // Auto-shoot
-  shootTimer -= dt;
-  if (shootTimer <= 0) {
-    const dir = new THREE.Vector3(mouseWorld.x - playerPos.x, 0, mouseWorld.z - playerPos.z).normalize();
-    if (dir.lengthSq() > 0) {
-      fireProjectile(playerPos.clone(), dir, arcadeActive);
-      sfxShoot();
-      shootTimer = SHOOT_INTERVAL;
-    }
+  // Time effects
+  if (slowTimer > 0) {
+    slowTimer -= rawDt;
+    if (slowTimer <= 0) { timeScale = 1.0; }
+  }
+  if (neonTimer > 0) neonTimer -= rawDt;
+
+  const dt = rawDt * timeScale;
+
+  // ── Player movement
+  const spd = player.userData.speed;
+  if (keys['KeyA'] || keys['ArrowLeft'])  player.position.x -= spd * dt;
+  if (keys['KeyD'] || keys['ArrowRight']) player.position.x += spd * dt;
+  if (keys['KeyW'] || keys['ArrowUp'])    player.position.y += spd * dt;
+  if (keys['KeyS'] || keys['ArrowDown'])  player.position.y -= spd * dt;
+
+  // Clamp player to arena
+  player.position.x = Math.max(-ARENA_W/2+0.5, Math.min(ARENA_W/2-0.5, player.position.x));
+  player.position.y = Math.max(-ARENA_H/2+0.5, Math.min(ARENA_H/2-0.5, player.position.y));
+
+  // Rotate toward mouse
+  const angle = Math.atan2(mouse.y - player.position.y, mouse.x - player.position.x);
+  player.rotation.z = angle - Math.PI/2;
+
+  // ── Shooting
+  shootCooldown -= rawDt; // shoot rate not affected by slow
+  if (mouse.down && shootCooldown <= 0) {
+    shootPlayer();
+    shootCooldown = arcadeActive ? 0.18 : 0.12;
   }
 
-  // Card timers
-  CARDS.forEach((c, idx) => {
-    if (c.active) {
-      c.timer -= dt;
-      document.getElementById('ct'+idx).textContent = c.timer > 0 ? c.timer.toFixed(1)+'s' : '';
-      if (c.timer <= 0) {
-        c.active = false;
-        if (idx === 0) arcadeActive = false;
-        if (idx === 1) dungeonActive = false;
-        if (idx === 2) neonActive = false;
-        document.getElementById('card'+idx).classList.remove('active');
-        document.getElementById('card'+idx).classList.add('used');
-        document.getElementById('ct'+idx).textContent = 'Used';
-        sfxCardExpire();
-      }
-    }
-  });
+  // ── Player bullets
+  for (let i = playerBullets.length - 1; i >= 0; i--) {
+    const b = playerBullets[i];
+    b.position.x += b.userData.vx * rawDt; // bullets unaffected by slow
+    b.position.y += b.userData.vy * rawDt;
 
-  // Spawn enemies
-  if (enemiesToSpawn > 0) {
-    spawnTimer -= dt;
-    if (spawnTimer <= 0) {
-      spawnEnemy(currentWave);
-      enemiesToSpawn--;
-      spawnTimer = spawnInterval;
-    }
-  }
-
-  // Enemy movement
-  enemies.forEach(e => {
-    const speedMul = dungeonActive ? 0.2 : 1.0;
-    if (neonActive) {
-      // Enemies home toward nearest OTHER enemy
-      let nearest = null;
-      let nearDist = Infinity;
-      enemies.forEach(other => {
-        if (other === e) return;
-        const d = other.mesh.position.distanceTo(e.mesh.position);
-        if (d < nearDist) { nearDist = d; nearest = other; }
-      });
-      if (nearest) {
-        const dir = nearest.mesh.position.clone().sub(e.mesh.position).normalize();
-        e.vel.lerp(dir.multiplyScalar(e.speed * 1.5), 0.1);
-      } else {
-        const toPlayer = playerPos.clone().sub(e.mesh.position).normalize();
-        e.vel.lerp(toPlayer.multiplyScalar(e.speed), 0.1);
-      }
-    } else {
-      const toPlayer = playerPos.clone().sub(e.mesh.position).normalize();
-      e.vel.lerp(toPlayer.multiplyScalar(e.speed), 0.08);
-    }
-    e.mesh.position.add(e.vel.clone().multiplyScalar(dt * speedMul));
-    e.mesh.rotation.y += dt * 1.2;
-    e.mesh.rotation.x += dt * 0.6;
-
-    // Hit flash
-    if (e.hitFlash > 0) {
-      e.hitFlash -= dt;
-      e.mesh.material.emissiveIntensity = 2.0 * (e.hitFlash / 0.12);
-    } else {
-      e.mesh.material.emissiveIntensity = 0.3;
+    // Out of bounds
+    if (Math.abs(b.position.x) > ARENA_W || Math.abs(b.position.y) > ARENA_H) {
+      scene.remove(b); playerBullets.splice(i, 1); continue;
     }
 
-    // Player collision
-    if (e.mesh.position.distanceTo(player.position) < 0.9) {
-      playerHit();
-    }
-  });
-
-  // Neon Syndicate collisions between enemies
-  if (neonActive) {
-    for (let i = 0; i < enemies.length; i++) {
-      for (let j = i + 1; j < enemies.length; j++) {
-        const d = enemies[i].mesh.position.distanceTo(enemies[j].mesh.position);
-        if (d < 0.9) {
-          enemies[i].hp -= 1;
-          enemies[j].hp -= 1;
-          sfxHit();
-        }
-      }
-    }
-  }
-
-  // Projectile update
-  for (let i = projectiles.length - 1; i >= 0; i--) {
-    const p = projectiles[i];
-    p.mesh.position.add(p.vel.clone().multiplyScalar(dt));
-    p.life -= dt;
-    if (p.life <= 0 || p.mesh.position.length() > 15) {
-      scene.remove(p.mesh); projectiles.splice(i, 1); continue;
-    }
-    // Projectile-enemy collision
+    // Hit enemy
     let hit = false;
     for (let j = enemies.length - 1; j >= 0; j--) {
-      if (p.mesh.position.distanceTo(enemies[j].mesh.position) < 0.55) {
-        enemies[j].hp--;
-        enemies[j].hitFlash = 0.12;
-        enemies[j].mesh.scale.setScalar(1.25);
-        sfxHit();
-        if (enemies[j].hp <= 0) {
-          spawnParticles(enemies[j].mesh.position.clone(), WAVE_CONFIG[currentWave-1].color);
-          sfxDie();
-          score += 10 * currentWave;
-          updateScoreUI();
-          scene.remove(enemies[j].mesh);
-          enemies.splice(j, 1);
+      const e = enemies[j];
+      if (Math.abs(b.position.x - e.position.x) < 0.6 && Math.abs(b.position.y - e.position.y) < 0.6) {
+        e.userData.hp--;
+        if (e.userData.hp <= 0) {
+          onEnemyKilled(e);
+        } else {
+          // Flash red
+          e.material.color.set(0xffffff);
+          setTimeout(() => { if (e.parent) e.material.color.set(0xff4444); }, 80);
         }
-        scene.remove(p.mesh); projectiles.splice(i, 1);
-        hit = true; break;
+        scene.remove(b); playerBullets.splice(i, 1);
+        hit = true;
+        break;
       }
     }
+    if (hit) continue;
   }
 
-  // Scale-back pulse for hit enemies
-  enemies.forEach(e => {
-    if (e.mesh.scale.x > 1.0) {
-      e.mesh.scale.setScalar(Math.max(1.0, e.mesh.scale.x - dt * 8));
-    }
-  });
-
-  // Remove dead enemies (hp already handled)
+  // ── Enemies
   for (let i = enemies.length - 1; i >= 0; i--) {
-    if (enemies[i].hp <= 0) {
-      spawnParticles(enemies[i].mesh.position.clone(), WAVE_CONFIG[currentWave-1].color);
-      sfxDie();
-      score += 10 * currentWave;
-      updateScoreUI();
-      scene.remove(enemies[i].mesh);
-      enemies.splice(i, 1);
+    const e = enemies[i];
+
+    // Move toward player (or chaos mode)
+    if (neonTimer > 0) {
+      // Neon Syndicate: enemies home toward each other
+      let cx = 0, cy = 0;
+      for (const other of enemies) {
+        if (other !== e) { cx += other.position.x; cy += other.position.y; }
+      }
+      if (enemies.length > 1) { cx /= (enemies.length-1); cy /= (enemies.length-1); }
+      const edx = cx - e.position.x;
+      const edy = cy - e.position.y;
+      const elen = Math.sqrt(edx*edx+edy*edy) || 1;
+      e.position.x += (edx/elen) * e.userData.speed * dt;
+      e.position.y += (edy/elen) * e.userData.speed * dt;
+    } else {
+      const edx = player.position.x - e.position.x;
+      const edy = player.position.y - e.position.y;
+      const elen = Math.sqrt(edx*edx+edy*edy) || 1;
+      e.position.x += (edx/elen) * e.userData.speed * dt;
+      e.position.y += (edy/elen) * e.userData.speed * dt;
+    }
+
+    // Enemy shoots back (wave 3)
+    if (e.userData.shootBack) {
+      e.userData.shootTimer -= rawDt;
+      if (e.userData.shootTimer <= 0) {
+        e.userData.shootTimer = 1.5 + Math.random();
+        const sdx = player.position.x - e.position.x;
+        const sdy = player.position.y - e.position.y;
+        enemyBullets.push(fireBullet(e.position.x, e.position.y, sdx, sdy, 0xff3300, 8, true));
+      }
+    }
+
+    // Collide with player
+    if (Math.abs(e.position.x - player.position.x) < 0.7 && Math.abs(e.position.y - player.position.y) < 0.7) {
+      playerHP -= 12;
+      spawnParticles(player.position.x, player.position.y, 0x00ffff, 6);
+      // Push enemy back
+      const ebx = e.position.x - player.position.x;
+      const eby = e.position.y - player.position.y;
+      const ebl = Math.sqrt(ebx*ebx+eby*eby) || 1;
+      e.position.x += (ebx/ebl)*1.2;
+      e.position.y += (eby/ebl)*1.2;
+      updateHUD();
+      if (playerHP <= 0) { dieGame(); return; }
     }
   }
 
-  // Particles
+  // ── Enemy bullets
+  for (let i = enemyBullets.length - 1; i >= 0; i--) {
+    const b = enemyBullets[i];
+    b.position.x += b.userData.vx * dt;
+    b.position.y += b.userData.vy * dt;
+    if (Math.abs(b.position.x) > ARENA_W || Math.abs(b.position.y) > ARENA_H) {
+      scene.remove(b); enemyBullets.splice(i, 1); continue;
+    }
+    if (Math.abs(b.position.x - player.position.x) < 0.5 && Math.abs(b.position.y - player.position.y) < 0.5) {
+      playerHP -= 8;
+      scene.remove(b); enemyBullets.splice(i, 1);
+      updateHUD();
+      if (playerHP <= 0) { dieGame(); return; }
+    }
+  }
+
+  // ── Particles
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
-    p.mesh.position.add(p.vel.clone().multiplyScalar(dt));
-    p.vel.y -= 9.8 * dt;
-    p.life -= dt;
-    p.mesh.material.opacity = Math.max(0, p.life / 0.7);
-    if (p.life <= 0) { scene.remove(p.mesh); particles.splice(i, 1); }
+    p.userData.life -= rawDt;
+    if (p.userData.life <= 0) { scene.remove(p); particles.splice(i, 1); continue; }
+    p.position.x += p.userData.vx * rawDt;
+    p.position.y += p.userData.vy * rawDt;
+    p.userData.vx *= 0.92;
+    p.userData.vy *= 0.92;
   }
 
-  // Wave complete check
-  if (enemiesToSpawn <= 0 && enemies.length === 0 && gameState === 'PLAYING') {
-    if (currentWave >= 3) {
-      triggerWin();
-    } else {
-      gameState = 'WAVE_CLEAR';
-      sfxWaveClear();
-      currentWave++;
-      showCenterMessage(`WAVE ${currentWave}`, 'GET READY...');
-      updateWaveUI();
-      setTimeout(() => {
-        if (gameState === 'WAVE_CLEAR') {
-          hideCenterMessage();
-          gameState = 'PLAYING';
-          spawnWave(currentWave);
-        }
-      }, 2000);
-    }
-  }
+  // ── Player pulsing
+  const pulse = 0.85 + Math.sin(Date.now() * 0.006) * 0.15;
+  player.scale.setScalar(pulse);
+
+  renderer.render(scene, camera);
 }
 
-// ========== ANIMATE ==========
-function animate() {
-  requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.05);
-
-  // Camera shake
-  if (shakeTime > 0) {
-    shakeTime -= dt;
-    const sx = (Math.random()-0.5) * shakeAmt;
-    const sz = (Math.random()-0.5) * shakeAmt;
-    camera.position.x = sx;
-    camera.position.z = 10 + sz;
-  } else {
-    camera.position.x = 0;
-    camera.position.z = 10;
-  }
-
-  // Stars drift
-  if (stars) stars.rotation.y += dt * 0.01;
-
-  update(dt);
-
-  if (useComposer) composer.render();
-  else renderer.render(scene, camera);
-}
-
-// ========== BOOT ==========
-document.addEventListener('click', () => { initAudio(); }, { once: true });
-document.addEventListener('keydown', () => { initAudio(); }, { once: true });
-init();
+// ── BOOT ─────────────────────────────────────────────────────────
+init().catch(console.error);
 </script>
 </body>
 </html>

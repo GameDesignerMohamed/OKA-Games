@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IP Draft — OKA Games</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a1a; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; color: #fff; }
+  canvas { display: block; position: fixed; top: 0; left: 0; z-index: 0; }
+
+  /* ===== DRAFT OVERLAY ===== */
+  #draft-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100;
+    background: rgba(5, 5, 20, 0.95);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 24px;
+    transition: transform 0.5s ease-in;
+  }
+  #draft-overlay.slide-out { transform: translateY(-100vh); }
+
+  #draft-title {
+    font-size: 2.2rem; font-weight: 900; letter-spacing: 0.15em;
+    text-transform: uppercase;
+    background: linear-gradient(90deg, #FFD700, #FF4488, #4488FF);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    text-align: center;
+  }
+  #draft-subtitle {
+    font-size: 0.95rem; color: #aaa; letter-spacing: 0.1em; text-transform: uppercase;
+  }
+
+  #cards-row {
+    display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
+    max-width: 980px;
+  }
+
+  .ip-card {
+    width: 140px; min-height: 200px;
+    background: #0d0d22; border-radius: 12px;
+    border: 2px solid var(--color);
+    box-shadow: 0 0 12px var(--color), 0 0 2px var(--color) inset;
+    cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    padding: 16px 10px 12px;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.2s ease;
+    position: relative; user-select: none;
+  }
+  .ip-card:hover { transform: scale(1.12) translateY(-6px); box-shadow: 0 0 28px var(--color), 0 0 6px var(--color) inset; }
+  .ip-card.selected { transform: translateY(18px); border-width: 3px; box-shadow: 0 0 32px var(--color); }
+  .ip-card.selected::after { content: '★'; position: absolute; top: 6px; right: 8px; color: #FFD700; font-size: 1.1rem; }
+  .ip-card.dimmed { opacity: 0.35; filter: grayscale(0.8); pointer-events: none; }
+
+  .card-icon { font-size: 2.4rem; line-height: 1; }
+  .card-name { font-size: 0.75rem; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color); text-align: center; margin-top: 8px; }
+  .card-effect { font-size: 0.7rem; color: #ccc; text-align: center; line-height: 1.35; margin-top: 6px; }
+  .card-duration { font-size: 0.62rem; color: #666; margin-top: 8px; }
+
+  /* ===== TRAY ===== */
+  #draft-tray {
+    display: flex; gap: 12px; justify-content: center;
+    min-height: 60px; align-items: center;
+  }
+  .tray-slot {
+    width: 130px; height: 50px; border-radius: 8px;
+    border: 1px dashed #444;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; color: #555; text-transform: uppercase; letter-spacing: 0.08em;
+    transition: all 0.2s;
+  }
+  .tray-slot.filled {
+    border-style: solid; border-color: var(--slot-color);
+    color: var(--slot-color); font-weight: 700;
+    box-shadow: 0 0 10px var(--slot-color);
+    background: rgba(255,255,255,0.04);
+  }
+
+  /* ===== START BUTTON ===== */
+  #start-btn {
+    padding: 14px 48px; font-size: 1.1rem; font-weight: 800;
+    letter-spacing: 0.15em; text-transform: uppercase;
+    background: #111; color: #555; border: 2px solid #333;
+    border-radius: 8px; cursor: not-allowed; transition: all 0.3s;
+  }
+  #start-btn.ready {
+    color: #00ff88; border-color: #00ff88;
+    box-shadow: 0 0 20px #00ff88, 0 0 40px rgba(0,255,136,0.3);
+    cursor: pointer; animation: pulse-glow 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse-glow {
+    0%,100% { box-shadow: 0 0 20px #00ff88, 0 0 40px rgba(0,255,136,0.2); }
+    50%      { box-shadow: 0 0 30px #00ff88, 0 0 60px rgba(0,255,136,0.5); }
+  }
+
+  /* ===== GAME HUD ===== */
+  #game-hud {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
+    pointer-events: none; display: none;
+  }
+  #hp-bar-wrap { position: absolute; top: 14px; left: 14px; }
+  #hp-label { font-size: 0.7rem; color: #aaa; letter-spacing: 0.1em; margin-bottom: 4px; }
+  #hp-bar-bg { width: 180px; height: 12px; background: #222; border-radius: 6px; overflow: hidden; }
+  #hp-bar-fill { height: 100%; background: #ff2244; border-radius: 6px; transition: width 0.2s; }
+
+  #wave-display {
+    position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+    font-size: 1rem; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; color: #fff;
+  }
+  #score-display {
+    position: absolute; top: 18px; right: 18px;
+    font-size: 1rem; font-weight: 700; color: #FFD700; letter-spacing: 0.1em;
+  }
+
+  /* IP card HUD at bottom */
+  #ip-hud {
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 14px;
+  }
+  .ip-hud-slot {
+    width: 120px; padding: 8px 10px;
+    background: rgba(10,10,30,0.9); border: 2px solid var(--color);
+    border-radius: 8px; text-align: center;
+    box-shadow: 0 0 8px var(--color);
+    position: relative; transition: opacity 0.2s;
+  }
+  .ip-hud-slot.used { opacity: 0.35; }
+  .ip-hud-slot.active-card { box-shadow: 0 0 24px var(--color), 0 0 48px var(--color); animation: card-active-pulse 0.5s ease-in-out infinite alternate; }
+  @keyframes card-active-pulse { from { box-shadow: 0 0 12px var(--color); } to { box-shadow: 0 0 32px var(--color), 0 0 60px var(--color); } }
+  .ip-hud-key { font-size: 0.6rem; color: #888; letter-spacing: 0.1em; }
+  .ip-hud-name { font-size: 0.7rem; font-weight: 800; color: var(--color); text-transform: uppercase; margin-top: 2px; }
+  .ip-hud-timer { font-size: 0.85rem; font-weight: 900; color: #fff; margin-top: 4px; }
+
+  /* ===== OVERLAY MESSAGES ===== */
+  #flash-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 50; pointer-events: none; opacity: 0;
+    transition: opacity 0.05s;
+  }
+  #big-text {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    font-size: 4rem; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase;
+    z-index: 60; pointer-events: none; opacity: 0; text-shadow: 0 0 40px currentColor;
+    transition: opacity 0.2s;
+  }
+  #combo-msg {
+    position: fixed; top: 35%; left: 50%; transform: translateX(-50%);
+    font-size: 1.6rem; font-weight: 900; color: #FFD700;
+    z-index: 60; pointer-events: none; opacity: 0;
+    text-shadow: 0 0 20px #FFD700;
+  }
+
+  /* ===== END SCREENS ===== */
+  #end-screen {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(5,5,20,0.95); z-index: 200;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    gap: 20px;
+  }
+  #end-title { font-size: 3rem; font-weight: 900; letter-spacing: 0.15em; text-transform: uppercase; }
+  #end-score { font-size: 1.5rem; color: #FFD700; font-weight: 700; }
+  #end-ip-used { font-size: 0.9rem; color: #aaa; text-align: center; max-width: 500px; line-height: 1.7; }
+  .end-btn {
+    padding: 14px 40px; font-size: 1rem; font-weight: 800; letter-spacing: 0.15em;
+    text-transform: uppercase; border-radius: 8px; cursor: pointer; border: 2px solid;
+    background: transparent; color: inherit; transition: all 0.2s;
+  }
+  .end-btn:hover { transform: scale(1.05); }
+
+  /* ===== WAVE CLEAR SCREEN ===== */
+  #wave-clear {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(5,5,20,0.85); z-index: 150;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px;
+  }
+  #wc-title { font-size: 2.5rem; font-weight: 900; color: #00ff88; letter-spacing: 0.15em; }
+  #wc-score { font-size: 1.2rem; color: #FFD700; }
+  #wc-combo { font-size: 1rem; color: #FF8800; }
+</style>
+</head>
+<body>
+
+<!-- Three.js canvas is injected here -->
+
+<!-- DRAFT OVERLAY -->
+<div id="draft-overlay">
+  <div id="draft-title">Select Your IP Portfolio</div>
+  <div id="draft-subtitle">Choose 3 of 6 IP cards to bring into battle</div>
+
+  <div id="cards-row">
+    <!-- Cards injected by JS -->
+  </div>
+
+  <div id="draft-tray">
+    <div class="tray-slot" id="slot-0">Empty</div>
+    <div class="tray-slot" id="slot-1">Empty</div>
+    <div class="tray-slot" id="slot-2">Empty</div>
+  </div>
+
+  <button id="start-btn" disabled>Select 3 Cards</button>
+</div>
+
+<!-- GAME HUD -->
+<div id="game-hud">
+  <div id="hp-bar-wrap">
+    <div id="hp-label">SHIELD</div>
+    <div id="hp-bar-bg"><div id="hp-bar-fill" style="width:100%"></div></div>
+  </div>
+  <div id="wave-display">WAVE 1 / 3</div>
+  <div id="score-display">SCORE: 0</div>
+  <div id="ip-hud"></div>
+</div>
+
+<!-- Flash + messages -->
+<div id="flash-overlay"></div>
+<div id="big-text"></div>
+<div id="combo-msg"></div>
+
+<!-- WAVE CLEAR -->
+<div id="wave-clear">
+  <div id="wc-title">WAVE CLEAR!</div>
+  <div id="wc-score"></div>
+  <div id="wc-combo"></div>
+</div>
+
+<!-- END SCREEN -->
+<div id="end-screen">
+  <div id="end-title">VICTORY</div>
+  <div id="end-score">SCORE: 0</div>
+  <div id="end-ip-used"></div>
+  <button class="end-btn" id="replay-btn" style="color:#00ff88; border-color:#00ff88">PLAY AGAIN</button>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// ============================================================
+// === IP CARD DEFINITIONS ===
+// ============================================================
+const IP_CARDS = [
+  { id: 'arcade', icon: '🕹️', name: 'Arcade Dynasty', effect: 'Shots split 3-way spread', duration: 8, color: '#FFD700', pitch: 523 },
+  { id: 'dungeon', icon: '⚔️', name: 'Dungeon Lord',  effect: 'Time slows to 40%',         duration: 8, color: '#4488FF', pitch: 392 },
+  { id: 'neon',   icon: '💫', name: 'Neon Syndicate', effect: 'Enemies home to each other', duration: 8, color: '#FF1493', pitch: 659 },
+  { id: 'media',  icon: '📺', name: 'Media Mogul',    effect: '2 enemies switch sides',     duration: 8, color: '#00FF88', pitch: 440 },
+  { id: 'retro',  icon: '👾', name: 'Retro Lords',    effect: 'Enemies freeze — max DPS',   duration: 8, color: '#FF8800', pitch: 294 },
+  { id: 'shadow', icon: '👥', name: 'Shadow IP',      effect: 'Ghost-fire last 3 shots',   duration: 8, color: '#AA44FF', pitch: 784 }
+];
+
+// ============================================================
+// === AUDIO ===
+// ============================================================
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playTone(freq, duration=0.12, type='sine', vol=0.25, delay=0) {
+  const ctx = getAudio();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.type = type; osc.frequency.value = freq;
+  const t = ctx.currentTime + delay;
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(vol, t + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+  osc.start(t); osc.stop(t + duration + 0.01);
+}
+function playCardSelect(pitch) {
+  playTone(pitch, 0.15, 'triangle', 0.3);
+}
+function playTriumphChord() {
+  [523, 659, 784, 1047].forEach((f, i) => playTone(f, 0.4, 'triangle', 0.2, i * 0.06));
+}
+function playSFX(type) {
+  const a = getAudio();
+  if (type === 'shoot') playTone(880, 0.05, 'sine', 0.12);
+  if (type === 'hit') playTone(220, 0.08, 'triangle', 0.2);
+  if (type === 'kill') { playTone(440, 0.06, 'triangle', 0.15); playTone(330, 0.08, 'triangle', 0.12, 0.06); playTone(220, 0.1, 'triangle', 0.1, 0.12); }
+  if (type === 'player-hit') playTone(110, 0.2, 'sawtooth', 0.3);
+  if (type === 'wave-clear') [523, 659, 784, 1047].forEach((f, i) => playTone(f, 0.3, 'triangle', 0.25, i * 0.1));
+  if (type === 'activate') [698, 880, 1047, 1319].forEach((f, i) => playTone(f, 0.35, 'sine', 0.2, i * 0.07));
+  if (type === 'win') [523, 659, 784, 1047, 1319].forEach((f, i) => playTone(f, 0.5, 'triangle', 0.2, i * 0.1));
+  if (type === 'lose') [523, 392, 330, 262, 196].forEach((f, i) => playTone(f, 0.4, 'sawtooth', 0.15, i * 0.12));
+}
+
+let bgmNodes = [];
+let bgmRunning = false;
+function startBGM() {
+  if (bgmRunning) return;
+  bgmRunning = true;
+  const ctx = getAudio();
+  const notes = [261, 311, 392, 261, 349, 261, 392, 311];
+  let step = 0;
+  function scheduleNext() {
+    if (!bgmRunning) return;
+    const freq = notes[step % notes.length];
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'triangle'; osc.frequency.value = freq;
+    const t = ctx.currentTime;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.06, t + 0.02);
+    gain.gain.setValueAtTime(0.06, t + 0.3);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.46);
+    osc.start(t); osc.stop(t + 0.48);
+    bgmNodes.push(osc);
+    step++;
+    setTimeout(scheduleNext, 460);
+  }
+  scheduleNext();
+  // Bass drone
+  function bassDrone() {
+    if (!bgmRunning) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine'; osc.frequency.value = 65;
+    gain.gain.setValueAtTime(0.07, ctx.currentTime);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 2);
+    bgmNodes.push(osc);
+    setTimeout(bassDrone, 1900);
+  }
+  bassDrone();
+}
+function stopBGM() {
+  bgmRunning = false;
+  bgmNodes.forEach(n => { try { n.stop(); } catch(e){} });
+  bgmNodes = [];
+}
+
+// ============================================================
+// === THREE.JS SCENE SETUP ===
+// ============================================================
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0a1a);
+scene.fog = new THREE.FogExp2(0x0a0a1a, 0.022);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 14, 8);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+document.body.insertBefore(renderer.domElement, document.body.firstChild);
+
+// Bloom
+let composer, useComposer = false;
+try {
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.5, 0.4, 0.3);
+  composer.addPass(bloom);
+  useComposer = true;
+} catch(e) { console.warn('Bloom failed, using direct render'); }
+
+// Lighting
+const ambient = new THREE.AmbientLight(0xffffff, 2.2);
+scene.add(ambient);
+const dirLight = new THREE.DirectionalLight(0x6688ff, 2.0);
+dirLight.position.set(5, 10, 8);
+scene.add(dirLight);
+const fillLight = new THREE.PointLight(0x4444ff, 1.5, 40);
+fillLight.position.set(-5, 5, 0);
+scene.add(fillLight);
+
+// Starfield
+const starGeo = new THREE.BufferGeometry();
+const starVerts = [];
+for (let i = 0; i < 400; i++) {
+  starVerts.push((Math.random()-0.5)*120, (Math.random()-0.5)*120, (Math.random()-0.5)*60 - 30);
+}
+starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVerts, 3));
+const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.12, transparent: true, opacity: 0.7 });
+scene.add(new THREE.Points(starGeo, starMat));
+
+// Clock
+const clock = new THREE.Clock();
+
+// ============================================================
+// === GAME STATE (all at module scope) ===
+// ============================================================
+let gamePhase = 'draft'; // 'draft' | 'combat' | 'wave-clear' | 'win' | 'lose'
+let selectedCards = []; // array of card ids
+let chosenCardDefs = []; // 3 IP_CARDS in order
+
+// Combat state
+let playerHP = 5;
+let playerMaxHP = 5;
+let score = 0;
+let waveNum = 1;
+let waveTotal = 3;
+let waveKillCount = 0;
+let waveIPsUsed = 0; // count of IPs used this wave (for combo bonus)
+let lastShotPositions = []; // for Shadow IP ghost shots
+
+let enemies = [];
+let projectiles = [];
+let particles = [];
+let ghostShots = [];
+
+let playerMesh = null;
+let playerLight = null;
+let playerInvincible = false;
+let playerInvincibleTimer = 0;
+
+// Input
+const keys = {};
+const mouse = { x: 0, y: 0, worldX: 0, worldY: 0, shooting: false };
+
+// IP card state per wave (index 0,1,2 = chosen cards)
+let ipState = [
+  { used: false, active: false, timer: 0 },
+  { used: false, active: false, timer: 0 },
+  { used: false, active: false, timer: 0 }
+];
+
+// Active effects
+let effects = {
+  arcadeDynasty: false,
+  dungeonLord: false,
+  neonSyndicate: false,
+  mediaMogul: false,
+  retroLords: false,
+  shadowIP: false
+};
+
+let cameraShake = 0;
+let cameraShakeDir = new THREE.Vector3();
+let autoFireTimer = 0;
+const AUTO_FIRE_RATE = 0.22;
+
+// ============================================================
+// === DRAFT UI ===
+// ============================================================
+const cardsRow = document.getElementById('cards-row');
+const startBtn = document.getElementById('start-btn');
+const slots = [
+  document.getElementById('slot-0'),
+  document.getElementById('slot-1'),
+  document.getElementById('slot-2')
+];
+
+IP_CARDS.forEach((card, idx) => {
+  const div = document.createElement('div');
+  div.className = 'ip-card';
+  div.style.setProperty('--color', card.color);
+  div.dataset.id = card.id;
+  div.dataset.idx = idx;
+  div.innerHTML = `
+    <div class="card-icon">${card.icon}</div>
+    <div class="card-name">${card.name}</div>
+    <div class="card-effect">${card.effect}</div>
+    <div class="card-duration">${card.duration}s effect</div>
+  `;
+  div.addEventListener('click', () => handleCardClick(card, div));
+  cardsRow.appendChild(div);
+});
+
+function handleCardClick(card, div) {
+  getAudio(); // unlock audio context
+  const already = selectedCards.indexOf(card.id);
+  if (already >= 0) {
+    // Deselect
+    selectedCards.splice(already, 1);
+    div.classList.remove('selected');
+    updateTray();
+    updateStartBtn();
+    return;
+  }
+  if (selectedCards.length >= 3) return;
+  selectedCards.push(card.id);
+  div.classList.add('selected');
+  playCardSelect(card.pitch);
+  updateTray();
+  updateStartBtn();
+  if (selectedCards.length === 3) {
+    setTimeout(playTriumphChord, 100);
+    animateAllianceFormed();
+  }
+}
+
+function animateAllianceFormed() {
+  const selected = document.querySelectorAll('.ip-card.selected');
+  selected.forEach(d => {
+    d.style.transition = 'transform 0.1s, box-shadow 0.1s';
+    d.style.transform = 'translateY(14px) scale(1.08)';
+    setTimeout(() => { d.style.transform = 'translateY(18px)'; d.style.transition = ''; }, 200);
+  });
+}
+
+function updateTray() {
+  slots.forEach((slot, i) => {
+    if (i < selectedCards.length) {
+      const card = IP_CARDS.find(c => c.id === selectedCards[i]);
+      slot.textContent = card.name;
+      slot.className = 'tray-slot filled';
+      slot.style.setProperty('--slot-color', card.color);
+    } else {
+      slot.textContent = 'Empty';
+      slot.className = 'tray-slot';
+      slot.style.removeProperty('--slot-color');
+    }
+  });
+
+  // Dim unchosen when 3 selected
+  const allCards = document.querySelectorAll('.ip-card');
+  allCards.forEach(div => {
+    const id = div.dataset.id;
+    if (selectedCards.length >= 3 && !selectedCards.includes(id)) {
+      div.classList.add('dimmed');
+    } else {
+      div.classList.remove('dimmed');
+    }
+  });
+}
+
+function updateStartBtn() {
+  if (selectedCards.length === 3) {
+    startBtn.disabled = false;
+    startBtn.classList.add('ready');
+    startBtn.textContent = 'BATTLE STARTS →';
+  } else {
+    startBtn.disabled = true;
+    startBtn.classList.remove('ready');
+    startBtn.textContent = `Select ${3 - selectedCards.length} More`;
+  }
+}
+
+startBtn.addEventListener('click', () => {
+  if (selectedCards.length !== 3) return;
+  getAudio();
+  startBattle();
+});
+
+document.getElementById('replay-btn').addEventListener('click', () => {
+  resetGame();
+});
+
+// ============================================================
+// === BATTLE START ===
+// ============================================================
+function startBattle() {
+  chosenCardDefs = selectedCards.map(id => IP_CARDS.find(c => c.id === id));
+
+  // Slide draft overlay out
+  const overlay = document.getElementById('draft-overlay');
+  overlay.classList.add('slide-out');
+  overlay.addEventListener('transitionend', () => { overlay.style.display = 'none'; }, { once: true });
+
+  // Show HUD
+  document.getElementById('game-hud').style.display = 'block';
+
+  // Build IP HUD
+  buildIPHUD();
+
+  // Init combat
+  gamePhase = 'combat';
+  playerHP = 5;
+  score = 0;
+  waveNum = 1;
+  spawnPlayer();
+  startBGM();
+  spawnWave(waveNum);
+  updateHUD();
+}
+
+function buildIPHUD() {
+  const hud = document.getElementById('ip-hud');
+  hud.innerHTML = '';
+  chosenCardDefs.forEach((card, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'ip-hud-slot';
+    slot.id = `ip-slot-${i}`;
+    slot.style.setProperty('--color', card.color);
+    slot.innerHTML = `<div class="ip-hud-key">[${i+1}]</div><div class="ip-hud-name">${card.name}</div><div class="ip-hud-timer" id="ip-timer-${i}">READY</div>`;
+    hud.appendChild(slot);
+  });
+}
+
+// ============================================================
+// === PLAYER ===
+// ============================================================
+function spawnPlayer() {
+  if (playerMesh) { scene.remove(playerMesh); }
+  const geo = new THREE.OctahedronGeometry(0.55);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x00ddee, emissive: 0x004455, emissiveIntensity: 0.5 });
+  playerMesh = new THREE.Mesh(geo, mat);
+  playerMesh.position.set(0, 0, 0);
+  playerLight = new THREE.PointLight(0x00ddee, 1.5, 5);
+  playerMesh.add(playerLight);
+  scene.add(playerMesh);
+}
+
+// ============================================================
+// === ENEMIES ===
+// ============================================================
+const WAVE_CONFIGS = [
+  { count: 8,  hp: 2, speed: 0.018, color: 0xff2244, geoFn: () => new THREE.TetrahedronGeometry(0.45) },
+  { count: 14, hp: 3, speed: 0.025, color: 0xff8800, geoFn: () => new THREE.OctahedronGeometry(0.5) },
+  { count: 20, hp: 4, speed: 0.032, color: 0xaa44ff, geoFn: () => new THREE.IcosahedronGeometry(0.5), shoots: true }
+];
+
+function spawnWave(waveIdx) {
+  enemies = [];
+  particles = [];
+  projectiles = [];
+  ghostShots = [];
+  lastShotPositions = [];
+  waveKillCount = 0;
+  waveIPsUsed = 0;
+  ipState = [
+    { used: false, active: false, timer: 0 },
+    { used: false, active: false, timer: 0 },
+    { used: false, active: false, timer: 0 }
+  ];
+  effects = { arcadeDynasty:false, dungeonLord:false, neonSyndicate:false, mediaMogul:false, retroLords:false, shadowIP:false };
+
+  const cfg = WAVE_CONFIGS[waveIdx - 1];
+  for (let i = 0; i < cfg.count; i++) {
+    const angle = (i / cfg.count) * Math.PI * 2 + Math.random() * 0.5;
+    const radius = 9 + Math.random() * 3;
+    const geo = cfg.geoFn();
+    const mat = new THREE.MeshStandardMaterial({ color: cfg.color, emissive: new THREE.Color(cfg.color).multiplyScalar(0.3), emissiveIntensity: 0.4 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+    mesh.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, 0);
+    const eLight = new THREE.PointLight(cfg.color, 0.5, 3);
+    mesh.add(eLight);
+    scene.add(mesh);
+    enemies.push({
+      mesh, hp: cfg.hp, maxHp: cfg.hp,
+      speed: cfg.speed + Math.random() * 0.005,
+      color: cfg.color,
+      ally: false, // for Media Mogul
+      frozen: false,
+      shootTimer: cfg.shoots ? (1 + Math.random() * 2) : 9999,
+      shoots: cfg.shoots || false
+    });
+  }
+  updateHUD();
+}
+
+// ============================================================
+// === SHOOTING ===
+// ============================================================
+function firePlayerShot(fromX, fromZ, dirX, dirZ, isGhost=false) {
+  const geo = new THREE.SphereGeometry(0.12, 6, 6);
+  const color = isGhost ? 0xaa44ff : (effects.arcadeDynasty ? 0xFFD700 : 0xffffff);
+  const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.5 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(fromX, 0.1, fromZ);
+  const pLight = new THREE.PointLight(color, 1.0, 3);
+  mesh.add(pLight);
+  scene.add(mesh);
+  projectiles.push({
+    mesh, vx: dirX * 0.28, vz: dirZ * 0.28,
+    fromPlayer: true, isGhost,
+    damage: effects.retroLords ? 3 : 1,
+    life: 0
+  });
+}
+
+function fireEnemyShot(enemy) {
+  if (!playerMesh) return;
+  const dx = playerMesh.position.x - enemy.mesh.position.x;
+  const dz = playerMesh.position.z - enemy.mesh.position.z;
+  const dist = Math.sqrt(dx*dx + dz*dz);
+  if (dist < 0.01) return;
+  const geo = new THREE.SphereGeometry(0.1, 5, 5);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xff4444, emissive: 0xff2222, emissiveIntensity: 1.2 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.copy(enemy.mesh.position);
+  scene.add(mesh);
+  projectiles.push({
+    mesh, vx: (dx/dist)*0.18, vz: (dz/dist)*0.18,
+    fromPlayer: false, life: 0
+  });
+}
+
+function shoot() {
+  if (!playerMesh || gamePhase !== 'combat') return;
+  const px = playerMesh.position.x, pz = playerMesh.position.z;
+  const dx = mouse.worldX - px, dz = mouse.worldY - pz;
+  const dist = Math.sqrt(dx*dx + dz*dz);
+  if (dist < 0.01) return;
+  const ndx = dx/dist, ndz = dz/dist;
+
+  playSFX('shoot');
+
+  // Track last shot direction for Shadow IP
+  lastShotPositions.unshift({ px, pz, dx:ndx, dz:ndz });
+  if (lastShotPositions.length > 3) lastShotPositions.pop();
+
+  if (effects.arcadeDynasty) {
+    // 3-way spread
+    const angles = [-0.27, 0, 0.27];
+    angles.forEach(a => {
+      const cos = Math.cos(a), sin = Math.sin(a);
+      const rx = ndx*cos - ndz*sin, rz = ndx*sin + ndz*cos;
+      firePlayerShot(px, pz, rx, rz);
+    });
+  } else {
+    firePlayerShot(px, pz, ndx, ndz);
+  }
+
+  // Shadow IP ghost shots
+  if (effects.shadowIP && lastShotPositions.length >= 2) {
+    lastShotPositions.slice(1).forEach(s => {
+      firePlayerShot(s.px, s.pz, s.dx, s.dz, true);
+    });
+  }
+}
+
+// ============================================================
+// === IP CARD ACTIVATION ===
+// ============================================================
+function activateCard(slotIdx) {
+  if (gamePhase !== 'combat') return;
+  const st = ipState[slotIdx];
+  if (!st || st.used || st.active) return;
+  const card = chosenCardDefs[slotIdx];
+  if (!card) return;
+
+  st.used = true;
+  st.active = true;
+  st.timer = card.duration;
+  waveIPsUsed++;
+
+  playSFX('activate');
+  showFlash(card.color, 0.35);
+  showBigText(card.name, card.color, 1.2);
+
+  // Apply effect
+  const id = card.id;
+  if (id === 'arcade')  effects.arcadeDynasty = true;
+  if (id === 'dungeon') effects.dungeonLord = true;
+  if (id === 'neon')    effects.neonSyndicate = true;
+  if (id === 'retro')   {
+    effects.retroLords = true;
+    enemies.forEach(e => { if (!e.ally) e.frozen = true; });
+  }
+  if (id === 'shadow')  effects.shadowIP = true;
+  if (id === 'media') {
+    effects.mediaMogul = true;
+    // Switch 2 random enemies to ally
+    const targets = enemies.filter(e => !e.ally && !e.frozen).slice(0, 2);
+    targets.forEach(e => {
+      e.ally = true;
+      e.mesh.material.color.setHex(0x00ddee);
+      e.mesh.material.emissive.setHex(0x004455);
+      e.mesh.children[0].color.setHex(0x00ddee);
+    });
+  }
+
+  updateHUD();
+}
+
+function tickIPCards(dt) {
+  ipState.forEach((st, i) => {
+    if (!st.active) return;
+    st.timer -= dt;
+    if (st.timer <= 0) {
+      st.active = false;
+      st.timer = 0;
+      // Deactivate effect
+      const card = chosenCardDefs[i];
+      const id = card.id;
+      if (id === 'arcade')  effects.arcadeDynasty = false;
+      if (id === 'dungeon') effects.dungeonLord = false;
+      if (id === 'neon')    effects.neonSyndicate = false;
+      if (id === 'retro')   {
+        effects.retroLords = false;
+        enemies.forEach(e => { e.frozen = false; });
+      }
+      if (id === 'shadow')  effects.shadowIP = false;
+      if (id === 'media') {
+        effects.mediaMogul = false;
+        enemies.forEach(e => {
+          if (e.ally) {
+            e.ally = false;
+            const cfg = WAVE_CONFIGS[waveNum-1];
+            e.mesh.material.color.setHex(cfg.color);
+            e.mesh.material.emissive.setHex(new THREE.Color(cfg.color).multiplyScalar(0.3).getHex());
+          }
+        });
+      }
+      updateHUD();
+    }
+  });
+}
+
+// ============================================================
+// === HUD UPDATE ===
+// ============================================================
+function updateHUD() {
+  document.getElementById('hp-bar-fill').style.width = `${(playerHP / playerMaxHP) * 100}%`;
+  document.getElementById('wave-display').textContent = `WAVE ${waveNum} / ${waveTotal}`;
+  document.getElementById('score-display').textContent = `SCORE: ${score}`;
+
+  ipState.forEach((st, i) => {
+    const slot = document.getElementById(`ip-slot-${i}`);
+    const timer = document.getElementById(`ip-timer-${i}`);
+    if (!slot || !timer) return;
+    slot.classList.remove('used', 'active-card');
+    if (st.used && !st.active) {
+      slot.classList.add('used');
+      timer.textContent = 'USED';
+    } else if (st.active) {
+      slot.classList.add('active-card');
+      timer.textContent = st.timer.toFixed(1) + 's';
+    } else {
+      timer.textContent = 'READY';
+    }
+  });
+}
+
+// ============================================================
+// === PARTICLES ===
+// ============================================================
+function spawnDeathParticles(pos, color) {
+  for (let i = 0; i < 8; i++) {
+    const geo = new THREE.TetrahedronGeometry(0.1);
+    const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.8, transparent: true, opacity: 1.0 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(pos);
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 0.08 + Math.random() * 0.1;
+    scene.add(mesh);
+    particles.push({ mesh, vx: Math.cos(angle)*speed, vz: Math.sin(angle)*speed, life: 1.0, gravity: 0.002 });
+  }
+}
+
+// ============================================================
+// === FLASH + BIG TEXT ===
+// ============================================================
+function showFlash(colorHex, opacity=0.3) {
+  const el = document.getElementById('flash-overlay');
+  el.style.background = colorHex;
+  el.style.opacity = opacity;
+  setTimeout(() => { el.style.opacity = 0; }, 80);
+}
+
+function showBigText(text, colorHex, duration=1.0) {
+  const el = document.getElementById('big-text');
+  el.textContent = text;
+  el.style.color = colorHex;
+  el.style.opacity = 1;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = 0; }, duration * 1000);
+}
+
+function showComboMsg() {
+  const el = document.getElementById('combo-msg');
+  el.textContent = '+COMBO BONUS! +25%';
+  el.style.opacity = 1;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = 0; }, 2500);
+}
+
+// ============================================================
+// === MOUSE ===
+// ============================================================
+const raycaster = new THREE.Raycaster();
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+window.addEventListener('mousemove', e => {
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera({ x: mouse.x, y: mouse.y }, camera);
+  const target = new THREE.Vector3();
+  raycaster.ray.intersectPlane(groundPlane, target);
+  mouse.worldX = target.x;
+  mouse.worldY = target.z;
+});
+
+window.addEventListener('mousedown', e => { if (e.button === 0) { mouse.shooting = true; getAudio(); } });
+window.addEventListener('mouseup', e => { if (e.button === 0) mouse.shooting = false; });
+
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'Digit1') activateCard(0);
+  if (e.code === 'Digit2') activateCard(1);
+  if (e.code === 'Digit3') activateCard(2);
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// ============================================================
+// === WAVE CLEAR / WIN / LOSE ===
+// ============================================================
+function handleWaveClear() {
+  gamePhase = 'wave-clear';
+  playSFX('wave-clear');
+  const waveMult = waveNum;
+  let waveScore = waveKillCount * 100 * waveMult;
+  let combo = false;
+  if (waveIPsUsed >= 2) {
+    waveScore = Math.floor(waveScore * 1.25);
+    combo = true;
+    showComboMsg();
+  }
+  score += waveScore;
+
+  const wc = document.getElementById('wave-clear');
+  wc.style.display = 'flex';
+  document.getElementById('wc-score').textContent = `+${waveScore} points (${waveKillCount} kills × ${waveMult}× multiplier)`;
+  document.getElementById('wc-combo').textContent = combo ? '🔥 COMBO BONUS APPLIED! +25%' : '';
+
+  // Clean up scene
+  enemies.forEach(e => scene.remove(e.mesh));
+  projectiles.forEach(p => scene.remove(p.mesh));
+  particles.forEach(p => scene.remove(p.mesh));
+  enemies = []; projectiles = []; particles = [];
+
+  setTimeout(() => {
+    wc.style.display = 'none';
+    waveNum++;
+    if (waveNum > waveTotal) {
+      triggerWin();
+    } else {
+      gamePhase = 'combat';
+      spawnWave(waveNum);
+    }
+  }, 2500);
+}
+
+function triggerWin() {
+  gamePhase = 'win';
+  stopBGM();
+  playSFX('win');
+  const endScreen = document.getElementById('end-screen');
+  endScreen.style.display = 'flex';
+  document.getElementById('end-title').textContent = '🏆 VICTORY';
+  document.getElementById('end-title').style.color = '#FFD700';
+  document.getElementById('end-score').textContent = `FINAL SCORE: ${score}`;
+
+  // Which IPs were used vs denied
+  const usedNames = ipState.map((st, i) => st.used ? chosenCardDefs[i].name : null).filter(Boolean);
+  const allCardNames = selectedCards.map(id => IP_CARDS.find(c => c.id === id).name);
+  const deniedPool = IP_CARDS.filter(c => !selectedCards.includes(c.id)).map(c => c.name);
+  document.getElementById('end-ip-used').innerHTML =
+    `<b>IPs Deployed:</b> ${usedNames.join(', ') || 'None'}<br>` +
+    `<b>IPs Chosen But Unused:</b> ${allCardNames.filter(n => !usedNames.includes(n)).join(', ') || 'None'}<br>` +
+    `<b>IPs Left Behind:</b> ${deniedPool.join(', ')}`;
+  document.getElementById('replay-btn').style.display = 'block';
+}
+
+function triggerLose() {
+  gamePhase = 'lose';
+  stopBGM();
+  playSFX('lose');
+  showFlash('#ff0000', 0.6);
+  const endScreen = document.getElementById('end-screen');
+  endScreen.style.display = 'flex';
+  document.getElementById('end-title').textContent = '💀 GAME OVER';
+  document.getElementById('end-title').style.color = '#ff2244';
+  document.getElementById('end-score').textContent = `SCORE: ${score}`;
+  document.getElementById('end-ip-used').textContent = `Reached Wave ${waveNum}`;
+  document.getElementById('replay-btn').style.display = 'block';
+}
+
+function resetGame() {
+  // Clean scene
+  enemies.forEach(e => scene.remove(e.mesh));
+  projectiles.forEach(p => scene.remove(p.mesh));
+  particles.forEach(p => scene.remove(p.mesh));
+  if (playerMesh) scene.remove(playerMesh);
+  enemies = []; projectiles = []; particles = []; ghostShots = [];
+
+  // Reset state
+  gamePhase = 'draft';
+  selectedCards = [];
+  chosenCardDefs = [];
+  stopBGM();
+
+  // Reset UI
+  document.getElementById('end-screen').style.display = 'none';
+  document.getElementById('wave-clear').style.display = 'none';
+  document.getElementById('game-hud').style.display = 'none';
+  document.getElementById('ip-hud').innerHTML = '';
+  document.getElementById('combo-msg').style.opacity = 0;
+  document.getElementById('big-text').style.opacity = 0;
+
+  // Reset draft
+  const overlay = document.getElementById('draft-overlay');
+  overlay.style.display = 'flex';
+  overlay.classList.remove('slide-out');
+  overlay.style.transform = '';
+
+  document.querySelectorAll('.ip-card').forEach(d => {
+    d.classList.remove('selected', 'dimmed');
+    d.style.transform = '';
+  });
+  slots.forEach(s => { s.textContent = 'Empty'; s.className = 'tray-slot'; s.style.removeProperty('--slot-color'); });
+  startBtn.disabled = true;
+  startBtn.classList.remove('ready');
+  startBtn.textContent = 'Select 3 Cards';
+}
+
+// ============================================================
+// === MAIN GAME UPDATE ===
+// ============================================================
+function update(dt) {
+  if (gamePhase !== 'combat') return;
+
+  const speed = dt * 5.5;
+
+  // IP card tick
+  tickIPCards(dt);
+  updateHUD();
+
+  // Player movement
+  const move = { x: 0, z: 0 };
+  if (keys['KeyW'] || keys['ArrowUp'])    move.z -= 1;
+  if (keys['KeyS'] || keys['ArrowDown'])  move.z += 1;
+  if (keys['KeyA'] || keys['ArrowLeft'])  move.x -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) move.x += 1;
+  const mlen = Math.sqrt(move.x*move.x + move.z*move.z);
+  if (mlen > 0) {
+    playerMesh.position.x += (move.x/mlen) * speed;
+    playerMesh.position.z += (move.z/mlen) * speed;
+  }
+  // Clamp player to arena
+  const R = 8.5;
+  const d = Math.sqrt(playerMesh.position.x**2 + playerMesh.position.z**2);
+  if (d > R) { playerMesh.position.x *= R/d; playerMesh.position.z *= R/d; }
+
+  playerMesh.rotation.y += dt * 1.2;
+
+  // Face toward mouse
+  const aimDx = mouse.worldX - playerMesh.position.x;
+  const aimDz = mouse.worldY - playerMesh.position.z;
+  if (Math.abs(aimDx) + Math.abs(aimDz) > 0.1) {
+    playerMesh.rotation.y = Math.atan2(aimDx, aimDz);
+  }
+
+  // Auto-fire
+  autoFireTimer -= dt;
+  if (mouse.shooting && autoFireTimer <= 0) {
+    shoot();
+    autoFireTimer = AUTO_FIRE_RATE;
+  }
+
+  // Camera shake
+  if (cameraShake > 0) {
+    cameraShake -= dt * 4;
+    if (cameraShake < 0) cameraShake = 0;
+    camera.position.x = Math.sin(Date.now()*0.05) * cameraShake * 0.3;
+    camera.position.y = 14 + Math.cos(Date.now()*0.07) * cameraShake * 0.3;
+  } else {
+    camera.position.x = 0;
+    camera.position.y = 14;
+  }
+
+  // Invincibility timer
+  if (playerInvincible) {
+    playerInvincibleTimer -= dt;
+    if (playerInvincibleTimer <= 0) {
+      playerInvincible = false;
+      if (playerMesh) playerMesh.material.emissiveIntensity = 0.5;
+    } else {
+      // Blink
+      if (playerMesh) playerMesh.material.emissiveIntensity = (Math.sin(Date.now()*0.02) > 0) ? 2.0 : 0.1;
+    }
+  }
+
+  // --- Enemies ---
+  const dungeonSlow = effects.dungeonLord ? 0.4 : 1.0;
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    e.mesh.rotation.x += dt * 1.5;
+    e.mesh.rotation.z += dt * 0.8;
+
+    if (e.frozen && !e.ally) { continue; }
+
+    let targetX, targetZ;
+    if (e.ally) {
+      // Ally: find nearest non-ally enemy
+      let nearest = null, nearDist = 99999;
+      enemies.forEach(other => {
+        if (other === e || other.ally) return;
+        const dx = other.mesh.position.x - e.mesh.position.x;
+        const dz = other.mesh.position.z - e.mesh.position.z;
+        const d = Math.sqrt(dx*dx+dz*dz);
+        if (d < nearDist) { nearDist = d; nearest = other; }
+      });
+      if (nearest) { targetX = nearest.mesh.position.x; targetZ = nearest.mesh.position.z; }
+      else { targetX = 0; targetZ = 0; }
+    } else if (effects.neonSyndicate) {
+      // Find nearest OTHER enemy
+      let nearest = null, nearDist = 99999;
+      enemies.forEach(other => {
+        if (other === e) return;
+        const dx = other.mesh.position.x - e.mesh.position.x;
+        const dz = other.mesh.position.z - e.mesh.position.z;
+        const d = Math.sqrt(dx*dx+dz*dz);
+        if (d < nearDist) { nearDist = d; nearest = other; }
+      });
+      if (nearest) { targetX = nearest.mesh.position.x; targetZ = nearest.mesh.position.z; }
+      else { targetX = playerMesh.position.x; targetZ = playerMesh.position.z; }
+    } else {
+      targetX = playerMesh.position.x;
+      targetZ = playerMesh.position.z;
+    }
+
+    const dx = targetX - e.mesh.position.x;
+    const dz = targetZ - e.mesh.position.z;
+    const dist = Math.sqrt(dx*dx + dz*dz);
+    if (dist > 0.3) {
+      e.mesh.position.x += (dx/dist) * e.speed * 60 * dt * dungeonSlow;
+      e.mesh.position.z += (dz/dist) * e.speed * 60 * dt * dungeonSlow;
+    }
+
+    // Enemy reaches player
+    if (!e.ally && dist < 0.9 && !playerInvincible) {
+      playerHP--;
+      playerInvincible = true;
+      playerInvincibleTimer = 1.0;
+      cameraShake = 1.0;
+      showFlash('#ff0000', 0.4);
+      playSFX('player-hit');
+      updateHUD();
+      if (playerHP <= 0) { triggerLose(); return; }
+    }
+
+    // Enemy shooting (wave 3)
+    if (e.shoots && !e.ally) {
+      e.shootTimer -= dt;
+      if (e.shootTimer <= 0) {
+        fireEnemyShot(e);
+        e.shootTimer = 2.5 + Math.random() * 1.5;
+      }
+    }
+
+    // Ally reaches enemy target — deal damage to it
+    if (e.ally && dist < 0.9) {
+      const targetEnemy = enemies.find(other => !other.ally &&
+        Math.abs(other.mesh.position.x - targetX) < 0.5 &&
+        Math.abs(other.mesh.position.z - targetZ) < 0.5);
+      if (targetEnemy) {
+        targetEnemy.hp--;
+        if (targetEnemy.hp <= 0) {
+          spawnDeathParticles(targetEnemy.mesh.position, targetEnemy.color);
+          scene.remove(targetEnemy.mesh);
+          enemies.splice(enemies.indexOf(targetEnemy), 1);
+          waveKillCount++;
+          score += 100;
+        }
+      }
+    }
+  }
+
+  // --- Projectiles ---
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.mesh.position.x += p.vx * 60 * dt;
+    p.mesh.position.z += p.vz * 60 * dt;
+    p.life += dt;
+
+    const outOfBounds = Math.sqrt(p.mesh.position.x**2 + p.mesh.position.z**2) > 14;
+    if (outOfBounds || p.life > 3) {
+      scene.remove(p.mesh);
+      projectiles.splice(i, 1);
+      continue;
+    }
+
+    if (p.fromPlayer) {
+      // Check vs enemies
+      for (let j = enemies.length - 1; j >= 0; j--) {
+        const e = enemies[j];
+        if (e.ally) continue; // don't shoot allies
+        const dx = e.mesh.position.x - p.mesh.position.x;
+        const dz = e.mesh.position.z - p.mesh.position.z;
+        if (Math.sqrt(dx*dx+dz*dz) < 0.6) {
+          e.hp -= (p.damage || 1);
+          // Hit flash
+          e.mesh.material.emissiveIntensity = 1.5;
+          setTimeout(() => { if(e.mesh) e.mesh.material.emissiveIntensity = 0.4; }, 80);
+          e.mesh.scale.setScalar(1.25);
+          setTimeout(() => { if(e.mesh) e.mesh.scale.setScalar(1.0); }, 80);
+          playSFX('hit');
+          scene.remove(p.mesh);
+          projectiles.splice(i, 1);
+          if (e.hp <= 0) {
+            spawnDeathParticles(e.mesh.position, e.color);
+            scene.remove(e.mesh);
+            enemies.splice(j, 1);
+            waveKillCount++;
+            score += 100;
+            playSFX('kill');
+            updateHUD();
+          }
+          break;
+        }
+      }
+    } else {
+      // Enemy shot vs player
+      if (!playerInvincible && playerMesh) {
+        const dx = playerMesh.position.x - p.mesh.position.x;
+        const dz = playerMesh.position.z - p.mesh.position.z;
+        if (Math.sqrt(dx*dx+dz*dz) < 0.7) {
+          playerHP--;
+          playerInvincible = true;
+          playerInvincibleTimer = 1.0;
+          cameraShake = 0.8;          showFlash('#ff0000', 0.4);
+          playSFX('player-hit');
+          scene.remove(p.mesh);
+          projectiles.splice(i, 1);
+          updateHUD();
+          if (playerHP <= 0) { triggerLose(); return; }
+        }
+      }
+    }
+  }
+
+  // --- Particles ---
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt * 1.2;
+    p.mesh.position.x += p.vx * 60 * dt;
+    p.mesh.position.z += p.vz * 60 * dt;
+    p.mesh.position.y += (p.gravity || 0) * 60 * dt;
+    p.mesh.material.opacity = Math.max(0, p.life);
+    if (p.life <= 0) {
+      scene.remove(p.mesh);
+      particles.splice(i, 1);
+    }
+  }
+
+  // Check wave complete
+  if (enemies.length === 0 && gamePhase === 'combat') {
+    handleWaveClear();
+  }
+}
+
+// ============================================================
+// === ANIMATION LOOP ===
+// ============================================================
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  // Starfield slow rotation
+  scene.children.forEach(c => {
+    if (c.isPoints) c.rotation.y += dt * 0.02;
+  });
+
+  update(dt);
+
+  if (useComposer) {
+    composer.render();
+  } else {
+    renderer.render(scene, camera);
+  }
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  if (useComposer) composer.setSize(window.innerWidth, window.innerHeight);
+});
+
+animate();
+</script>
+</body>
+</html>

@@ -1,89 +1,27 @@
-# IP Draft — Design Brief (Build #23)
-**Date:** 2026-03-22 | **Signal:** Scout March 21 — Crimson Desert combat + Balatro IP portfolio
+# IP Draft (Build #23)
 
----
+**Concept:** Pre-run IP portfolio selection — draft 3 cards from 6, then fight 3 waves using those IPs as one-shot abilities.
+**Player fantasy:** "I built this loadout. This loss is on me. Let me pick again."
 
-## Market Signal Being Tested
-Does pre-run card selection (draft agency) increase perceived ownership of outcomes? Players who choose their loadout blame themselves for failure and credit themselves for success — this is the roguelite retention hook. Testing: does draft choice make IP cards feel like *builds*, not luck?
+## Core Loop
+Draft phase → choose 3 of 6 IP cards (no timer, deliberate) → 3 escalating combat waves using those cards as 1-use activations → lose = return to DRAFT (not retry combat) → rethink and re-pick.
 
-Secondary: Zero inventory friction (Crimson Desert signal) — the draft IS the loadout. No loot drops mid-run.
+## Key Mechanics
+- Draft selection with staggered audio cues + snap-to-tray feedback; unchosen cards dim ("they know")
+- 1-use IP activations per wave, reset between waves — +25% score bonus for using 2+ IPs same wave
+- Denied synergy pair: Retro Lords + Shadow IP (freeze + ghost-repeat = dominant DPS, forces sacrifice decision)
+- Lose state returns to DRAFT: attribution of failure routes back to the pre-run decision
 
----
+## What's Built
+Draft UI fully functional (hover scale, pitch-per-card, triumph chord on 3rd pick). 6 cards with distinct mechanical identities. Combat is a standard arena shooter on Build #22 base. The denied synergy pair creates a real pre-run tension.
 
-## Player Controls
+## Verdict
+**CONDITIONAL**
 
-### Draft Phase
-- 6 cards displayed face-up in horizontal row, centered on screen
-- Mouse hover: card enlarges (1.2x scale), glows in IP brand color, plays distinct audio sting (1-note per IP)
-- Click to SELECT → card slides to "chosen" tray below. Click again to DESELECT
-- Must select exactly 3 of 6. START button activates only when tray has 3 cards
-- No timer — deliberate choice
+The draft moment works — selection feels intentional, the unchosen-card-dim creates genuine regret feedback, and the Retro Lords + Shadow IP sacrifice decision lands. The core thesis (pre-run selection creates ownership of outcomes) is proved at the prototype level.
 
-### Combat Phase
-- WASD/Arrow keys: move player
-- Mouse aim + left click: shoot
-- Keys 1/2/3: activate IP cards (one-use per wave, 8s effect)
+**Primary gap:** No post-run IP stat readout. The end screen shows which IPs were deployed vs. denied but not which IP caused the most kills. Without that readout, players can't close the feedback loop on *whether their draft decision was correct* — which is the entire retention mechanic. The ownership feeling dies at the end screen.
 
----
+**The one thing:** Per-IP kill counter on the end screen (e.g., "Retro Lords: 8 kills, Dungeon Lord: 4 kills") closes the draft → combat → verdict loop and makes the DRAFT decision feel consequential across runs.
 
-## Core Game Loop
-`DRAFT → Wave 1 (light) → Score screen → Wave 2 (medium) → Score screen → Wave 3 (heavy) → Final score`
-
-- IP cards reset per wave (1 use each per wave) — creates 3 separate activation decisions
-- Wave preview: NONE — gut feel. Mystery is the point.
-- Combo bonus: +25% score if 2+ IPs activated within same wave
-
----
-
-## IP Card Pool (6 cards, pick 3)
-
-| Card | Brand Color | Effect | Duration |
-|------|-------------|--------|----------|
-| Arcade Dynasty | Gold/Pink | Shots split 3-way spread | 8s |
-| Dungeon Lord | Deep Blue | Time slows 40% | 8s |
-| Neon Syndicate | Hot Pink | Enemies home toward each other | 8s |
-| Media Mogul | Green | 2 random enemies switch sides & fight for player | 8s |
-| Retro Lords | Orange | Enemies freeze, shots become grid-locked (high DPS window) | 8s |
-| Shadow IP | Purple | Player fires ghost doubles of last 3 shots | 8s |
-
-**Denied synergy pair:** Retro Lords + Shadow IP (freeze + ghost-repeat = absurd DPS — obvious combo but costs Arcade Dynasty or Media Mogul)
-
----
-
-## Win/Lose
-- Win: Survive all 3 waves (HP > 0 at wave 3 end)
-- Lose: HP reaches 0
-- Score: Kill count × wave multiplier + combo bonus
-
----
-
-## Juice / Feel — The Draft Moment
-
-"Must feel like a deal with the devil."
-
-- Cards arrive one by one with staggered thunk SFX (0.15s apart)
-- Each card pulses with IP brand color aura while idle
-- On hover: card scales 1.2x, distinct audio sting
-- On select: card SNAPS to tray, screen flashes IP color for 1 frame, locked-in click SFX
-- When tray hits 3: chosen cards pulse together — 0.5s "alliance formed" animation
-- Unchosen cards dim and fade (denied)
-
-IP Activation in combat:
-- Full-screen brief flash in IP color
-- Arcade Dynasty = gold scanlines
-- Dungeon Lord = cold blue desaturation
-- Neon Syndicate = hot pink chaos lines
-- Particle bursts on activation
-
----
-
-## Scope (one-night)
-- 6 static card objects — Three.js plane meshes OR HTML overlay
-- Combat engine: extend IP Clash Build #22 base
-- Combo bonus: flag check (2+ IPs same wave = +25% score)
-- No persistent save
-- Audio: SFX priority, BGM if time allows
-
----
-
-*Brief by Pixel 🎮 | Build target: Forge 🔨*
+**Secondary gap:** 6-card pool is too narrow. C(6,3) = 20 possible hands — players find the dominant picks fast. 9-card pool (C(9,3) = 84 hands) extends the discovery arc across sessions. This is the cross-run mastery loop OKA-Games has been missing since Build #5.

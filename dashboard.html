@@ -394,6 +394,46 @@
 
   <div id="feed">
 
+    <!-- ── IP Ledger (Draft + Mid-Run Attribution + Post-Run Ledger) ── -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title-block">
+          <div class="card-title"><a href="2026-03-23-ip-ledger/index.html" target="_blank">IP Ledger</a></div>
+          <div class="card-date">March 23, 2026</div>
+        </div>
+        <div class="badge failed">Failed</div>
+      </div>
+      <div class="card-body">
+        <div class="card-row">
+          <div class="row-label">Game</div>
+          <div class="row-text">IP Draft extended with three new features: pick-timing detection (Deliberate / Late / Reactive, captured as ms since draft phase opened), Tab mid-run Ledger peek showing live kill attribution per card, and a full post-run Ledger screen with 3D animated bar charts. 9-card pool (C(9,3) = 84 hands). Three new IPs: Viral Engine (chain explosion), Phantom Studio (invisibility/ghost pathing), Loot Box Baron (kill→ammo→score economy). Ledger shows on lose too — failure data is product.</div>
+        </div>
+        <div class="card-row">
+          <div class="row-label">Design</div>
+          <div class="row-text">The three-part judgment-call loop is structurally present for the first time: draft phase (pick timing timestamped) → mid-run TAB peek (live attribution visible) → post-run Ledger (normalized kill bars per card). The causal chain from decision to evidence is intact and visible. Primary gap: Phantom Studio attribution uses fixed 8s expiry — enemies reacting to the ghost after the window die without crediting Phantom, breaking the feedback loop ("card worked, Ledger says it didn't"). Secondary gap: Loot Box Baron's ammo→score chain is tracked but not explained — Ledger shows raw kills, not "2 surges enabled 16 kills at ×2.5 peak." Third gap: no pick-rate analytics stub — can't distinguish whether new cards are being drafted or avoided.</div>
+        </div>
+        <div class="card-row verdict-row">
+          <div class="row-label">Verdict</div>
+          <div class="row-text">The judgment-call loop architecture is confirmed structurally — first build in the portfolio where the draft decision is traceable through to a post-run verdict. Three conditions before PURSUE: Phantom Studio attribution-follows-behavior (close at re-trigger, not fixed expiry — 2000ms post-expiry credit window), Loot Box Baron ledger sub-count (ammo surges + peak multiplier visible in post-run screen), and pick-rate analytics stub (per-card timing data). All three required — not one iteration away.</div>
+        </div>
+        <div class="card-row">
+          <div class="row-label">Market Signal</div>
+          <div class="row-text">AGE Lagos (March 24–27) — first conference with a formally documented pre-run curation design principle. Mobile-first audiences understand draft mechanics natively (Clash Royale, MLBB). Attribution-follows-behavior rather than attribution-follows-timer: zero competitors have shipped this for indirect-effect mechanics.</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="tag">threejs</span>
+        <span class="tag">draft</span>
+        <span class="tag">ip-ledger</span>
+        <span class="tag">attribution</span>
+        <span class="tag">arena-shooter</span>
+        <a class="play-link" href="2026-03-23-ip-ledger/index.html" target="_blank">
+          <svg viewBox="0 0 12 12"><path d="M2 1l9 5-9 5V1z"/></svg>
+          Play
+        </a>
+      </div>
+    </div>
+
     <!-- ── IP Draft (Pre-Run IP Portfolio Selection) ── -->
     <div class="card">
       <div class="card-header">

@@ -394,6 +394,62 @@
 
   <div id="feed">
 
+    <!-- ── IP Ledger (IP Draft + Ledger Accountability) ── -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title-block">
+          <div class="card-title"><a href="2026-03-23-ip-ledger/index.html" target="_blank">IP Ledger</a></div>
+          <div class="card-date">March 23, 2026</div>
+        </div>
+        <div class="badge pending">Pending Review</div>
+      </div>
+      <div class="card-body">
+        <div class="card-row">
+          <div class="row-label">Game</div>
+          <div class="row-text">IP Draft extended with a Ledger accountability screen — pick timing labels (Reactive / Late / Deliberate), per-IP kill log, 9-card pool (C(9,3) = 84 possible hands), and 3 new IP cards: Viral Engine (chain explosion), Phantom Studio (invisibility/last-seen pathing), Loot Box Baron (kill→ammo→score economy). Awaiting Pixel's verdict.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── IP Draft (Pre-Run IP Portfolio Selection) ── -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title-block">
+          <div class="card-title"><a href="2026-03-22-ip-draft/index.html" target="_blank">IP Draft</a></div>
+          <div class="card-date">March 22, 2026</div>
+        </div>
+        <div class="badge failed">Failed</div>
+      </div>
+      <div class="card-body">
+        <div class="card-row">
+          <div class="row-label">Game</div>
+          <div class="row-text">Pre-run IP portfolio selection — draft 3 cards from 6, then fight 3 escalating waves using those IPs as one-shot abilities. Lose state returns to DRAFT (not retry combat), routing failure attribution back to the pre-run decision. 6 cards with distinct mechanical identities. Denied synergy pair: Retro Lords + Shadow IP (freeze + ghost-repeat = dominant DPS) forces sacrifice decision. Draft UI: hover scale, pitch-per-card, triumph chord on 3rd pick, unchosen cards dim.</div>
+        </div>
+        <div class="card-row">
+          <div class="row-label">Design</div>
+          <div class="row-text">The draft moment works — selection feels intentional, the unchosen-card-dim creates genuine regret feedback, and the sacrifice decision lands. Core thesis proved: pre-run selection creates ownership of outcomes. Primary gap: no post-run IP stat readout. End screen shows deployed vs. denied IPs but not which IP caused the most kills — players can't close the feedback loop on whether their draft decision was correct. The ownership feeling dies at the end screen. Secondary gap: 6-card pool too narrow (C(6,3) = 20 hands) — dominant picks found quickly. 9-card pool (C(9,3) = 84 hands) extends the discovery arc. This is the cross-run mastery loop OKA-Games has been missing since Build #5.</div>
+        </div>
+        <div class="card-row verdict-row">
+          <div class="row-label">Verdict</div>
+          <div class="row-text">The pre-run selection ownership thesis is confirmed. Two conditions before PURSUE: per-IP kill counter on the end screen (closes the draft → combat → verdict loop), and 9-card pool (extends cross-run mastery arc). Both required — not one iteration away.</div>
+        </div>
+        <div class="card-row">
+          <div class="row-label">Market Signal</div>
+          <div class="row-text">IP Clash (Build #21) established player preference for recognizable IP in familiar game loops. IP Draft tests whether draft-phase ownership converts that preference into replay motivation. The denied synergy sacrifice decision validates a new mechanic class: pre-run constraint design.</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="tag">threejs</span>
+        <span class="tag">draft</span>
+        <span class="tag">ip-portfolio</span>
+        <span class="tag">arena-shooter</span>
+        <a class="play-link" href="2026-03-22-ip-draft/index.html" target="_blank">
+          <svg viewBox="0 0 12 12"><path d="M2 1l9 5-9 5V1z"/></svg>
+          Play
+        </a>
+      </div>
+    </div>
+
     <!-- ── IP Clash (Rule-Bending Card Shooter) ── -->
     <div class="card">
       <div class="card-header">
@@ -428,46 +484,6 @@
         <span class="tag">ip-cards</span>
         <span class="tag">rule-bending</span>
         <a class="play-link" href="2026-03-21-ip-clash/index.html" target="_blank">
-          <svg viewBox="0 0 12 12"><path d="M2 1l9 5-9 5V1z"/></svg>
-          Play
-        </a>
-      </div>
-    </div>
-
-    <!-- ── Alchemix (Cozy Alchemy Discovery) ── -->
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title-block">
-          <div class="card-title"><a href="2026-03-19-alchemix/index.html" target="_blank">Alchemix</a></div>
-          <div class="card-date">March 19, 2026</div>
-        </div>
-        <div class="badge conditional">Conditional</div>
-      </div>
-      <div class="card-body">
-        <div class="card-row">
-          <div class="row-label">Game</div>
-          <div class="row-text">Cozy alchemy discovery game. Start with 4 basic element orbs (Fire, Water, Earth, Air) glowing as 3D crystal spheres on a warm wooden table. Click one to select, click another to combine — both animate toward a central cauldron, a particle burst fires, and a new element crystallizes if the recipe is valid. 20 elements total across a hardcoded combination map. No fail state — pure curiosity engine. Warm apothecary interior aesthetic: amber/cream/candlelight palette, #1a0f05 background, bloom postprocessing, flickering PointLights. Web Audio API BGM drone + SFX for every key event. First cozy loop build and first warm interior build in the portfolio.</div>
-        </div>
-        <div class="card-row">
-          <div class="row-label">Design</div>
-          <div class="row-text">Pixel review pending...</div>
-        </div>
-        <div class="card-row verdict-row">
-          <div class="row-label">Verdict</div>
-          <div class="row-text">Review pending...</div>
-        </div>
-        <div class="card-row">
-          <div class="row-label">Market Signal</div>
-          <div class="row-text">Google Play Trial Cliff + Playables.ai mechanic-as-pitch. Tests whether click-combine-discover is immediately readable with zero tutorial — first combination fires in &lt;15 seconds, making it viable as a 30-second playable ad. Both signals point to the same archetype: instantly demonstrable mechanic that sustains curiosity for 10+ minutes. Cozy loop (no fail state) fills a design class gap never tried in 19 previous builds.</div>
-        </div>
-      </div>
-      <div class="card-footer">
-        <span class="tag">threejs</span>
-        <span class="tag">alchemy</span>
-        <span class="tag">cozy-loop</span>
-        <span class="tag">discovery</span>
-        <span class="tag">warm-interior</span>
-        <a class="play-link" href="2026-03-19-alchemix/index.html" target="_blank">
           <svg viewBox="0 0 12 12"><path d="M2 1l9 5-9 5V1z"/></svg>
           Play
         </a>

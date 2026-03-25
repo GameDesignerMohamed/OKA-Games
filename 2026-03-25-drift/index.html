@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DRIFT</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; overflow:hidden; font-family:'Courier New',monospace; }
+canvas { display:block; }
+#ui { position:fixed; top:0; left:0; right:0; bottom:0; pointer-events:none; z-index:10; }
+.hud-label { font-size:11px; letter-spacing:3px; color:#888; margin-bottom:5px; text-transform:uppercase; }
+.hp-bar-bg { width:160px; height:9px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.15); border-radius:2px; }
+#player-hud { position:absolute; bottom:24px; left:24px; }
+#player-hp-fill { height:100%; background:linear-gradient(90deg,#00ddee,#0099cc); border-radius:2px; transition:width .15s; }
+#drift-hud { position:absolute; bottom:24px; right:24px; text-align:right; }
+#drift-hp-fill { height:100%; background:linear-gradient(90deg,#cc66ff,#ff44aa); border-radius:2px; transition:width .15s; }
+#drift-status { font-size:10px; letter-spacing:2px; color:#cc66ff; margin-top:4px; min-height:14px; }
+#stress-wrap { position:absolute; top:24px; left:24px; }
+#stress-label { font-size:9px; letter-spacing:2px; color:#555; margin-bottom:4px; }
+#stress-bg { width:90px; height:4px; background:rgba(255,255,255,0.07); border-radius:2px; }
+#stress-fill { height:100%; width:0%; background:#cc66ff; border-radius:2px; transition:width .3s; }
+#wave-hud { position:absolute; top:24px; left:50%; transform:translateX(-50%); text-align:center; }
+#wave-num { font-size:13px; letter-spacing:4px; color:#888; }
+#score-display { font-size:28px; color:#fff; letter-spacing:2px; margin-top:2px; }
+#cmd-hud { position:absolute; bottom:24px; left:50%; transform:translateX(-50%); text-align:center; }
+#cmd-label { font-size:10px; letter-spacing:3px; color:#888; margin-bottom:4px; }
+#cmd-state { font-size:12px; letter-spacing:4px; color:#cc66ff; padding:4px 14px; border:1px solid rgba(204,102,255,0.4); border-radius:2px; background:rgba(204,102,255,0.08); }
+#overlay { position:absolute; top:0; left:0; right:0; bottom:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.85); pointer-events:all; }
+#overlay h1 { font-size:72px; letter-spacing:20px; color:#cc66ff; text-shadow:0 0 40px rgba(204,102,255,0.8); margin-bottom:8px; }
+.subtitle { font-size:12px; letter-spacing:5px; color:#888; margin-bottom:40px; }
+.info { font-size:11px; letter-spacing:2px; color:#666; line-height:2.4; text-align:center; margin-bottom:40px; }
+.info span { color:#cc66ff; }
+.big-btn { font-family:'Courier New',monospace; font-size:13px; letter-spacing:6px; color:#000; background:#cc66ff; border:none; padding:14px 40px; cursor:pointer; text-transform:uppercase; pointer-events:all; }
+.big-btn:hover { background:#ff44aa; box-shadow:0 0 30px rgba(255,68,170,0.5); }
+#result-overlay { position:absolute; top:0; left:0; right:0; bottom:0; display:none; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.88); pointer-events:all; }
+#result-title { font-size:52px; letter-spacing:12px; margin-bottom:8px; }
+#result-detail { font-size:11px; letter-spacing:3px; color:#888; line-height:2.5; text-align:center; margin-bottom:40px; }
+.hl { color:#cc66ff; }
+#wave-announce { position:absolute; top:48%; left:50%; transform:translate(-50%,-50%); font-size:44px; letter-spacing:10px; color:#fff; opacity:0; pointer-events:none; text-shadow:0 0 30px rgba(255,255,255,0.6); white-space:nowrap; transition:opacity .3s; }
+#drift-lost-msg { position:absolute; top:42%; left:50%; transform:translate(-50%,-50%); font-size:20px; letter-spacing:6px; color:#ff4444; opacity:0; pointer-events:none; text-shadow:0 0 20px rgba(255,68,68,0.8); }
+#controls-hint { position:absolute; top:24px; right:24px; font-size:9px; letter-spacing:2px; color:#444; line-height:2; text-align:right; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <div id="player-hud">
+    <div class="hud-label">YOU</div>
+    <div class="hp-bar-bg"><div id="player-hp-fill" style="width:100%"></div></div>
+  </div>
+  <div id="drift-hud">
+    <div class="hud-label" style="color:#cc66ff">DRIFT</div>
+    <div class="hp-bar-bg"><div id="drift-hp-fill" style="width:100%"></div></div>
+    <div id="drift-status">ONLINE</div>
+  </div>
+  <div id="stress-wrap">
+    <div id="stress-label">DRIFT STRESS</div>
+    <div id="stress-bg"><div id="stress-fill"></div></div>
+  </div>
+  <div id="wave-hud">
+    <div id="wave-num">WAVE 1</div>
+    <div id="score-display">0</div>
+  </div>
+  <div id="cmd-hud">
+    <div id="cmd-label">[E] DRIFT MODE</div>
+    <div id="cmd-state">AGGRESSIVE</div>
+  </div>
+  <div id="controls-hint">WASD MOVE<br>MOUSE AIM<br>CLICK FIRE<br>E MODE</div>
+  <div id="wave-announce"></div>
+  <div id="drift-lost-msg">DRIFT LOST</div>
+  <div id="overlay">
+    <h1>DRIFT</h1>
+    <div class="subtitle">AI COMPANION PROTOCOL</div>
+    <div class="info">
+      DRIFT is your AI co-pilot.<br>
+      It thinks. It panics. It <span>dies.</span><br><br>
+      <span>Score = Waves × Drift HP</span><br>
+      Keep it alive. Survive <span>10 waves.</span><br><br>
+      <span>[E]</span> &mdash; AGGRESSIVE &middot; DEFENSIVE &middot; RETREAT
+    </div>
+    <button class="big-btn" id="start-btn">ENGAGE</button>
+  </div>
+  <div id="result-overlay">
+    <div id="result-title"></div>
+    <div id="result-detail"></div>
+    <button class="big-btn" id="retry-btn">RETRY</button>
+  </div>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js"}}
+</script>
+<script type="module" src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Echo Strike</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+  #canvas-container { width: 100vw; height: 100vh; }
+  canvas { display: block; }
+
+  /* UI Overlay */
+  #hud {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; display: none;
+  }
+  #hp-bar {
+    position: fixed; top: 20px; left: 20px;
+    display: flex; gap: 8px; align-items: center;
+  }
+  .hp-pip {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #ff3344; box-shadow: 0 0 10px #ff3344;
+    transition: all 0.2s;
+  }
+  .hp-pip.dead { background: #333; box-shadow: none; }
+  #wave-display {
+    position: fixed; top: 20px; right: 20px;
+    color: #fff; font-size: 14px; letter-spacing: 2px; text-align: right;
+  }
+  #memory-badge {
+    position: fixed; top: 50px; right: 20px;
+    font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+    opacity: 0.6;
+  }
+  #wave-announce {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    font-size: 28px; letter-spacing: 6px; text-transform: uppercase;
+    color: #fff; text-shadow: 0 0 20px currentColor;
+    pointer-events: none; opacity: 0; transition: opacity 0.3s;
+  }
+  #slowmo-overlay {
+    position: fixed; inset: 0; background: rgba(255,255,255,0);
+    pointer-events: none; transition: background 0.1s;
+  }
+
+  /* MEMORY SELECTION SCREEN */
+  #memory-screen {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; z-index: 100;
+    background: radial-gradient(ellipse at center, #0a0a1a 0%, #000 100%);
+  }
+  #memory-title {
+    font-size: 11px; letter-spacing: 8px; color: #888; margin-bottom: 12px;
+    text-transform: uppercase;
+  }
+  #memory-game-title {
+    font-size: 42px; letter-spacing: 6px; color: #fff; margin-bottom: 8px;
+    text-shadow: 0 0 30px rgba(255,255,255,0.3);
+  }
+  #memory-subtitle {
+    font-size: 11px; letter-spacing: 4px; color: #555; margin-bottom: 60px;
+    text-transform: uppercase;
+  }
+  #memory-prompt {
+    font-size: 11px; letter-spacing: 4px; color: #666; margin-bottom: 40px;
+    text-transform: uppercase;
+  }
+  #memory-cards {
+    display: flex; gap: 24px;
+  }
+  .memory-card {
+    width: 200px; height: 260px; border: 1px solid #333;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.2s; position: relative;
+    background: #0a0a0a;
+  }
+  .memory-card:hover {
+    transform: translateY(-8px); border-color: var(--card-color);
+    box-shadow: 0 0 30px var(--card-color), 0 0 60px var(--card-glow);
+  }
+  .memory-card .card-icon { font-size: 40px; margin-bottom: 16px; }
+  .memory-card .card-name {
+    font-size: 14px; letter-spacing: 4px; text-transform: uppercase;
+    color: var(--card-color); margin-bottom: 12px;
+  }
+  .memory-card .card-flavor {
+    font-size: 10px; color: #666; text-align: center;
+    font-style: italic; padding: 0 16px; line-height: 1.6;
+  }
+  .memory-card .card-tagline {
+    position: absolute; bottom: 16px; font-size: 9px;
+    letter-spacing: 2px; color: #444; text-transform: uppercase;
+  }
+
+  /* GAME OVER SCREENS */
+  #end-screen {
+    position: fixed; inset: 0; display: none; flex-direction: column;
+    align-items: center; justify-content: center; z-index: 200;
+    background: rgba(0,0,0,0.92);
+  }
+  #end-title { font-size: 36px; letter-spacing: 8px; color: #fff; margin-bottom: 16px; }
+  #end-subtitle { font-size: 12px; letter-spacing: 4px; color: #666; margin-bottom: 48px; }
+  #end-stats { font-size: 13px; color: #888; line-height: 2.2; text-align: center; margin-bottom: 48px; letter-spacing: 2px; }
+  #restart-btn {
+    font-family: 'Courier New', monospace; font-size: 12px;
+    letter-spacing: 4px; text-transform: uppercase;
+    background: none; border: 1px solid #555; color: #888;
+    padding: 14px 32px; cursor: pointer; transition: all 0.2s;
+  }
+  #restart-btn:hover { border-color: #fff; color: #fff; box-shadow: 0 0 20px rgba(255,255,255,0.2); }
+</style>
+</head>
+<body>
+
+<!-- MEMORY SELECTION SCREEN -->
+<div id="memory-screen">
+  <div id="memory-title">OKA-GAMES PROTOTYPE #25</div>
+  <div id="memory-game-title">ECHO STRIKE</div>
+  <div id="memory-subtitle">Choose your combat memory</div>
+  <div id="memory-prompt">This is how you fought. How you'll fight again.</div>
+  <div id="memory-cards">
+    <div class="memory-card" style="--card-color:#ff6644;--card-glow:rgba(255,102,68,0.2)" onclick="startGame('frantic')">
+      <div class="card-icon">⚡</div>
+      <div class="card-name">Frantic</div>
+      <div class="card-flavor">"You burned through the war on instinct."</div>
+      <div class="card-tagline">Chaos · Speed · Flood</div>
+    </div>
+    <div class="memory-card" style="--card-color:#44aaff;--card-glow:rgba(68,170,255,0.2)" onclick="startGame('methodical')">
+      <div class="card-icon">⬜</div>
+      <div class="card-name">Methodical</div>
+      <div class="card-flavor">"You counted every shot. They still came."</div>
+      <div class="card-tagline">Precision · Formation · Weight</div>
+    </div>
+    <div class="memory-card" style="--card-color:#aa44ff;--card-glow:rgba(170,68,255,0.2)" onclick="startGame('reckless')">
+      <div class="card-icon">💥</div>
+      <div class="card-name">Reckless</div>
+      <div class="card-flavor">"You didn't dodge. You didn't need to."</div>
+      <div class="card-tagline">Elite · Heavy · Explosion</div>
+    </div>
+  </div>
+</div>
+
+<!-- GAME CANVAS -->
+<div id="canvas-container"></div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="hp-bar">
+    <div class="hp-pip" id="pip0"></div>
+    <div class="hp-pip" id="pip1"></div>
+    <div class="hp-pip" id="pip2"></div>
+  </div>
+  <div id="wave-display">
+    <div>WAVE <span id="wave-num">1</span> / 10</div>
+  </div>
+  <div id="memory-badge" id="memory-badge-text"></div>
+  <div id="wave-announce"></div>
+  <div id="slowmo-overlay"></div>
+</div>
+
+<!-- END SCREEN -->
+<div id="end-screen">
+  <div id="end-title"></div>
+  <div id="end-subtitle"></div>
+  <div id="end-stats"></div>
+  <button id="restart-btn" onclick="restartGame()">PLAY AGAIN</button>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// ─────────────────────────────────────────────────────────────
+// MEMORY CONFIGS — all behavior constants per identity
+// ─────────────────────────────────────────────────────────────
+const MEMORY_CONFIG = {
+  frantic: {
+    name: 'FRANTIC',
+    color: 0xff6644,
+    colorHex: '#ff6644',
+    bgColor: 0x1a0800,
+    fogColor: 0x1a0800,
+    enemyColor: 0xff4422,
+    spawnPattern: 'scatter',      // random scatter bursts
+    enemyHP: 1,
+    enemySpeed: 0.06,
+    enemySize: 0.4,
+    enemyShoots: false,
+    baseCount: 6,
+    countPerWave: 2,              // +2 enemies every 3 waves
+    moveStyle: 'erratic',         // enemies zigzag
+    bgm: { tempo: 160, notes: [220, 277, 330, 220, 294, 370, 440], minor: true },
+    winText: 'THE ECHO REMAINS',
+    loseText: 'THE MEMORY FADES',
+  },
+  methodical: {
+    name: 'METHODICAL',
+    color: 0x44aaff,
+    colorHex: '#44aaff',
+    bgColor: 0x000818,
+    fogColor: 0x000818,
+    enemyColor: 0x2266cc,
+    spawnPattern: 'grid',         // enemies form a grid line
+    enemyHP: 2,
+    enemySpeed: 0.025,
+    enemySize: 0.5,
+    enemyShoots: true,
+    baseCount: 5,
+    countPerWave: 2,
+    moveStyle: 'grid',            // enemies march in formation
+    bgm: { tempo: 80, notes: [110, 138, 165, 110, 146, 175, 220], minor: true },
+    winText: 'THE ECHO REMAINS',
+    loseText: 'THE MEMORY FADES',
+  },
+  reckless: {
+    name: 'RECKLESS',
+    color: 0xaa44ff,
+    colorHex: '#aa44ff',
+    bgColor: 0x0d0014,
+    fogColor: 0x0d0014,
+    enemyColor: 0x8822dd,
+    spawnPattern: 'elite',        // 2-3 large slow elites
+    enemyHP: 5,
+    enemySpeed: 0.018,
+    enemySize: 1.1,
+    enemyShoots: true,
+    baseCount: 2,
+    countPerWave: 1,
+    moveStyle: 'charge',          // elites rush then stop
+    bgm: { tempo: 100, notes: [73, 87, 110, 73, 98, 123, 146], minor: true },
+    winText: 'THE ECHO REMAINS',
+    loseText: 'THE MEMORY FADES',
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// GAME STATE (module scope — TDZ rule)
+// ─────────────────────────────────────────────────────────────
+let scene, camera, renderer, composer;
+let playerMesh, playerLight;
+let bullets = [];
+let enemies = [];
+let particles = [];
+let playerHP = 3;
+let currentWave = 1;
+let totalWaves = 10;
+let waveActive = false;
+let gameRunning = false;
+let memory = null;
+let cfg = null;
+let killCount = 0;
+let wavesCleared = 0;
+let mouseX = 0, mouseY = 0;
+let keys = {};
+let lastShot = 0;
+let shotInterval = 150; // ms between shots
+let playerInvincible = false;
+let dodgeActive = false;
+let dodgeCooldown = 0;
+let screenShake = 0;
+let clockDelta = 0;
+let lastTime = 0;
+let audioCtx = null;
+let bgmInterval = null;
+let gameOver = false;
+let slowMoActive = false;
+let slowMoTimer = 0;
+let starField = null;
+let enemyShotTimer = {};
+let totalEnemiesKilled = 0;
+let playerPos = new THREE.Vector3(0, 0, 0);
+let raycaster = new THREE.Raycaster();
+let groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+// ─────────────────────────────────────────────────────────────
+// AUDIO
+// ─────────────────────────────────────────────────────────────
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function playTone(freq, duration, type='sine', gainVal=0.3, delay=0) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, audioCtx.currentTime + delay);
+  gain.gain.setValueAtTime(gainVal, audioCtx.currentTime + delay);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration);
+  osc.start(audioCtx.currentTime + delay);
+  osc.stop(audioCtx.currentTime + delay + duration + 0.01);
+}
+
+function playMemoryConfirm() {
+  [220, 277, 330, 440].forEach((f, i) => playTone(f, 0.3, 'sine', 0.2, i * 0.07));
+}
+
+function playShoot() {
+  playTone(660 + Math.random() * 100, 0.07, 'sawtooth', 0.15);
+}
+
+function playHit() {
+  playTone(300, 0.08, 'triangle', 0.2);
+  playTone(150, 0.12, 'sawtooth', 0.15);
+}
+
+function playEnemyDie() {
+  playTone(440, 0.05, 'sawtooth', 0.2);
+  playTone(330, 0.1, 'triangle', 0.15, 0.04);
+  playTone(220, 0.15, 'sine', 0.1, 0.08);
+}
+
+function playPlayerHit() {
+  playTone(100, 0.2, 'sawtooth', 0.4);
+  playTone(80, 0.3, 'sawtooth', 0.3, 0.1);
+}
+
+function playWaveClear() {
+  [330, 392, 494, 660].forEach((f, i) => playTone(f, 0.3, 'triangle', 0.2, i * 0.1));
+}
+
+function playWin() {
+  [330, 392, 494, 587, 659, 784].forEach((f, i) => playTone(f, 0.4, 'sine', 0.25, i * 0.12));
+}
+
+function playLose() {
+  [330, 277, 220, 165].forEach((f, i) => playTone(f, 0.5, 'triangle', 0.3, i * 0.15));
+}
+
+function startBGM() {
+  if (!cfg) return;
+  let step = 0;
+  const notes = cfg.bgm.notes;
+  const interval = Math.round(60000 / cfg.bgm.tempo / 2);
+  bgmInterval = setInterval(() => {
+    if (!gameRunning) return;
+    const note = notes[step % notes.length];
+    playTone(note, 0.18, 'triangle', 0.06);
+    if (step % 4 === 0) playTone(note * 0.5, 0.25, 'sine', 0.04);
+    step++;
+  }, interval);
+}
+
+function stopBGM() {
+  if (bgmInterval) { clearInterval(bgmInterval); bgmInterval = null; }
+}
+
+// ─────────────────────────────────────────────────────────────
+// THREE.JS SETUP
+// ─────────────────────────────────────────────────────────────
+function initThree() {
+  scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(cfg.fogColor, 0.05);
+  scene.background = new THREE.Color(cfg.bgColor);
+
+  camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+  camera.position.set(0, 18, 8);
+  camera.lookAt(0, 0, 0);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+  // Composer with bloom
+  try {
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      0.5, 0.4, 0.85
+    );
+    composer.addPass(bloom);
+  } catch(e) {
+    composer = null;
+  }
+
+  // Lighting
+  const ambient = new THREE.AmbientLight(0xffffff, 2.0);
+  scene.add(ambient);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+  dirLight.position.set(10, 20, 5);
+  dirLight.castShadow = true;
+  scene.add(dirLight);
+
+  // Arena floor
+  const floorGeo = new THREE.PlaneGeometry(30, 30, 20, 20);
+  const floorMat = new THREE.MeshStandardMaterial({
+    color: 0x111111, roughness: 0.8, metalness: 0.1,
+    wireframe: false
+  });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // Arena grid lines
+  const gridHelper = new THREE.GridHelper(30, 30, cfg.color, 0x222222);
+  gridHelper.position.y = 0.01;
+  gridHelper.material.opacity = 0.3;
+  gridHelper.material.transparent = true;
+  scene.add(gridHelper);
+
+  // Arena boundary walls (invisible collision implied)
+  const wallColor = cfg.color;
+  addWallGlow(-15, 0, 30, wallColor);
+  addWallGlow(15, 0, 30, wallColor);
+  addWallGlow(0, -15, 30, wallColor, true);
+  addWallGlow(0, 15, 30, wallColor, true);
+
+  // Starfield
+  const starGeo = new THREE.BufferGeometry();
+  const starPositions = [];
+  for (let i = 0; i < 200; i++) {
+    starPositions.push(
+      (Math.random() - 0.5) * 60,
+      Math.random() * 20 + 5,
+      (Math.random() - 0.5) * 60
+    );
+  }
+  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
+  const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.08, transparent: true, opacity: 0.6 });
+  starField = new THREE.Points(starGeo, starMat);
+  scene.add(starField);
+
+  // Player
+  const playerGeo = new THREE.OctahedronGeometry(0.5);
+  const playerMat = new THREE.MeshStandardMaterial({
+    color: cfg.color, emissive: cfg.color, emissiveIntensity: 0.6,
+    roughness: 0.3, metalness: 0.5
+  });
+  playerMesh = new THREE.Mesh(playerGeo, playerMat);
+  playerMesh.position.set(0, 0.5, 0);
+  playerMesh.castShadow = true;
+  scene.add(playerMesh);
+
+  playerLight = new THREE.PointLight(cfg.color, 2, 6);
+  playerMesh.add(playerLight);
+
+  window.addEventListener('resize', onResize);
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('click', onMouseClick);
+  document.addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') tryDodge(); });
+  document.addEventListener('keyup', e => { keys[e.code] = false; });
+}
+
+function addWallGlow(x, z, len, color, rotate=false) {
+  const geo = new THREE.BoxGeometry(rotate ? len : 0.1, 0.5, rotate ? 0.1 : len);
+  const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.3, transparent: true, opacity: 0.4 });
+  const wall = new THREE.Mesh(geo, mat);
+  wall.position.set(x, 0.25, z);
+  scene.add(wall);
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function onMouseMove(e) {
+  mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+  mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+}
+
+function onMouseClick() {
+  initAudio();
+  if (!gameRunning || gameOver) return;
+  shoot();
+}
+
+// ─────────────────────────────────────────────────────────────
+// PLAYER CONTROLS
+// ─────────────────────────────────────────────────────────────
+function getMouseWorldPos() {
+  const vec = new THREE.Vector3(mouseX, mouseY, 0.5);
+  vec.unproject(camera);
+  const dir = vec.sub(camera.position).normalize();
+  const dist = -camera.position.y / dir.y;
+  return camera.position.clone().add(dir.multiplyScalar(dist));
+}
+
+function updatePlayer(dt) {
+  if (!playerMesh || !gameRunning) return;
+  const speed = dodgeActive ? 0.22 : 0.1;
+  let moved = false;
+  if (keys['KeyW'] || keys['ArrowUp'])    { playerMesh.position.z -= speed; moved = true; }
+  if (keys['KeyS'] || keys['ArrowDown'])  { playerMesh.position.z += speed; moved = true; }
+  if (keys['KeyA'] || keys['ArrowLeft'])  { playerMesh.position.x -= speed; moved = true; }
+  if (keys['KeyD'] || keys['ArrowRight']) { playerMesh.position.x += speed; moved = true; }
+
+  // Clamp to arena
+  playerMesh.position.x = Math.max(-13, Math.min(13, playerMesh.position.x));
+  playerMesh.position.z = Math.max(-13, Math.min(13, playerMesh.position.z));
+  playerMesh.position.y = 0.5;
+
+  // Face mouse direction
+  const target = getMouseWorldPos();
+  const angle = Math.atan2(target.x - playerMesh.position.x, target.z - playerMesh.position.z);
+  playerMesh.rotation.y = angle;
+
+  // Pulse rotation
+  playerMesh.rotation.x += dt * 0.8;
+
+  // Update dodge
+  if (dodgeActive) {
+    dodgeCooldown -= dt * 1000;
+    if (dodgeCooldown <= 0) { dodgeActive = false; playerInvincible = false; }
+  }
+
+  // Auto-shoot while mouse is held
+  if (Date.now() - lastShot > shotInterval) {
+    if (keys['Space']) shoot();
+  }
+}
+
+function shoot() {
+  if (!gameRunning || gameOver) return;
+  const now = Date.now();
+  if (now - lastShot < shotInterval) return;
+  lastShot = now;
+
+  const target = getMouseWorldPos();
+  const dir = new THREE.Vector3(
+    target.x - playerMesh.position.x,
+    0,
+    target.z - playerMesh.position.z
+  ).normalize();
+
+  spawnBullet(playerMesh.position.clone(), dir, cfg.color, false);
+  playShoot();
+}
+
+function tryDodge() {
+  if (dodgeActive || dodgeCooldown > 0) return;
+  dodgeActive = true;
+  playerInvincible = true;
+  dodgeCooldown = 1500;
+  // Flash player during dodge
+  if (playerMesh) {
+    playerMesh.material.emissiveIntensity = 2.0;
+    setTimeout(() => { if (playerMesh) playerMesh.material.emissiveIntensity = 0.6; }, 300);
+  }
+}
+
+function spawnBullet(pos, dir, color, isEnemy) {
+  const geo = new THREE.SphereGeometry(isEnemy ? 0.2 : 0.18, 6, 6);
+  const mat = new THREE.MeshStandardMaterial({
+    color, emissive: color, emissiveIntensity: 1.2,
+    transparent: true, opacity: 1
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.copy(pos);
+  mesh.position.y = 0.5;
+  scene.add(mesh);
+
+  const light = new THREE.PointLight(color, 1.5, 4);
+  mesh.add(light);
+
+  bullets.push({ mesh, dir: dir.clone(), speed: isEnemy ? 0.09 : 0.18, isEnemy, life: 3.0 });
+}
+
+// ─────────────────────────────────────────────────────────────
+// ENEMY SPAWNING
+// ─────────────────────────────────────────────────────────────
+function getEnemyCountForWave(wave) {
+  const extra = Math.floor((wave - 1) / 3) * cfg.countPerWave;
+  return cfg.baseCount + extra;
+}
+
+function spawnWave(waveNum) {
+  const count = getEnemyCountForWave(waveNum);
+  const geomTypes = [
+    new THREE.TetrahedronGeometry(cfg.enemySize),
+    new THREE.OctahedronGeometry(cfg.enemySize),
+    new THREE.IcosahedronGeometry(cfg.enemySize * 0.85)
+  ];
+  const geoIndex = Math.min(Math.floor((waveNum - 1) / 3), 2);
+  const useGeo = geomTypes[geoIndex];
+
+  for (let i = 0; i < count; i++) {
+    const mat = new THREE.MeshStandardMaterial({
+      color: cfg.enemyColor,
+      emissive: cfg.enemyColor,
+      emissiveIntensity: 0.4,
+      roughness: 0.3, metalness: 0.4
+    });
+    const mesh = new THREE.Mesh(useGeo.clone(), mat);
+
+    // Position based on spawn pattern
+    let spawnPos = getSpawnPosition(i, count);
+    mesh.position.copy(spawnPos);
+    mesh.position.y = 0.5;
+    scene.add(mesh);
+
+    const eLight = new THREE.PointLight(cfg.enemyColor, 0.8, 4);
+    mesh.add(eLight);
+
+    enemies.push({
+      mesh,
+      hp: cfg.enemyHP + Math.floor(waveNum / 4),
+      maxHP: cfg.enemyHP + Math.floor(waveNum / 4),
+      speed: cfg.enemySpeed * (1 + waveNum * 0.03),
+      moveStyle: cfg.moveStyle,
+      zigzagAngle: Math.random() * Math.PI * 2,
+      zigzagTimer: 0,
+      chargeState: 'move', // for reckless
+      chargeTimer: 0,
+      id: Math.random()
+    });
+
+    enemyShotTimer[enemies[enemies.length-1].id] = Math.random() * 2000;
+  }
+}
+
+function getSpawnPosition(i, total) {
+  const pattern = cfg.spawnPattern;
+  if (pattern === 'scatter') {
+    // Random positions around the arena edges
+    const side = Math.floor(Math.random() * 4);
+    const t = Math.random() * 20 - 10;
+    if (side === 0) return new THREE.Vector3(-13, 0.5, t);
+    if (side === 1) return new THREE.Vector3(13, 0.5, t);
+    if (side === 2) return new THREE.Vector3(t, 0.5, -13);
+    return new THREE.Vector3(t, 0.5, 13);
+  } else if (pattern === 'grid') {
+    // Line of enemies on one side
+    const spacing = Math.min(24 / total, 4);
+    const startX = -(total - 1) * spacing / 2;
+    return new THREE.Vector3(startX + i * spacing, 0.5, -13);
+  } else if (pattern === 'elite') {
+    // Few enemies in triangular formation, far corners
+    const positions = [
+      new THREE.Vector3(-10, 0.5, -10),
+      new THREE.Vector3(10, 0.5, -10),
+      new THREE.Vector3(0, 0.5, -12)
+    ];
+    return positions[i % positions.length];
+  }
+  return new THREE.Vector3(Math.random() * 20 - 10, 0.5, -12);
+}
+
+// ─────────────────────────────────────────────────────────────
+// ENEMY MOVEMENT & AI
+// ─────────────────────────────────────────────────────────────
+function updateEnemies(dt) {
+  const now = Date.now();
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    const toPlayer = new THREE.Vector3(
+      playerMesh.position.x - e.mesh.position.x,
+      0,
+      playerMesh.position.z - e.mesh.position.z
+    );
+    const dist = toPlayer.length();
+
+    // Movement by style
+    if (e.moveStyle === 'erratic') {
+      e.zigzagTimer -= dt * 1000;
+      if (e.zigzagTimer <= 0) {
+        e.zigzagAngle += (Math.random() - 0.5) * Math.PI;
+        e.zigzagTimer = 300 + Math.random() * 400;
+      }
+      const dir = toPlayer.clone().normalize();
+      const perp = new THREE.Vector3(-dir.z, 0, dir.x);
+      const combined = dir.add(perp.multiplyScalar(Math.sin(e.zigzagAngle) * 0.8)).normalize();
+      e.mesh.position.x += combined.x * e.speed;
+      e.mesh.position.z += combined.z * e.speed;
+    } else if (e.moveStyle === 'grid') {
+      // Slow march directly toward player
+      if (dist > 1.0) {
+        const dir = toPlayer.clone().normalize();
+        e.mesh.position.x += dir.x * e.speed * 0.7;
+        e.mesh.position.z += dir.z * e.speed * 0.7;
+      }
+      // Enemy shoots at player
+      if (cfg.enemyShoots) {
+        const key = e.id;
+        if (!enemyShotTimer[key]) enemyShotTimer[key] = 2000;
+        enemyShotTimer[key] -= dt * 1000;
+        if (enemyShotTimer[key] <= 0) {
+          enemyShotTimer[key] = 2000 + Math.random() * 1000;
+          if (dist < 18) {
+            const shotDir = toPlayer.clone().normalize();
+            spawnBullet(e.mesh.position.clone(), shotDir, cfg.enemyColor, true);
+          }
+        }
+      }
+    } else if (e.moveStyle === 'charge') {
+      if (e.chargeState === 'move') {
+        if (dist > 2.5) {
+          const dir = toPlayer.clone().normalize();
+          e.mesh.position.x += dir.x * e.speed * 1.5;
+          e.mesh.position.z += dir.z * e.speed * 1.5;
+        } else {
+          e.chargeState = 'windup';
+          e.chargeTimer = 1.2; // 1.2s windup — telegraphed
+          e.mesh.material.emissiveIntensity = 1.5; // glow warning
+        }
+        // Elite shoots wide shots
+        const key = e.id;
+        if (!enemyShotTimer[key]) enemyShotTimer[key] = 3000;
+        enemyShotTimer[key] -= dt * 1000;
+        if (enemyShotTimer[key] <= 0 && dist < 20) {
+          enemyShotTimer[key] = 3000 + Math.random() * 1000;
+          // 3-way spread shot
+          const baseDir = toPlayer.clone().normalize();
+          [-0.3, 0, 0.3].forEach(offset => {
+            const d = baseDir.clone();
+            d.x += offset; d.z += offset * 0.5;
+            spawnBullet(e.mesh.position.clone(), d.normalize(), cfg.enemyColor, true);
+          });
+        }
+      } else if (e.chargeState === 'windup') {
+        e.chargeTimer -= dt;
+        if (e.chargeTimer <= 0) {
+          e.chargeState = 'rest';
+          e.chargeTimer = 2.0;
+          e.mesh.material.emissiveIntensity = 0.4;
+          // AoE explosion visual
+          spawnExplosion(e.mesh.position.clone(), 2.5, cfg.enemyColor);
+          // Check player in blast radius
+          const blastDist = playerMesh.position.distanceTo(e.mesh.position);
+          if (blastDist < 2.5 && !playerInvincible) {
+            damagePlayer();
+          }
+        }
+      } else if (e.chargeState === 'rest') {
+        e.chargeTimer -= dt;
+        if (e.chargeTimer <= 0) e.chargeState = 'move';
+      }
+    }
+
+    // Rotate enemy mesh
+    e.mesh.rotation.x += dt * 1.2;
+    e.mesh.rotation.y += dt * 0.8;
+
+    // Arena clamp
+    e.mesh.position.x = Math.max(-13, Math.min(13, e.mesh.position.x));
+    e.mesh.position.z = Math.max(-13, Math.min(13, e.mesh.position.z));
+    e.mesh.position.y = 0.5;
+
+    // Check collision with player
+    if (dist < 1.2 && !playerInvincible) {
+      damagePlayer();
+    }
+  }
+}
+
+function updateBullets(dt) {
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    b.mesh.position.x += b.dir.x * b.speed;
+    b.mesh.position.z += b.dir.z * b.speed;
+    b.life -= dt;
+
+    // Player bullet hits enemy
+    if (!b.isEnemy) {
+      for (let j = enemies.length - 1; j >= 0; j--) {
+        const e = enemies[j];
+        if (b.mesh.position.distanceTo(e.mesh.position) < (cfg.enemySize + 0.5)) {
+          // Hit!
+          hitEnemy(j, b);
+          removeBullet(i);
+          break;
+        }
+      }
+    } else {
+      // Enemy bullet hits player
+      if (!playerInvincible && b.mesh.position.distanceTo(playerMesh.position) < 0.8) {
+        damagePlayer();
+        removeBullet(i);
+        continue;
+      }
+    }
+
+    // Out of bounds or expired
+    const p = b.mesh.position;
+    if (Math.abs(p.x) > 16 || Math.abs(p.z) > 16 || b.life <= 0) {
+      removeBullet(i);
+    }
+  }
+}
+
+function removeBullet(i) {
+  scene.remove(bullets[i].mesh);
+  bullets[i].mesh.geometry.dispose();
+  bullets[i].mesh.material.dispose();
+  bullets.splice(i, 1);
+}
+
+function hitEnemy(j, bullet) {
+  const e = enemies[j];
+  e.hp--;
+  playHit();
+
+  // Flash white
+  const origColor = e.mesh.material.emissive.getHex();
+  e.mesh.material.emissive.setHex(0xffffff);
+  e.mesh.material.emissiveIntensity = 2.0;
+  setTimeout(() => {
+    if (e.mesh) {
+      e.mesh.material.emissive.setHex(origColor);
+      e.mesh.material.emissiveIntensity = 0.4;
+    }
+  }, 80);
+
+  // Scale pulse
+  e.mesh.scale.setScalar(1.3);
+  setTimeout(() => { if (e.mesh) e.mesh.scale.setScalar(1.0); }, 80);
+
+  if (e.hp <= 0) killEnemy(j);
+}
+
+function killEnemy(j) {
+  const e = enemies[j];
+  playEnemyDie();
+  spawnParticles(e.mesh.position.clone(), cfg.enemyColor, 12);
+  screenShake = 0.3;
+  totalEnemiesKilled++;
+  killCount++;
+  scene.remove(e.mesh);
+  e.mesh.geometry.dispose();
+  e.mesh.material.dispose();
+  enemies.splice(j, 1);
+
+  // Check wave clear
+  if (enemies.length === 0 && waveActive) {
+    waveCleared();
+  }
+}
+
+function spawnExplosion(pos, radius, color) {
+  spawnParticles(pos, color, 20, radius);
+  screenShake = 0.6;
+  // Explosion light flash
+  const flash = new THREE.PointLight(color, 5, radius * 3);
+  flash.position.copy(pos);
+  scene.add(flash);
+  setTimeout(() => scene.remove(flash), 300);
+}
+
+function damagePlayer() {
+  if (playerInvincible || !gameRunning) return;
+  playerHP--;
+  playerInvincible = true;
+  playPlayerHit();
+  screenShake = 0.5;
+
+  // Update HP display
+  updateHPDisplay();
+
+  // Brief invincibility
+  setTimeout(() => { playerInvincible = false; }, 1200);
+
+  // Blink player
+  let blinks = 0;
+  const blinkInterval = setInterval(() => {
+    if (!playerMesh) { clearInterval(blinkInterval); return; }
+    playerMesh.visible = !playerMesh.visible;
+    blinks++;
+    if (blinks >= 8) { playerMesh.visible = true; clearInterval(blinkInterval); }
+  }, 150);
+
+  if (playerHP <= 0) endGame(false);
+}
+
+function updateHPDisplay() {
+  for (let i = 0; i < 3; i++) {
+    const pip = document.getElementById(`pip${i}`);
+    if (pip) pip.classList.toggle('dead', i >= playerHP);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// PARTICLES
+// ─────────────────────────────────────────────────────────────
+function spawnParticles(pos, color, count=8, spread=1.5) {
+  for (let i = 0; i < count; i++) {
+    const geo = new THREE.TetrahedronGeometry(0.12 + Math.random() * 0.1);
+    const mat = new THREE.MeshStandardMaterial({
+      color, emissive: color, emissiveIntensity: 1.0,
+      transparent: true, opacity: 1.0
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(pos);
+    mesh.position.y = 0.5;
+    const vel = new THREE.Vector3(
+      (Math.random() - 0.5) * spread,
+      Math.random() * spread * 0.5,
+      (Math.random() - 0.5) * spread
+    );
+    scene.add(mesh);
+    particles.push({ mesh, vel, life: 0.8 + Math.random() * 0.4 });
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt;
+    p.mesh.position.add(p.vel.clone().multiplyScalar(dt));
+    p.vel.y -= 4 * dt; // gravity
+    p.mesh.material.opacity = Math.max(0, p.life / 1.2);
+    p.mesh.rotation.x += dt * 5;
+    p.mesh.rotation.z += dt * 3;
+    if (p.life <= 0) {
+      scene.remove(p.mesh);
+      p.mesh.geometry.dispose();
+      p.mesh.material.dispose();
+      particles.splice(i, 1);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// WAVE MANAGEMENT
+// ─────────────────────────────────────────────────────────────
+function startNextWave() {
+  waveActive = true;
+  killCount = 0;
+  document.getElementById('wave-num').textContent = currentWave;
+
+  // Show wave announce
+  const announce = document.getElementById('wave-announce');
+  announce.textContent = `WAVE ${currentWave}`;
+  announce.style.color = cfg.colorHex;
+  announce.style.opacity = '1';
+  setTimeout(() => { announce.style.opacity = '0'; }, 1500);
+
+  setTimeout(() => spawnWave(currentWave), 600);
+}
+
+function waveCleared() {
+  waveActive = false;
+  wavesCleared++;
+  playWaveClear();
+
+  // Slow-mo freeze effect
+  slowMoActive = true;
+  slowMoTimer = 0.6;
+
+  const announce = document.getElementById('wave-announce');
+  announce.textContent = currentWave < totalWaves ? 'WAVE CLEAR' : 'INCOMING FINAL WAVE';
+  announce.style.color = '#ffffff';
+  announce.style.opacity = '1';
+
+  setTimeout(() => {
+    announce.style.opacity = '0';
+    currentWave++;
+    if (currentWave > totalWaves) {
+      endGame(true);
+    } else {
+      startNextWave();
+    }
+  }, 2000);
+}
+
+// ─────────────────────────────────────────────────────────────
+// SCREEN SHAKE & SLOW MO
+// ─────────────────────────────────────────────────────────────
+function applyCameraEffects(dt) {
+  if (screenShake > 0) {
+    camera.position.x += (Math.random() - 0.5) * screenShake * 0.3;
+    camera.position.z += (Math.random() - 0.5) * screenShake * 0.1;
+    screenShake -= dt * 3;
+    if (screenShake < 0) {
+      screenShake = 0;
+      camera.position.set(0, 18, 8);
+    }
+    camera.lookAt(0, 0, 0);
+  }
+
+  if (slowMoActive) {
+    slowMoTimer -= dt;
+    if (slowMoTimer <= 0) slowMoActive = false;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// GAME FLOW
+// ─────────────────────────────────────────────────────────────
+function startGame(memoryChoice) {
+  initAudio();
+  memory = memoryChoice;
+  cfg = MEMORY_CONFIG[memoryChoice];
+
+  playMemoryConfirm();
+
+  // Hide memory screen
+  document.getElementById('memory-screen').style.display = 'none';
+  document.getElementById('hud').style.display = 'block';
+
+  // Set memory badge
+  const badge = document.getElementById('memory-badge');
+  if (badge) { badge.textContent = `// ${cfg.name}`; badge.style.color = cfg.colorHex; }
+
+  initThree();
+  gameRunning = true;
+  gameOver = false;
+  updateHPDisplay();
+  startBGM();
+
+  setTimeout(() => startNextWave(), 1000);
+  requestAnimationFrame(animate);
+}
+
+function endGame(won) {
+  gameRunning = false;
+  gameOver = true;
+  stopBGM();
+  waveActive = false;
+
+  if (won) playWin();
+  else playLose();
+
+  setTimeout(() => {
+    const endScreen = document.getElementById('end-screen');
+    const endTitle = document.getElementById('end-title');
+    const endSub = document.getElementById('end-subtitle');
+    const endStats = document.getElementById('end-stats');
+
+    endTitle.textContent = won ? cfg.winText : cfg.loseText;
+    endTitle.style.color = won ? cfg.colorHex : '#ff3344';
+    endSub.textContent = won
+      ? `The ${cfg.name} memory was correct.`
+      : `The ${cfg.name} memory failed.`;
+    endStats.innerHTML = `
+      COMBAT MEMORY — ${cfg.name}<br>
+      WAVES CLEARED — ${wavesCleared} / ${totalWaves}<br>
+      ENEMIES DESTROYED — ${totalEnemiesKilled}
+    `;
+
+    endScreen.style.display = 'flex';
+  }, 1500);
+}
+
+function restartGame() {
+  // Clean up
+  stopBGM();
+  enemies.forEach(e => scene && scene.remove(e.mesh));
+  bullets.forEach(b => scene && scene.remove(b.mesh));
+  particles.forEach(p => scene && scene.remove(p.mesh));
+  enemies = []; bullets = []; particles = [];
+  if (renderer && renderer.domElement) {
+    renderer.domElement.remove();
+  }
+
+  // Reset state
+  playerHP = 3;
+  currentWave = 1;
+  wavesCleared = 0;
+  totalEnemiesKilled = 0;
+  killCount = 0;
+  gameOver = false;
+  gameRunning = false;
+  waveActive = false;
+  screenShake = 0;
+  playerInvincible = false;
+  dodgeActive = false;
+
+  // Show memory screen again
+  document.getElementById('end-screen').style.display = 'none';
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('memory-screen').style.display = 'flex';
+}
+
+window.startGame = startGame;
+window.restartGame = restartGame;
+
+// ─────────────────────────────────────────────────────────────
+// MAIN LOOP
+// ─────────────────────────────────────────────────────────────
+function animate(now) {
+  if (!gameRunning && !gameOver) return;
+  requestAnimationFrame(animate);
+
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+
+  const timeScale = slowMoActive ? 0.2 : 1.0;
+  const scaledDt = dt * timeScale;
+
+  if (!gameOver) {
+    updatePlayer(scaledDt);
+    updateEnemies(scaledDt);
+    updateBullets(scaledDt);
+  }
+  updateParticles(scaledDt);
+  applyCameraEffects(dt);
+
+  // Animate starfield
+  if (starField) starField.rotation.y += dt * 0.01;
+
+  // Player bob
+  if (playerMesh) {
+    playerMesh.position.y = 0.5 + Math.sin(now * 0.003) * 0.08;
+  }
+
+  if (composer) composer.render();
+  else renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>

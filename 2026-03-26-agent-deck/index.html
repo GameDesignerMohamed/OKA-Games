@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Deck</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#060812;color:#e0e8ff;font-family:'Courier New',monospace;overflow:hidden}
+#c{position:fixed;top:0;left:0;width:100%;height:100%}
+#hud{position:fixed;top:0;left:0;right:0;height:60px;display:flex;align-items:center;padding:0 22px;gap:24px;background:linear-gradient(180deg,rgba(6,8,18,.96) 0%,transparent 100%);z-index:10;pointer-events:none}
+.sb{display:flex;flex-direction:column;align-items:center}
+.sl{font-size:8px;letter-spacing:2px;color:#334466;text-transform:uppercase;margin-bottom:2px}
+.sv{font-size:22px;font-weight:bold}
+#sv-hp{color:#44ff88;text-shadow:0 0 10px #22ff66}
+#sv-wave{color:#ffaa44;text-shadow:0 0 10px #ff8800}
+#sv-threats{color:#ff5544;text-shadow:0 0 10px #ff3322}
+#epips{display:flex;gap:5px}
+.ep{width:13px;height:13px;border-radius:50%;background:#0d1422;border:1px solid #223344;transition:all .15s}
+.ep.on{background:#4488ff;box-shadow:0 0 8px #4466ff;border-color:#6699ff}
+#sbanner{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-size:16px;letter-spacing:4px;color:#88aaff;text-shadow:0 0 18px #4466ff;z-index:20;opacity:0;transition:opacity .3s;pointer-events:none}
+#hand{position:fixed;bottom:0;left:0;right:0;display:flex;justify-content:center;align-items:flex-end;gap:10px;padding:16px 20px 22px;background:linear-gradient(0deg,rgba(4,5,14,.98) 0%,transparent 100%);z-index:10}
+.card{width:94px;height:134px;border-radius:7px;border:1px solid #1c2b44;background:linear-gradient(155deg,#0b1120 0%,#080d18 100%);cursor:pointer;transition:transform .18s,box-shadow .18s,border-color .18s;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:8px 5px;position:relative;overflow:hidden;user-select:none}
+.card:hover:not(.off){transform:translateY(-18px) scale(1.05);border-color:#4488ff;box-shadow:0 0 18px rgba(68,136,255,.4)}
+.card.sel{transform:translateY(-24px) scale(1.08);border-color:#44ff88;box-shadow:0 0 26px rgba(68,255,136,.55)}
+.card.off{opacity:.28;cursor:not-allowed}
+.ccost{position:absolute;top:5px;right:5px;width:17px;height:17px;border-radius:50%;background:#0c1830;border:1px solid #334477;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:bold;color:#7799ee}
+.cicon{font-size:26px;margin-top:6px}
+.cname{font-size:8px;letter-spacing:1.5px;color:#aabbcc;font-weight:bold;text-align:center;text-transform:uppercase}
+.cdesc{font-size:7px;color:#4d6070;text-align:center;line-height:1.4}
+#endbtn{position:fixed;bottom:26px;right:26px;background:#0c1320;border:1px solid #283d62;color:#6080aa;padding:10px 18px;font-family:'Courier New',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;border-radius:3px;z-index:10;transition:all .18s}
+#endbtn:hover{background:#152038;border-color:#4488ff;color:#88aaff;box-shadow:0 0 12px rgba(68,136,255,.3)}
+#dinfo{position:fixed;bottom:30px;left:26px;font-size:9px;color:#263444;letter-spacing:1.5px;z-index:10}
+#hint{position:fixed;top:68px;right:14px;font-size:8px;color:#1e2d40;letter-spacing:1px;line-height:2;z-index:10;text-align:right;pointer-events:none}
+.ov{position:fixed;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(4,5,14,.93);z-index:100}
+.ov h1{font-size:38px;letter-spacing:6px;margin-bottom:12px}
+.ov p{font-size:13px;color:#4d6070;letter-spacing:2px;margin-bottom:34px;text-align:center;max-width:460px;line-height:1.9}
+.obtn{background:transparent;border:1px solid #4488ff;color:#88bbff;padding:12px 36px;font-family:'Courier New',monospace;font-size:12px;letter-spacing:3px;cursor:pointer;border-radius:3px;transition:all .18s;text-transform:uppercase}
+.obtn:hover{background:rgba(68,136,255,.1);box-shadow:0 0 16px rgba(68,136,255,.4)}
+#wflash{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(68,255,136,.07);pointer-events:none;z-index:15;opacity:0;transition:opacity .45s}
+#dflash{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,40,40,.15);pointer-events:none;z-index:15;opacity:0;transition:opacity .2s}
+.flt{position:fixed;font-size:17px;font-weight:bold;pointer-events:none;z-index:25;animation:fup 1s ease-out forwards}
+@keyframes fup{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-52px)}}
+</style>
+</head>
+<body>
+<div id="c"></div>
+<div id="hud">
+  <div class="sb"><span class="sl">Core HP</span><span class="sv" id="sv-hp">10</span></div>
+  <div class="sb"><span class="sl">Wave</span><span class="sv" id="sv-wave">1/7</span></div>
+  <div class="sb"><span class="sl">Threats</span><span class="sv" id="sv-threats">0</span></div>
+  <div class="sb"><span class="sl">Energy</span><div id="epips"><div class="ep on" id="ep0"></div><div class="ep on" id="ep1"></div><div class="ep on" id="ep2"></div></div></div>
+</div>
+<div id="sbanner"></div>
+<div id="wflash"></div>
+<div id="dflash"></div>
+<div id="hand"></div>
+<button id="endbtn">END TURN [SPACE]</button>
+<div id="dinfo">DECK: 0 | DISCARD: 0</div>
+<div id="hint">SELECT card → CLICK threat<br>PATCH / SCAN = auto-play<br>SPACE = End Turn</div>
+
+<div class="ov" id="sc">
+  <h1 style="color:#88aaff;text-shadow:0 0 28px #4466ff">AGENT DECK</h1>
+  <p>Deploy tactical agent commands to neutralize cyber threats<br>advancing on your Core. Survive 7 waves.</p>
+  <button class="obtn" id="startbtn">INITIALIZE SYSTEM</button>
+</div>
+<div class="ov" id="winsc" style="display:none">
+  <h1 style="color:#44ff88;text-shadow:0 0 26px #22ff66">MISSION COMPLETE</h1>
+  <p>All threat vectors neutralized.<br>Core integrity maintained.</p>
+  <button class="obtn" id="winbtn">REDEPLOY</button>
+</div>
+<div class="ov" id="oversc" style="display:none">
+  <h1 style="color:#ff4444;text-shadow:0 0 26px #ff2222">CORE BREACHED</h1>
+  <p>Core integrity lost.<br>Threat vectors overwhelmed defenses.</p>
+  <button class="obtn" id="overbtn">RETRY</button>
+</div>
+
+<script type="module" src="game.js"></script>
+</body>
+</html>

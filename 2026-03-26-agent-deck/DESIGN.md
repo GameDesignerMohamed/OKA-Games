@@ -1,73 +1,17 @@
-# Agent Deck — Design Brief
-**Build #27 | 2026-03-26**
-**Brief by:** Pixel 🎮
-**Built by:** Forge 🔨
+# Agent Deck
 
----
+**Concept:** A turn-based deckbuilder where each card is an AI tactical command — players spend energy to neutralize cyber threat nodes advancing across a 3D grid toward their Core node.
 
-## Market Signal
-Slay the Spire 2 = 1M+ DAU in Early Access. Best-performing deckbuilder ever.
-Tests whether deckbuilder engagement density survives a theme swap from fantasy combat to AI agent deployment.
+**Player fantasy:** I am the strategic mind behind an intelligent defense network — every card play is a command to my agents, and my deck management is the skill that keeps the Core alive.
 
----
+## Core Loop
+Draw 5 cards (3 Energy/turn) → select card → click threat node on 3D grid → card resolves instantly → End Turn → threats advance one row → repeat until wave clear or Core HP = 0. Seven waves of escalating threats. Deck reshuffles when empty.
 
-## What the Player Does
-Each turn: 3 Energy available. Draw 5 cards from a 20-card deck.
-- Click a card to select it (highlights)
-- Click a target node on the grid to deploy it
-- Card resolves immediately — number pops, node changes state
-- Repeat until energy is spent OR click End Turn
+## Key Mechanics
+- **DEPLOY/OVERLOAD/REROUTE/SCAN/PATCH** — five card types covering damage, AoE, spatial repositioning, deck intelligence, and healing
+- **REROUTE as tempo play** — pushing a threat 2 rows back creates a time-buying loop that generates real strategic variance without additional damage
+- **LINKED nodes** (Waves 4–7) — linked threats respawn at row 0 if killed out of sequence; forces prioritization decisions under energy constraint
+- **SCAN + draw 1** — the "topdeck save" mechanic; creates the Slay the Spire "I need this card right now" dopamine moment in an agent theme
 
----
-
-## Core Game Loop
-1. Enemy "threat nodes" spawn on the hex/square grid (red pulsing spheres)
-2. Player draws 5 cards — each card is an agent action
-3. Click card → click target node → agent beam fires, resolves
-4. After End Turn: threats advance one hex/cell closer to Core node
-5. If threat reaches Core → damage (Core HP = 10)
-6. Deck reshuffles when empty
-7. Wave clears when all threats neutralized
-
----
-
-## Cards (5 types)
-| Card | Cost | Effect |
-|------|------|--------|
-| SCAN | 1 | Reveal enemy type + next 2 cards in deck |
-| PATCH | 1 | Restore 1 Core HP |
-| DEPLOY | 1 | Deal 1 damage to target threat node |
-| OVERLOAD | 2 | Deal 2 damage to target + 1 AoE to adjacent nodes |
-| REROUTE | 1 | Push a threat node 2 cells away from Core |
-
----
-
-## Win / Lose / Escalation
-- **Win:** Survive 7 waves
-- **Lose:** Core HP = 0
-- **Escalation:**
-  - Each wave +1 threat node
-  - Wave 3+: Armored nodes (need 2 hits)
-  - Wave 4-7: LINKED nodes (must clear in sequence or respawn)
-
----
-
-## Juice / Feel
-3 most satisfying moments:
-1. **Chain clear** — OVERLOAD on a linked cluster, 4 nodes flash-die in sequence
-2. **Topdeck save** — drawing exact needed card at Core HP 1
-3. **Wave complete** — grid goes dark → camera pull-back → new wave spawns
-
----
-
-## Scope Fallback (cut in order if time is short)
-1. Cut wave escalation (fixed 3-wave loop)
-2. Cut card animations (instant resolve)
-3. Cut hex grid → flat 4×4 square grid
-4. Last resort: 3 card types only, 1 enemy type, 3 waves
-
----
-
-## Scout Signal
-"Engagement density of deckbuilders is unmatched. What this suggests building: A deckbuilder where each card represents an 'agent action' in an agentic game — players build decks of AI behaviors that they deploy in a simulated world, blending strategy with emergent AI narrative."
-— Scout, March 25, 2026
+## What's Built
+The prototype proves that deckbuilder engagement density survives a theme swap from fantasy combat to AI agent commands. The OVERLOAD chain-clear and SCAN topdeck save land as designed. Core gap: no pre-run draft — deck is fixed, so strategic identity is absent at session start.

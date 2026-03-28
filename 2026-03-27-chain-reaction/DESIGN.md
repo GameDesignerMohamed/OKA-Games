@@ -1,34 +1,20 @@
-# Chain Reaction — DESIGN.md
-**Build #28 | Date: 2026-03-27**
+# Chain Reaction
 
-## Market Signal Tested
-Tests whether "one-tap consequence chain" mechanics drive organic shareability — cascade moments as UA engine, not paid acquisition. (Scout March 26 — Arcade publisher thesis)
+**Concept:** Fixed cannon + one-shot cascade puzzle — fire into a dense enemy cluster, chain explosions escalate in color and intensity, PERFECT CHAIN triggers slow-mo freeze frame.
+**Player fantasy:** I am the billiards player who threads the shot — my angle reading is the skill, the cascade is the consequence, the PERFECT CHAIN freeze is the screenshot.
 
-## Player Controls
-- Mouse to aim — dotted trajectory line shows entry angle
-- Left-click to fire ONE projectile
-- No movement — player is a fixed cannon at bottom center
-- Each wave: 1 shot (2 shots on waves 4+)
+## Core Loop
+Wave spawns → read cluster geometry → aim via trajectory guide → fire one shot → hit first enemy → chain cascade (color: white→yellow→orange→red→pink) → PERFECT CHAIN triggers 3s slow-mo + +600 bonus → next wave, tighter formation. Three failed chains (< 3) = game over.
 
-## Core Game Loop
-1. Wave spawns — enemy cluster fills arena in dense geometric formation
-2. Player studies cluster, finds kill-shot entry point
-3. Click to fire → projectile travels, hits first enemy → BOOM → chain cascade
-4. Chain count tallies in real-time (×1, ×2... ×PERFECT!)
-5. Score = waves cleared × chain multiplier (penalise shots > 1)
-6. Next wave: tighter, denser formation
+## Key Mechanics
+- **Fixed cannon + single-shot constraint** — all skill is in angle selection; no movement, no ambiguity about what the player controls
+- **Chain radius 2.35 vs. compression spacing 1.95→1.38** — calibrated so PERFECT CHAIN is achievable-but-earned; wave 5 (5×5 grid) cascades on any valid entry angle (skill not luck)
+- **Color escalation** — two-channel feedback (visual + audio pitch escalation) makes the cascade readable as it builds
+- **PERFECT CHAIN slow-mo freeze** — 0.2× speed for 3s of debris drift; the organic UA moment; most spectacular shareable event in OKA catalog to date
+- **Formation variety** — grid/diamond/dense/gap/5×5 require distinct entry-angle strategies; not cosmetic
 
-## Win / Lose / Progression
-- Win: clear all enemies in wave with 1 shot = perfect score
-- Lose: 3 waves where chain < 3 enemies
-- 5 hardcoded waves, formations escalate in density and maze-complexity
+## What's Built
+The prototype proves "one-tap consequence chain" delivers the shareable cascade moment Scout's Arcade publisher thesis predicted. PERFECT CHAIN on wave 5 is skill-confirmed. localStorage bestChain closes the cross-session mastery signal gap pre-emptively.
 
-## Juice / Feel
-- Projectile: glowing orb with motion blur trail
-- Each enemy detonation: shockwave ring + particle burst + screen shake
-- Chain escalates in colour: white → yellow → orange → red
-- **THE shareable moment:** full-board detonation — "PERFECT CHAIN" freeze frame, slow-mo debris
-- Audio: escalating pitch SFX per chain hit, climax sound at PERFECT CHAIN
-
-## Scope Constraint
-Single index.html, Three.js r169 via importmap CDN, static only.
+## Verdict
+**CONDITIONAL** — core mechanic and shareable moment work. Condition: 5 hardcoded formations make run 2 a memory test. Procedural seeded formations (different geometry each run) would make the angle-reading skill reapply fresh every session and turn PERFECT CHAIN into a cross-run chase.

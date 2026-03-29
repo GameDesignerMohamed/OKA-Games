@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Quick Clash</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{background:#060610;overflow:hidden;font-family:'Segoe UI',sans-serif;color:#fff}
+    canvas{display:block;position:fixed;top:0;left:0;z-index:0}
+
+    #screen-role{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#050510,#0d0a1a);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100}
+    #screen-role h1{font-size:60px;font-weight:900;letter-spacing:8px;background:linear-gradient(90deg,#ff4488,#ffcc00,#44ddff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+    .sub{color:#555;font-size:13px;letter-spacing:3px;margin-bottom:48px}
+    .cards{display:flex;gap:20px}
+    .card{width:190px;background:rgba(255,255,255,0.04);border:2px solid #252535;border-radius:16px;padding:26px 16px;cursor:pointer;transition:all .2s;text-align:center}
+    .card:hover{border-color:var(--c);background:rgba(255,255,255,0.08);transform:translateY(-5px)}
+    .card .ico{font-size:42px;margin-bottom:10px}
+    .card .rn{font-size:20px;font-weight:bold;color:var(--c);margin-bottom:8px}
+    .card .rd{font-size:12px;color:#666;line-height:1.6;margin-bottom:10px}
+    .card .rs{font-size:11px;color:#555}
+    .card .rs span{color:var(--c)}
+
+    #hud{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;display:none}
+    #tbox{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.75);border:1px solid #334;border-radius:8px;padding:7px 24px;font-size:24px;font-weight:bold;letter-spacing:3px}
+    #tbox.urg{color:#ff4455;animation:blk .4s infinite alternate}
+    @keyframes blk{from{opacity:1}to{opacity:0.5}}
+    #rhud{position:fixed;top:14px;left:16px;background:rgba(0,0,0,0.7);border:1px solid #334;border-radius:8px;padding:6px 14px;font-size:13px;line-height:1.9}
+    #rhud strong{font-size:15px}
+    #khud{position:fixed;top:14px;right:16px;background:rgba(0,0,0,0.7);border:1px solid #334;border-radius:8px;padding:7px 16px;text-align:center}
+    #khud .kl{font-size:10px;color:#666;letter-spacing:2px}
+    #khud .kn{font-size:26px;font-weight:900;color:#ffdd44;line-height:1}
+    #hparea{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+    .hpc{background:rgba(0,0,0,0.75);border:1px solid #334;border-radius:8px;padding:8px 14px;min-width:128px}
+    .hpc .hl{font-size:10px;color:#666;letter-spacing:1px;margin-bottom:5px}
+    .hpbg{height:8px;background:#1a1a2a;border-radius:4px;overflow:hidden}
+    .hpf{height:100%;border-radius:4px;transition:width .1s}
+    .hpc .hn{font-size:11px;color:#888;margin-top:3px}
+    #abilhud{position:fixed;bottom:88px;left:50%;transform:translateX(-50%)}
+    .abtn{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:56px;height:56px;background:rgba(0,0,0,0.8);border:2px solid #445;border-radius:10px;position:relative;overflow:hidden}
+    .abtn .ak{font-size:10px;color:#888}
+    .abtn .an{font-size:11px;font-weight:bold}
+    .acd{position:absolute;bottom:0;left:0;width:100%;height:0%;background:rgba(0,0,0,0.6);transition:height .05s}
+    #ntf{position:fixed;top:62px;left:50%;transform:translateX(-50%);font-size:17px;font-weight:bold;color:#ffdd44;letter-spacing:1px;opacity:0;pointer-events:none;text-shadow:0 2px 6px rgba(0,0,0,0.8);transition:opacity .15s}
+    #flash{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;opacity:0}
+
+    #screen-end{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100}
+    #screen-end h2{font-size:60px;font-weight:900;letter-spacing:5px;margin-bottom:8px}
+    #esub{color:#888;font-size:13px;letter-spacing:2px;margin-bottom:36px}
+    #scard{background:rgba(255,255,255,0.05);border:1px solid #334;border-radius:12px;padding:22px 50px;margin-bottom:30px;min-width:300px}
+    .sr{display:flex;justify-content:space-between;gap:44px;margin:7px 0}
+    .sk{font-size:12px;color:#666}
+    .sv{font-size:14px;font-weight:bold}
+    #btr{padding:14px 50px;background:#ff4488;border:none;border-radius:8px;color:#fff;font-size:16px;font-weight:bold;cursor:pointer;letter-spacing:2px}
+    #btr:hover{background:#ff2270}
+    .fn{position:fixed;pointer-events:none;font-weight:bold;font-size:18px;text-shadow:0 2px 6px rgba(0,0,0,0.9);z-index:20;animation:fu .7s ease-out forwards}
+    @keyframes fu{0%{opacity:1;transform:translateY(0) scale(1)}50%{opacity:1;transform:translateY(-22px) scale(1.1)}100%{opacity:0;transform:translateY(-50px) scale(0.85)}}
+  </style>
+</head>
+<body>
+
+<div id="screen-role">
+  <h1>QUICK CLASH</h1>
+  <div class="sub">CHOOSE YOUR CHAMPION · DESTROY THE CORE · 5 MINUTES</div>
+  <div class="cards">
+    <div class="card" style="--c:#44ff88" onclick="window.startGame('tank')">
+      <div class="ico">🛡️</div><div class="rn">TANK</div>
+      <div class="rd">Unstoppable front-liner.<br>Ground Slam wrecks groups.<br>Built to survive.</div>
+      <div class="rs">HP <span>200</span> · SPD <span>3.8</span> · Q: Slam AOE</div>
+    </div>
+    <div class="card" style="--c:#ff9900" onclick="window.startGame('ranger')">
+      <div class="ico">🏹</div><div class="rn">RANGER</div>
+      <div class="rd">Swift and precise.<br>Piercing arrow cuts lanes.<br>Ranged dominance.</div>
+      <div class="rs">HP <span>120</span> · SPD <span>6.2</span> · Q: Pierce Arrow</div>
+    </div>
+    <div class="card" style="--c:#aa55ff" onclick="window.startGame('mage')">
+      <div class="ico">🔮</div><div class="rn">MAGE</div>
+      <div class="rd">Fragile but devastating.<br>Fireball eruptions.<br>Q+W to dominate.</div>
+      <div class="rs">HP <span>90</span> · SPD <span>5.5</span> · Q: Fireball · W: Blink</div>
+    </div>
+  </div>
+</div>
+
+<div id="hud">
+  <div id="tbox">⏱ <span id="ttxt">5:00</span></div>
+  <div id="rhud"><strong id="rtxt"></strong><br><span style="color:#555;font-size:11px">WASD Move · Click Attack · Q/W Ability</span></div>
+  <div id="khud"><div class="kl">KILLS</div><div class="kn" id="knum">0</div></div>
+  <div id="hparea">
+    <div class="hpc"><div class="hl">PLAYER</div><div class="hpbg"><div class="hpf" id="fp" style="background:#44ff88;width:100%"></div></div><div class="hn" id="np">100/100</div></div>
+    <div class="hpc"><div class="hl">YOUR CORE</div><div class="hpbg"><div class="hpf" id="fmc" style="background:#44aaff;width:100%"></div></div><div class="hn" id="nmc">1000/1000</div></div>
+    <div class="hpc"><div class="hl">ENEMY CORE</div><div class="hpbg"><div class="hpf" id="fec" style="background:#ff6600;width:100%"></div></div><div class="hn" id="nec">1000/1000</div></div>
+    <div class="hpc"><div class="hl">ENEMY CHAMP</div><div class="hpbg"><div class="hpf" id="feh" style="background:#ff3355;width:100%"></div></div><div class="hn" id="neh">150/150</div></div>
+  </div>
+  <div id="abilhud">
+    <div class="abtn"><div class="ak">Q</div><div class="an" id="qn">-</div><div class="acd" id="qcd"></div></div>
+  </div>
+  <div id="ntf"></div>
+</div>
+
+<div id="flash"></div>
+
+<div id="screen-end">
+  <h2 id="etitle">VICTORY</h2>
+  <div id="esub"></div>
+  <div id="scard">
+    <div class="sr"><div class="sk">ROLE</div><div class="sv" id="scr">-</div></div>
+    <div class="sr"><div class="sk">KILLS</div><div class="sv" id="sck">0</div></div>
+    <div class="sr"><div class="sk">CORE DAMAGE</div><div class="sv" id="scd">0</div></div>
+    <div class="sr"><div class="sk">TIME</div><div class="sv" id="sct">-</div></div>
+  </div>
+  <button id="btr" onclick="location.reload()">PLAY AGAIN</button>
+</div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"}}</script>
+<script type="module" src="game.js"></script>
+</body>
+</html>

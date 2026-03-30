@@ -4,157 +4,328 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Rule Breaker</title>
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://unpkg.com/three@0.169.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.169.0/examples/jsm/"
-  }
-}
-</script>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
-canvas { display: block; position: fixed; top: 0; left: 0; z-index: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+  canvas { display: block; }
 
-#hud {
-  position: fixed; top: 0; left: 0; width: 100%;
-  padding: 16px 24px;
-  display: flex; justify-content: space-between; align-items: flex-start;
-  pointer-events: none; z-index: 10;
-}
-#health-display { display: flex; gap: 8px; align-items: center; }
-.heart { font-size: 24px; transition: transform 0.2s; }
-.heart.lost { opacity: 0.2; transform: scale(0.8); }
-#score-display { font-size: 20px; color: #fff; text-shadow: 0 0 10px #0ff; letter-spacing: 2px; }
-#timer-display { font-size: 28px; color: #fff; font-weight: bold; text-shadow: 0 0 15px #f0f; letter-spacing: 3px; text-align: center; }
-#round-display { font-size: 14px; color: #888; letter-spacing: 2px; text-transform: uppercase; text-align: center; }
+  #ui {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    color: #fff;
+  }
 
-#active-modifier {
-  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-  background: rgba(0,0,0,0.7); border: 1px solid #f0f; color: #f0f;
-  padding: 6px 18px; font-size: 13px; letter-spacing: 2px; text-transform: uppercase;
-  pointer-events: none; display: none; z-index: 10;
-}
+  #hud {
+    position: absolute;
+    top: 20px; left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 40px;
+    align-items: center;
+    background: rgba(0,0,0,0.5);
+    padding: 8px 24px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.2);
+    font-size: 14px;
+  }
 
-.screen {
-  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: rgba(0,0,0,0.88); z-index: 100; pointer-events: all;
-}
-.screen.hidden { display: none; }
-.screen h1 { font-size: 52px; color: #fff; letter-spacing: 6px; text-transform: uppercase; text-shadow: 0 0 30px #f0f, 0 0 60px #f0f; margin-bottom: 12px; }
-.screen h2 { font-size: 28px; color: #f0f; letter-spacing: 4px; text-transform: uppercase; text-shadow: 0 0 20px #f0f; margin-bottom: 8px; }
-.screen p { color: #aaa; font-size: 14px; letter-spacing: 1px; margin-bottom: 8px; text-align: center; max-width: 500px; }
-.screen .subtitle { color: #666; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 40px; }
-.btn {
-  background: transparent; border: 2px solid #f0f; color: #f0f;
-  font-family: 'Courier New', monospace; font-size: 16px; letter-spacing: 3px; text-transform: uppercase;
-  padding: 14px 40px; cursor: pointer; transition: all 0.2s; margin-top: 20px;
-}
-.btn:hover { background: #f0f; color: #000; box-shadow: 0 0 30px #f0f; }
+  #health-bar {
+    display: flex;
+    gap: 6px;
+  }
 
-/* VOTE SCREEN */
-#vote-screen { background: rgba(0,0,5,0.92); }
-.vote-header { font-size: 13px; color: #888; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 8px; }
-.vote-title-big { font-size: 32px; color: #0ff; letter-spacing: 4px; text-transform: uppercase; text-shadow: 0 0 20px #0ff; margin-bottom: 6px; }
-.vote-sub { color: #666; font-size: 12px; letter-spacing: 2px; margin-bottom: 36px; }
-.vote-cards { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
-.vote-card {
-  background: rgba(0,0,0,0.8); border: 2px solid #333; padding: 24px 20px;
-  width: 180px; cursor: pointer; transition: all 0.25s; text-align: center;
-}
-.vote-card:hover { border-color: #0ff; box-shadow: 0 0 25px rgba(0,255,255,0.4); transform: translateY(-4px); }
-.card-icon { font-size: 36px; margin-bottom: 12px; display: block; }
-.card-name { color: #fff; font-size: 14px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
-.card-desc { color: #888; font-size: 11px; letter-spacing: 1px; line-height: 1.5; }
-.card-skill { color: #0ff; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-top: 12px; padding-top: 10px; border-top: 1px solid #333; }
+  .health-pip {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #ff4444;
+    border: 1px solid rgba(255,255,255,0.3);
+  }
+  .health-pip.empty { background: #333; }
 
-/* ROUND ANNOUNCE */
-#round-announce {
-  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  text-align: center; z-index: 200; pointer-events: none; opacity: 0; transition: opacity 0.3s;
-}
-#round-announce.visible { opacity: 1; }
-#round-announce .ann-round { font-size: 56px; color: #fff; letter-spacing: 8px; text-shadow: 0 0 40px #f0f; }
-#round-announce .ann-mod { font-size: 18px; color: #0ff; letter-spacing: 3px; margin-top: 8px; }
+  #timer { font-size: 22px; font-weight: bold; color: #fff; }
+  #score-display { color: #aaa; font-size: 13px; }
+  #round-display { color: #ffd700; font-size: 13px; }
 
-/* DEATH SCREEN */
-#death-screen .you-voted { font-size: 13px; color: #888; letter-spacing: 3px; text-transform: uppercase; margin-top: 24px; margin-bottom: 8px; }
-#death-screen .voted-modifier { font-size: 24px; color: #f44; letter-spacing: 3px; text-shadow: 0 0 20px #f44; margin-bottom: 6px; }
-#death-screen .blame { font-size: 28px; margin-bottom: 4px; }
-#death-screen .death-score { font-size: 16px; color: #888; letter-spacing: 2px; margin-bottom: 4px; }
+  #modifier-banner {
+    position: absolute;
+    top: 70px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.7);
+    border: 1px solid rgba(255,200,0,0.4);
+    color: #ffd700;
+    padding: 6px 18px;
+    border-radius: 6px;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    display: none;
+  }
 
-/* WIN SCREEN */
-#win-screen .win-score { font-size: 48px; color: #0ff; text-shadow: 0 0 30px #0ff; letter-spacing: 4px; margin-bottom: 8px; }
-#win-screen .win-label { color: #666; font-size: 12px; letter-spacing: 3px; margin-bottom: 20px; }
-#win-screen .mods-list { color: #888; font-size: 13px; letter-spacing: 2px; margin-bottom: 8px; }
+  /* VOTE SCREEN */
+  #vote-screen {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: all;
+    display: none;
+  }
 
-#score-flash {
-  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  font-size: 32px; color: #0ff; letter-spacing: 4px; text-shadow: 0 0 20px #0ff;
-  pointer-events: none; opacity: 0; z-index: 150;
-}
+  #vote-title {
+    font-size: 32px;
+    font-weight: bold;
+    color: #fff;
+    margin-bottom: 8px;
+    letter-spacing: 2px;
+  }
+
+  #vote-subtitle {
+    font-size: 14px;
+    color: #888;
+    margin-bottom: 40px;
+  }
+
+  #vote-cards {
+    display: flex;
+    gap: 20px;
+  }
+
+  .vote-card {
+    width: 200px;
+    background: rgba(20, 20, 30, 0.9);
+    border: 2px solid rgba(100,100,200,0.4);
+    border-radius: 12px;
+    padding: 24px 20px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+  }
+
+  .vote-card:hover {
+    border-color: rgba(150,150,255,0.9);
+    background: rgba(30, 30, 60, 0.9);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 30px rgba(100,100,255,0.3);
+  }
+
+  .vote-card-icon { font-size: 36px; margin-bottom: 12px; }
+  .vote-card-name { font-size: 16px; font-weight: bold; color: #fff; margin-bottom: 8px; }
+  .vote-card-desc { font-size: 12px; color: #888; line-height: 1.4; }
+  .vote-card-tag { font-size: 10px; color: #6688ff; margin-top: 10px; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* TITLE SCREEN */
+  #title-screen {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: all;
+  }
+
+  #title-screen h1 {
+    font-size: 56px;
+    font-weight: bold;
+    color: #fff;
+    letter-spacing: 4px;
+    margin-bottom: 12px;
+  }
+
+  #title-screen h1 span { color: #ff4444; }
+
+  #title-tagline {
+    font-size: 16px;
+    color: #888;
+    margin-bottom: 50px;
+    max-width: 400px;
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  #start-btn {
+    background: #fff;
+    color: #000;
+    border: none;
+    padding: 16px 48px;
+    font-size: 18px;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    cursor: pointer;
+    letter-spacing: 2px;
+    border-radius: 4px;
+    transition: all 0.1s;
+  }
+
+  #start-btn:hover { background: #ffd700; }
+
+  /* ROUND FLASH */
+  #round-flash {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 48px;
+    font-weight: bold;
+    color: #fff;
+    letter-spacing: 4px;
+    pointer-events: none;
+    opacity: 0;
+    transition: none;
+  }
+
+  /* GAME OVER / WIN */
+  #end-screen {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.88);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: all;
+    display: none;
+  }
+
+  #end-title {
+    font-size: 52px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    letter-spacing: 3px;
+  }
+
+  #end-score { font-size: 24px; color: #aaa; margin-bottom: 30px; }
+
+  #end-modifiers {
+    background: rgba(20,20,30,0.9);
+    border: 1px solid rgba(255,100,100,0.3);
+    border-radius: 10px;
+    padding: 20px 32px;
+    margin-bottom: 36px;
+    text-align: center;
+    max-width: 480px;
+  }
+
+  #end-modifiers h3 {
+    font-size: 13px;
+    color: #ff4444;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+  }
+
+  #end-vote-history {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .end-vote-item {
+    font-size: 14px;
+    color: #ccc;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .end-vote-round { color: #666; font-size: 12px; min-width: 70px; }
+
+  #restart-btn {
+    background: transparent;
+    color: #fff;
+    border: 2px solid rgba(255,255,255,0.4);
+    padding: 12px 40px;
+    font-size: 16px;
+    font-family: 'Courier New', monospace;
+    cursor: pointer;
+    letter-spacing: 2px;
+    border-radius: 4px;
+    transition: all 0.15s;
+  }
+  #restart-btn:hover { border-color: #fff; background: rgba(255,255,255,0.1); }
+
+  /* SCREEN SHAKE */
+  @keyframes shake {
+    0% { transform: translate(0,0); }
+    20% { transform: translate(-4px,2px); }
+    40% { transform: translate(4px,-2px); }
+    60% { transform: translate(-3px,3px); }
+    80% { transform: translate(3px,-1px); }
+    100% { transform: translate(0,0); }
+  }
+  .shaking { animation: shake 0.2s ease; }
+
+  /* CROSSHAIR */
+  #crosshair {
+    position: fixed;
+    pointer-events: none;
+    width: 20px; height: 20px;
+    transform: translate(-50%, -50%);
+  }
+  #crosshair::before, #crosshair::after {
+    content: '';
+    position: absolute;
+    background: rgba(255,255,255,0.6);
+  }
+  #crosshair::before { width: 2px; height: 20px; left: 9px; top: 0; }
+  #crosshair::after { width: 20px; height: 2px; top: 9px; left: 0; }
 </style>
 </head>
 <body>
 
-<div id="hud">
-  <div id="health-display">
-    <span class="heart" id="h1">❤️</span>
-    <span class="heart" id="h2">❤️</span>
-    <span class="heart" id="h3">❤️</span>
+<div id="crosshair"></div>
+
+<div id="ui">
+  <div id="hud" style="display:none">
+    <div id="health-bar"></div>
+    <div id="timer">30</div>
+    <div id="round-display">ROUND 1/3</div>
+    <div id="score-display">SCORE: 0</div>
   </div>
-  <div>
-    <div id="timer-display">0:30</div>
-    <div id="round-display">Round 1 / 3</div>
+  <div id="modifier-banner"></div>
+  <div id="round-flash"></div>
+</div>
+
+<!-- TITLE SCREEN -->
+<div id="title-screen">
+  <h1>RULE <span>BREAKER</span></h1>
+  <p id="title-tagline">Vote to bend the rules. Survive your own chaos.<br>3 rounds. Your choice. Your fault.</p>
+  <button id="start-btn" onclick="startGame()">PLAY</button>
+</div>
+
+<!-- VOTE SCREEN -->
+<div id="vote-screen">
+  <div id="vote-title">CHOOSE YOUR CHAOS</div>
+  <div id="vote-subtitle">You voted for this. You survive with it.</div>
+  <div id="vote-cards"></div>
+</div>
+
+<!-- END SCREEN -->
+<div id="end-screen">
+  <div id="end-title">GAME OVER</div>
+  <div id="end-score">SCORE: 0</div>
+  <div id="end-modifiers">
+    <h3>YOU VOTED FOR THIS 💀</h3>
+    <div id="end-vote-history"></div>
   </div>
-  <div id="score-display">SCORE: 0</div>
-</div>
-<div id="active-modifier"></div>
-
-<div id="round-announce">
-  <div class="ann-round" id="ann-round-text">ROUND 1</div>
-  <div class="ann-mod" id="ann-mod-text"></div>
-</div>
-<div id="score-flash"></div>
-
-<!-- START -->
-<div class="screen" id="start-screen">
-  <h1>Rule Breaker</h1>
-  <p class="subtitle">Vote for the chaos. Survive it.</p>
-  <p>Shoot enemies. Survive 3 rounds of 30 seconds each.<br>Between rounds, YOU vote on the next rule modifier.</p>
-  <p style="color:#888;font-size:12px;margin-top:4px">WASD to move · Mouse to aim · Click to shoot</p>
-  <button class="btn" id="start-btn">BREAK RULES</button>
+  <button id="restart-btn" onclick="restartGame()">PLAY AGAIN</button>
 </div>
 
-<!-- VOTE -->
-<div class="screen hidden" id="vote-screen">
-  <div class="vote-header">⚡ Between Rounds</div>
-  <div class="vote-title-big">CHOOSE YOUR CHAOS</div>
-  <div class="vote-sub">You voted for it. You survive it.</div>
-  <div class="vote-cards" id="vote-cards-container"></div>
-</div>
-
-<!-- DEATH -->
-<div class="screen hidden" id="death-screen">
-  <h1>💀 DEAD</h1>
-  <div class="death-score" id="death-score-text">Score: 0</div>
-  <div class="you-voted">You voted for:</div>
-  <div class="voted-modifier" id="death-modifier-text">—</div>
-  <div class="blame" id="death-blame">💀</div>
-  <button class="btn" id="retry-btn">TRY AGAIN</button>
-</div>
-
-<!-- WIN -->
-<div class="screen hidden" id="win-screen">
-  <h1>🏆 SURVIVED</h1>
-  <div class="win-score" id="win-score-text">0</div>
-  <div class="win-label">FINAL SCORE</div>
-  <p>You voted for chaos and lived through it all.</p>
-  <div class="mods-list" id="win-mods-list"></div>
-  <button class="btn" id="win-retry-btn">PLAY AGAIN</button>
-</div>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
 
 <script type="module">
 import * as THREE from 'three';
@@ -162,717 +333,765 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-// ─── AUDIO ───────────────────────────────────────────────────────────────────
-let audioCtx = null;
-function ensureAudio() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-}
-function playTone(freq, type, duration, vol=0.3, delay=0) {
-  if (!audioCtx) return;
-  try {
-    const o = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    o.connect(g); g.connect(audioCtx.destination);
-    o.type = type; o.frequency.setValueAtTime(freq, audioCtx.currentTime + delay);
-    g.gain.setValueAtTime(vol, audioCtx.currentTime + delay);
-    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration);
-    o.start(audioCtx.currentTime + delay);
-    o.stop(audioCtx.currentTime + delay + duration);
-  } catch(e){}
-}
-const sfxShoot = () => { playTone(440,'sawtooth',0.08,0.18); playTone(220,'sine',0.06,0.1); };
-const sfxHit   = () => { playTone(80,'sawtooth',0.2,0.4); playTone(60,'sine',0.15,0.3); };
-const sfxKill  = () => { playTone(660,'triangle',0.12,0.22); playTone(880,'triangle',0.1,0.15,0.06); };
-const sfxVote  = () => { [330,440,550].forEach((f,i) => playTone(f,'sine',0.15,0.3,i*0.08)); };
-const sfxRound = () => { [220,330,440,550].forEach((f,i) => playTone(f,'triangle',0.15,0.3,i*0.08)); };
-const sfxWin   = () => { [330,440,550,660,770,880].forEach((f,i) => playTone(f,'sine',0.3,0.3,i*0.1)); };
-const sfxLose  = () => { [440,330,220,110].forEach((f,i) => playTone(f,'sawtooth',0.22,0.3,i*0.1)); };
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+const ARENA_SIZE = 12;
+const ROUND_DURATION = 30;
+const TOTAL_ROUNDS = 3;
+const PLAYER_SPEED = 6;
+const BULLET_SPEED = 14;
+const ENEMY_BASE_SPEED = 2.2;
+const SHOOT_COOLDOWN = 0.22;
+const MAX_HEALTH = 3;
 
-let bgmRunning = false, bgmTimer = null, bgmStep = 0;
-const BGM_NOTES = [110,138.6,164.8,185,220,185,164.8,138.6];
-function startBGM() {
-  if (bgmRunning || !audioCtx) return;
-  bgmRunning = true;
-  function tick() {
-    if (!bgmRunning || !audioCtx) return;
-    playTone(BGM_NOTES[bgmStep % BGM_NOTES.length], 'triangle', 0.35, 0.08);
-    bgmStep++;
-    bgmTimer = setTimeout(tick, 380);
+// ─── MODIFIER DEFINITIONS ────────────────────────────────────────────────────
+const MODIFIERS = {
+  gravity_flip: {
+    id: 'gravity_flip',
+    name: 'Gravity Flip',
+    icon: '🌀',
+    desc: 'Enemies spawn from above, fall downward. Repositioning > dodging.',
+    tag: 'requires: spatial awareness',
+    skillClass: 'repositioning'
+  },
+  tiny_you: {
+    id: 'tiny_you',
+    name: 'Tiny You',
+    icon: '🔬',
+    desc: 'Player sphere shrinks 60%. Hitbox tiny — but bullets shrink too.',
+    tag: 'requires: precision aim',
+    skillClass: 'precision'
+  },
+  slow_world: {
+    id: 'slow_world',
+    name: 'Slow World',
+    icon: '🕐',
+    desc: 'Everything moves at 40% speed. Patience wins — not reflexes.',
+    tag: 'requires: timing',
+    skillClass: 'timing'
+  },
+  mirror_mode: {
+    id: 'mirror_mode',
+    name: 'Mirror Mode',
+    icon: '🪞',
+    desc: 'WASD controls are inverted. Your muscle memory is the enemy.',
+    tag: 'requires: rewiring',
+    skillClass: 'adaptation'
+  },
+  turret_only: {
+    id: 'turret_only',
+    name: 'Turret Only',
+    icon: '🔩',
+    desc: 'You can\'t move. Auto-aim fires constantly. Position at start matters.',
+    tag: 'requires: prediction',
+    skillClass: 'prediction'
   }
-  tick();
-}
-function stopBGM() { bgmRunning = false; if (bgmTimer) clearTimeout(bgmTimer); }
+};
 
-// ─── THREE.JS SETUP ──────────────────────────────────────────────────────────
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-document.body.appendChild(renderer.domElement);
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let state = 'title'; // title | playing | voting | end
+let round = 1;
+let health = MAX_HEALTH;
+let score = 0;
+let roundTimer = ROUND_DURATION;
+let shootTimer = 0;
+let activeModifier = null;
+let voteHistory = [];
+let enemies = [];
+let bullets = [];
+let particles = [];
+let stars = [];
+let enemySpawnTimer = 0;
+let enemySpawnInterval = 2.0;
+let shakeTime = 0;
+let shakeIntensity = 0;
 
+// ─── SCENE ───────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x050010, 0.035);
-scene.background = new THREE.Color(0x050010);
+scene.fog = new THREE.FogExp2(0x000008, 0.04);
 
-const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 300);
-camera.position.set(0, 20, 20);
+const camera = new THREE.OrthographicCamera(-18, 18, 10.1, -10.1, 0.1, 200);
+camera.position.set(0, 0, 50);
 camera.lookAt(0, 0, 0);
 
-const ambient = new THREE.AmbientLight(0xffffff, 2.5);
-scene.add(ambient);
-const dirLight = new THREE.DirectionalLight(0xffffff, 3.0);
-dirLight.position.set(5, 15, 5);
-scene.add(dirLight);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
-let composer = null;
-try {
-  composer = new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.5, 0.4, 0.85);
-  composer.addPass(bloom);
-} catch(e) { composer = null; }
-
-// Starfield
-const sfGeo = new THREE.BufferGeometry();
-const sfV = [];
-for (let i = 0; i < 1400; i++) sfV.push((Math.random()-0.5)*200,(Math.random()-0.5)*200,(Math.random()-0.5)*200);
-sfGeo.setAttribute('position', new THREE.Float32BufferAttribute(sfV, 3));
-scene.add(new THREE.Points(sfGeo, new THREE.PointsMaterial({ color:0xffffff, size:0.28, transparent:true, opacity:0.7 })));
-
-// Grid
-const grid = new THREE.GridHelper(20, 20, 0x110022, 0x110022);
-grid.position.y = -0.5;
-scene.add(grid);
-
-// Arena ring light
-const ringLight = new THREE.PointLight(0x4400aa, 3, 25);
-ringLight.position.set(0, 3, 0);
-scene.add(ringLight);
-
+// Resize handler
 window.addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
+  const aspect = window.innerWidth / window.innerHeight;
+  const h = 10.1;
+  camera.left = -h * aspect * 1.78;
+  camera.right = h * aspect * 1.78;
+  camera.top = h;
+  camera.bottom = -h;
   camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-  if (composer) composer.setSize(innerWidth, innerHeight);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// ─── MODIFIERS ────────────────────────────────────────────────────────────────
-const MODIFIER_DEFS = [
-  {
-    id: 'gravity_flip', name: 'Gravity Flip', icon: '🌀',
-    desc: 'Enemies rain down from above — not sides.',
-    skill: 'Positioning vs. Dodging',
-    color: '#ff6600'
-  },
-  {
-    id: 'tiny_you', name: 'Tiny You', icon: '🔬',
-    desc: 'You shrink 60%. Tiny hitbox — tiny bullets too.',
-    skill: 'Precision Aim',
-    color: '#00ffaa'
-  },
-  {
-    id: 'slow_world', name: 'Slow World', icon: '🐌',
-    desc: 'Everything moves at 40% speed. No more reflexes.',
-    skill: 'Patience & Timing',
-    color: '#0099ff'
-  },
-  {
-    id: 'mirror_mode', name: 'Mirror Mode', icon: '🪞',
-    desc: 'WASD is inverted. Muscle memory betrays you.',
-    skill: 'Control Rewiring',
-    color: '#ff00ff'
-  },
-  {
-    id: 'turret_only', name: 'Turret Only', icon: '🔫',
-    desc: "You can't move. Auto-fire on. Survive by positioning.",
-    skill: 'Positioning Prediction',
-    color: '#ffcc00'
+// Post-processing
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.4, 0.4, 0.85);
+composer.addPass(bloomPass);
+
+// ─── LIGHTING ────────────────────────────────────────────────────────────────
+const ambient = new THREE.AmbientLight(0xffffff, 2.0);
+scene.add(ambient);
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+dirLight.position.set(5, 5, 20);
+scene.add(dirLight);
+const pointLight = new THREE.PointLight(0x4466ff, 1.5, 30);
+pointLight.position.set(0, 0, 5);
+scene.add(pointLight);
+
+// ─── STARFIELD ────────────────────────────────────────────────────────────────
+const starGeo = new THREE.BufferGeometry();
+const starVerts = [];
+for (let i = 0; i < 800; i++) {
+  starVerts.push(
+    (Math.random() - 0.5) * 80,
+    (Math.random() - 0.5) * 60,
+    -(Math.random() * 30 + 5)
+  );
+}
+starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVerts, 3));
+const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1 });
+scene.add(new THREE.Points(starGeo, starMat));
+
+// ─── ARENA FLOOR ─────────────────────────────────────────────────────────────
+const arenaGeo = new THREE.PlaneGeometry(ARENA_SIZE * 2, ARENA_SIZE * 2, 24, 24);
+const arenaMat = new THREE.MeshStandardMaterial({
+  color: 0x080818,
+  wireframe: false,
+  roughness: 0.9,
+  metalness: 0.1
+});
+const arena = new THREE.Mesh(arenaGeo, arenaMat);
+arena.position.z = -0.5;
+scene.add(arena);
+
+// Arena border
+const borderGeo = new THREE.EdgesGeometry(new THREE.PlaneGeometry(ARENA_SIZE * 2, ARENA_SIZE * 2));
+const borderMat = new THREE.LineBasicMaterial({ color: 0x224488, linewidth: 2 });
+const border = new THREE.LineSegments(borderGeo, borderMat);
+border.position.z = -0.4;
+scene.add(border);
+
+// ─── PLAYER ──────────────────────────────────────────────────────────────────
+const playerGeo = new THREE.SphereGeometry(0.4, 16, 16);
+const playerMat = new THREE.MeshStandardMaterial({
+  color: 0x44ffcc,
+  emissive: 0x44ffcc,
+  emissiveIntensity: 0.3,
+  roughness: 0.3,
+  metalness: 0.7
+});
+const player = new THREE.Mesh(playerGeo, playerMat);
+player.position.set(0, 0, 0);
+scene.add(player);
+
+// Player glow ring
+const ringGeo = new THREE.RingGeometry(0.5, 0.65, 32);
+const ringMat = new THREE.MeshBasicMaterial({ color: 0x44ffcc, side: THREE.DoubleSide, transparent: true, opacity: 0.3 });
+const playerRing = new THREE.Mesh(ringGeo, ringMat);
+player.add(playerRing);
+
+// ─── INPUT ───────────────────────────────────────────────────────────────────
+const keys = {};
+let mouseX = 0, mouseY = 0;
+let mouseWorldX = 0, mouseWorldY = 0;
+let shooting = false;
+
+window.addEventListener('keydown', e => { keys[e.code] = true; });
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+window.addEventListener('mousemove', e => {
+  mouseX = e.clientX; mouseY = e.clientY;
+  // Convert to world coords
+  const nx = (e.clientX / window.innerWidth) * 2 - 1;
+  const ny = -(e.clientY / window.innerHeight) * 2 + 1;
+  const aspect = window.innerWidth / window.innerHeight;
+  const h = 10.1;
+  mouseWorldX = nx * h * aspect * 1.78;
+  mouseWorldY = ny * h;
+
+  document.getElementById('crosshair').style.left = e.clientX + 'px';
+  document.getElementById('crosshair').style.top = e.clientY + 'px';
+});
+window.addEventListener('mousedown', e => { if (e.button === 0) shooting = true; });
+window.addEventListener('mouseup', e => { if (e.button === 0) shooting = false; });
+
+// ─── AUDIO ───────────────────────────────────────────────────────────────────
+let audioCtx = null;
+
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function playSound(freq, type, duration, vol = 0.3) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.frequency.value = freq;
+  osc.type = type;
+  gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+}
+
+function sfxShoot() { playSound(440, 'square', 0.08, 0.1); }
+function sfxHit() {
+  playSound(180, 'sawtooth', 0.15, 0.25);
+  playSound(120, 'sine', 0.2, 0.2);
+}
+function sfxKill() {
+  playSound(300, 'square', 0.1, 0.2);
+  playSound(600, 'sine', 0.15, 0.15);
+}
+function sfxDie() {
+  playSound(100, 'sawtooth', 0.5, 0.4);
+  playSound(80, 'sine', 0.6, 0.4);
+}
+function sfxVoteClick() {
+  playSound(520, 'sine', 0.1, 0.2);
+  playSound(660, 'sine', 0.15, 0.15);
+}
+function sfxRoundStart() {
+  playSound(440, 'sine', 0.15, 0.2);
+  playSound(660, 'sine', 0.2, 0.2);
+  playSound(880, 'sine', 0.25, 0.2);
+}
+
+// BGM
+let bgmNode = null;
+function startBGM() {
+  if (!audioCtx || bgmNode) return;
+  const notes = [220, 246, 262, 294, 330];
+  let idx = 0;
+  function scheduleNote() {
+    if (state === 'end') return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.frequency.value = notes[idx % notes.length];
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.3);
+    idx++;
+    bgmNode = setTimeout(scheduleNote, 320);
   }
-];
-
-// ─── GAME STATE (MODULE-SCOPE) ─────────────────────────────────────────────
-const ARENA = 9;
-const ROUND_TIME = 30;
-const TOTAL_ROUNDS = 3;
-
-let gs = {};
-let playerMesh = null, playerLight = null;
-let bullets = [], enemies = [], particles = [];
-let keys = {};
-let mouseWorld = new THREE.Vector3();
-let animId = null;
-let clock = new THREE.Clock();
-let lastSpawnTime = 0;
-let shakeTimer = 0, shakeIntensity = 0;
-let autoFireTimer = 0;
-let scoreFlashTimer = 0;
-let roundAnnounceTimer = 0;
-
-function initGS() {
-  gs = {
-    phase: 'idle',
-    round: 1,
-    health: 3,
-    score: 0,
-    roundTimer: ROUND_TIME,
-    chosenModifiers: [],
-    // active modifiers
-    gravityFlip: false,
-    tinyYou: false,
-    slowWorld: false,
-    mirrorMode: false,
-    turretOnly: false,
-    invincibleTimer: 0,
-  };
+  scheduleNote();
 }
 
-function applyModifier(id) {
-  gs.gravityFlip  = (id === 'gravity_flip');
-  gs.tinyYou      = (id === 'tiny_you');
-  gs.slowWorld    = (id === 'slow_world');
-  gs.mirrorMode   = (id === 'mirror_mode');
-  gs.turretOnly   = (id === 'turret_only');
-}
-
-// ─── SCENE OBJECTS ────────────────────────────────────────────────────────────
-function clearScene() {
-  bullets.forEach(b => scene.remove(b.mesh));
-  enemies.forEach(e => scene.remove(e.mesh));
-  particles.forEach(p => scene.remove(p.pts));
-  bullets = []; enemies = []; particles = [];
-  if (playerMesh) { scene.remove(playerMesh); playerMesh = null; }
-}
-
-function createPlayer() {
-  clearScene();
-  const scale = gs.tinyYou ? 0.4 : 1.0;
-  const geo = new THREE.SphereGeometry(0.5, 16, 16);
-  const mat = new THREE.MeshStandardMaterial({ color: 0x00ddee, emissive: 0x002244, metalness: 0.3, roughness: 0.5 });
-  playerMesh = new THREE.Mesh(geo, mat);
-  playerMesh.scale.setScalar(scale);
-  playerMesh.position.set(0, 0.5, 0);
-  playerLight = new THREE.PointLight(0x00ddee, 2.5, 7);
-  playerMesh.add(playerLight);
-  scene.add(playerMesh);
-}
-
+// ─── ENEMY FACTORY ───────────────────────────────────────────────────────────
 function spawnEnemy() {
-  const colors = [0xff3333, 0xff6600, 0xffaa00, 0xff00aa, 0x9900ff];
-  const col = colors[Math.floor(Math.random() * colors.length)];
-  const geos = [
-    new THREE.IcosahedronGeometry(0.45, 0),
-    new THREE.OctahedronGeometry(0.5, 0),
-    new THREE.TetrahedronGeometry(0.52, 0),
-  ];
-  const geo = geos[Math.floor(Math.random() * geos.length)];
-  const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.35, metalness: 0.2, roughness: 0.6 });
-  const mesh = new THREE.Mesh(geo, mat);
-  const light = new THREE.PointLight(col, 1.8, 5);
-  mesh.add(light);
-
-  let x, z, y = 0.5;
-  if (gs.gravityFlip) {
-    x = (Math.random()-0.5) * (ARENA*2 - 2);
-    z = (Math.random()-0.5) * (ARENA*2 - 2);
-    y = 14 + Math.random() * 4;
-  } else {
-    const side = Math.floor(Math.random() * 4);
-    const off = (Math.random()-0.5) * (ARENA*2);
-    if (side===0) { x=-ARENA-2; z=off; }
-    else if (side===1) { x= ARENA+2; z=off; }
-    else if (side===2) { x=off; z=-ARENA-2; }
-    else               { x=off; z= ARENA+2; }
-  }
-  mesh.position.set(x, y, z);
-  scene.add(mesh);
-
-  const sm = gs.slowWorld ? 0.4 : 1.0;
-  const speed = (0.032 + Math.random()*0.022 + (gs.round-1)*0.009) * sm;
-  enemies.push({
-    mesh, speed,
-    rotSpeed: (Math.random()-0.5)*0.09,
-    hp: gs.round >= 3 ? 2 : 1,
-    fallMode: gs.gravityFlip,
-    fallSpeed: gs.gravityFlip ? (0.045 + Math.random()*0.025)*sm : 0,
+  const geo = new THREE.OctahedronGeometry(0.35 + Math.random() * 0.2);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xff3322,
+    emissive: 0xff2200,
+    emissiveIntensity: 0.4,
+    roughness: 0.3,
+    metalness: 0.5
   });
+  const mesh = new THREE.Mesh(geo, mat);
+
+  let spawnX, spawnY;
+
+  if (activeModifier === 'gravity_flip') {
+    // Spawn from top edge
+    spawnX = (Math.random() - 0.5) * ARENA_SIZE * 2;
+    spawnY = ARENA_SIZE + 1;
+  } else {
+    // Spawn from random edge
+    const side = Math.floor(Math.random() * 4);
+    if (side === 0) { spawnX = -ARENA_SIZE - 1; spawnY = (Math.random() - 0.5) * ARENA_SIZE * 2; }
+    else if (side === 1) { spawnX = ARENA_SIZE + 1; spawnY = (Math.random() - 0.5) * ARENA_SIZE * 2; }
+    else if (side === 2) { spawnX = (Math.random() - 0.5) * ARENA_SIZE * 2; spawnY = -ARENA_SIZE - 1; }
+    else { spawnX = (Math.random() - 0.5) * ARENA_SIZE * 2; spawnY = ARENA_SIZE + 1; }
+  }
+
+  mesh.position.set(spawnX, spawnY, 0);
+
+  const speedMult = (activeModifier === 'slow_world') ? 0.4 : 1.0;
+  const speed = (ENEMY_BASE_SPEED + Math.random() * 0.8) * speedMult;
+
+  scene.add(mesh);
+  enemies.push({ mesh, speed, hp: 1, hitFlash: 0 });
 }
 
-function fireBullet(fromPos, dir) {
-  const scale = gs.tinyYou ? 0.28 : 1.0;
-  const geo = new THREE.SphereGeometry(0.14*scale, 8, 8);
-  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 2.0 });
+// ─── BULLET FACTORY ──────────────────────────────────────────────────────────
+function fireBullet() {
+  const dx = mouseWorldX - player.position.x;
+  const dy = mouseWorldY - player.position.y;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+
+  const size = (activeModifier === 'tiny_you') ? 0.08 : 0.15;
+  const geo = new THREE.SphereGeometry(size, 8, 8);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xffff44,
+    emissive: 0xffff44,
+    emissiveIntensity: 1.0
+  });
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.copy(fromPos);
-  mesh.position.y = 0.5;
-  const bLight = new THREE.PointLight(0xffffff, 2.5, 3.5);
-  mesh.add(bLight);
+  mesh.position.copy(player.position);
+  mesh.position.z = 0;
   scene.add(mesh);
-  const sm = gs.slowWorld ? 0.4 : 1.0;
-  bullets.push({ mesh, vel: dir.clone().normalize().multiplyScalar(0.38*sm), life: 85 });
+
+  const speedMult = (activeModifier === 'slow_world') ? 0.4 : 1.0;
+  const bspeed = BULLET_SPEED * speedMult;
+
+  bullets.push({
+    mesh,
+    vx: (dx / len) * bspeed,
+    vy: (dy / len) * bspeed,
+    life: 2.0
+  });
+
   sfxShoot();
 }
 
-function spawnParticles(pos, color=0xff6600, count=14) {
-  const verts = [];
-  const vels = [];
+// ─── PARTICLE BURST ──────────────────────────────────────────────────────────
+function spawnParticles(x, y, color, count = 12) {
   for (let i = 0; i < count; i++) {
-    verts.push(pos.x, pos.y+0.3, pos.z);
-    vels.push((Math.random()-0.5)*0.28, Math.random()*0.22+0.05, (Math.random()-0.5)*0.28);
+    const geo = new THREE.SphereGeometry(0.05 + Math.random() * 0.07, 6, 6);
+    const mat = new THREE.MeshBasicMaterial({ color });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, y, 0);
+    scene.add(mesh);
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 4;
+    particles.push({
+      mesh,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 0.4 + Math.random() * 0.3
+    });
   }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-  const mat = new THREE.PointsMaterial({ color, size: 0.28, transparent: true, opacity: 1.0 });
-  const pts = new THREE.Points(geo, mat);
-  scene.add(pts);
-  particles.push({ pts, vels, life: 45 });
 }
 
-// ─── RAYCASTER ────────────────────────────────────────────────────────────────
-const raycaster = new THREE.Raycaster();
-const groundPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
-const mouseNDC = new THREE.Vector2();
-
-window.addEventListener('mousemove', e => {
-  mouseNDC.x = (e.clientX / innerWidth)*2 - 1;
-  mouseNDC.y = -(e.clientY / innerHeight)*2 + 1;
-  if (gs.phase === 'playing') {
-    raycaster.setFromCamera(mouseNDC, camera);
-    raycaster.ray.intersectPlane(groundPlane, mouseWorld);
-  }
-});
-
-window.addEventListener('mousedown', e => {
-  if (e.button === 0) {
-    ensureAudio();
-    if (gs.phase === 'playing' && !gs.turretOnly) shootPlayer();
-  }
-});
-
-window.addEventListener('keydown', e => { keys[e.code] = true; });
-window.addEventListener('keyup',   e => { keys[e.code] = false; });
-
-function shootPlayer() {
-  if (!playerMesh) return;
-  const dir = mouseWorld.clone().sub(playerMesh.position);
-  dir.y = 0;
-  if (dir.lengthSq() < 0.01) return;
-  fireBullet(playerMesh.position.clone(), dir);
+// ─── SCREEN SHAKE ────────────────────────────────────────────────────────────
+function triggerShake(intensity = 0.3) {
+  shakeIntensity = intensity;
+  shakeTime = 0.2;
+  document.getElementById('ui').classList.add('shaking');
+  setTimeout(() => document.getElementById('ui').classList.remove('shaking'), 200);
 }
 
-// ─── HUD ─────────────────────────────────────────────────────────────────────
+// ─── PLAYER HIT ──────────────────────────────────────────────────────────────
+let invincibleTime = 0;
+
+function hitPlayer() {
+  if (invincibleTime > 0) return;
+  health--;
+  invincibleTime = 1.5;
+  sfxHit();
+  triggerShake(0.5);
+  playerMat.emissive.set(0xff0000);
+  playerMat.emissiveIntensity = 1.0;
+  setTimeout(() => {
+    playerMat.emissive.set(0x44ffcc);
+    playerMat.emissiveIntensity = 0.3;
+  }, 300);
+  updateHUD();
+  if (health <= 0) endGame(false);
+}
+
+// ─── CLEAR ENTITIES ──────────────────────────────────────────────────────────
+function clearEntities() {
+  for (const e of enemies) scene.remove(e.mesh);
+  for (const b of bullets) scene.remove(b.mesh);
+  for (const p of particles) scene.remove(p.mesh);
+  enemies = [];
+  bullets = [];
+  particles = [];
+}
+
+// ─── HUD UPDATE ──────────────────────────────────────────────────────────────
 function updateHUD() {
-  ['h1','h2','h3'].forEach((id, i) => {
-    const el = document.getElementById(id);
-    if (el) el.className = 'heart' + (i >= gs.health ? ' lost' : '');
-  });
-  const sc = document.getElementById('score-display');
-  if (sc) sc.textContent = 'SCORE: ' + gs.score;
-  const tm = document.getElementById('timer-display');
-  if (tm) {
-    const t = Math.max(0, Math.ceil(gs.roundTimer));
-    tm.textContent = '0:' + String(t).padStart(2,'0');
-    tm.style.color = t <= 5 ? '#ff4444' : '#fff';
+  const hpDiv = document.getElementById('health-bar');
+  hpDiv.innerHTML = '';
+  for (let i = 0; i < MAX_HEALTH; i++) {
+    const pip = document.createElement('div');
+    pip.className = 'health-pip' + (i >= health ? ' empty' : '');
+    hpDiv.appendChild(pip);
   }
-  const rd = document.getElementById('round-display');
-  if (rd) rd.textContent = 'Round ' + gs.round + ' / ' + TOTAL_ROUNDS;
+  document.getElementById('score-display').textContent = `SCORE: ${score}`;
+  document.getElementById('round-display').textContent = `ROUND ${round}/${TOTAL_ROUNDS}`;
 
-  const am = document.getElementById('active-modifier');
-  if (am) {
-    const mod = gs.chosenModifiers[gs.chosenModifiers.length - 1];
-    if (mod && gs.phase === 'playing') {
-      const def = MODIFIER_DEFS.find(m => m.id === mod);
-      am.style.display = 'block';
-      am.textContent = def ? (def.icon + ' ' + def.name) : mod;
-    } else {
-      am.style.display = 'none';
-    }
+  // Modifier banner
+  const banner = document.getElementById('modifier-banner');
+  if (activeModifier && state === 'playing') {
+    const mod = MODIFIERS[activeModifier];
+    banner.textContent = `⚡ ${mod.name.toUpperCase()} ACTIVE`;
+    banner.style.display = 'block';
+  } else {
+    banner.style.display = 'none';
   }
 }
 
-// ─── VOTE SCREEN ─────────────────────────────────────────────────────────────
+// ─── APPLY MODIFIER EFFECTS ──────────────────────────────────────────────────
+function applyModifier(modId) {
+  activeModifier = modId;
+  if (modId === 'tiny_you') {
+    player.scale.setScalar(0.4);
+  } else {
+    player.scale.setScalar(1.0);
+  }
+}
+
+// ─── SHOW VOTE SCREEN ────────────────────────────────────────────────────────
 function showVoteScreen() {
-  gs.phase = 'voting';
-  stopBGM();
+  state = 'voting';
+  clearEntities();
 
-  // Pick 3 random modifiers (don't repeat previous unless all used)
-  const pool = MODIFIER_DEFS.filter(m => true); // all 5 always available
-  const shuffled = pool.sort(() => Math.random()-0.5).slice(0, 3);
+  // Pick 3 random modifiers
+  const modKeys = Object.keys(MODIFIERS);
+  const shuffled = modKeys.sort(() => Math.random() - 0.5).slice(0, 3);
 
-  const container = document.getElementById('vote-cards-container');
+  const container = document.getElementById('vote-cards');
   container.innerHTML = '';
-  shuffled.forEach(mod => {
+
+  for (const modId of shuffled) {
+    const mod = MODIFIERS[modId];
     const card = document.createElement('div');
     card.className = 'vote-card';
     card.innerHTML = `
-      <span class="card-icon">${mod.icon}</span>
-      <div class="card-name">${mod.name}</div>
-      <div class="card-desc">${mod.desc}</div>
-      <div class="card-skill">Skill: ${mod.skill}</div>
+      <div class="vote-card-icon">${mod.icon}</div>
+      <div class="vote-card-name">${mod.name}</div>
+      <div class="vote-card-desc">${mod.desc}</div>
+      <div class="vote-card-tag">${mod.tag}</div>
     `;
     card.addEventListener('click', () => {
-      ensureAudio();
-      sfxVote();
-      gs.chosenModifiers.push(mod.id);
-      applyModifier(mod.id);
-      document.getElementById('vote-screen').classList.add('hidden');
-      startRound();
+      sfxVoteClick();
+      voteHistory.push({ round: round + 1, mod: modId, name: mod.name, icon: mod.icon });
+      document.getElementById('vote-screen').style.display = 'none';
+      applyModifier(modId);
+      startRound(round + 1);
     });
     container.appendChild(card);
-  });
-
-  document.getElementById('vote-screen').classList.remove('hidden');
-}
-
-// ─── ROUND START ─────────────────────────────────────────────────────────────
-function startRound() {
-  ensureAudio();
-  enemies.forEach(e => scene.remove(e.mesh));
-  bullets.forEach(b => scene.remove(b.mesh));
-  enemies = []; bullets = [];
-
-  createPlayer(); // recreates with current modifiers applied
-  gs.roundTimer = ROUND_TIME;
-  lastSpawnTime = 0;
-  clock.getDelta();
-  // Show round announce
-  const roundAnn = document.getElementById('round-announce');
-  const modText = document.getElementById('ann-mod-text');
-  document.getElementById('ann-round-text').textContent = 'ROUND ' + gs.round;
-  const lastMod = gs.chosenModifiers[gs.chosenModifiers.length - 1];
-  if (lastMod) {
-    const def = MODIFIER_DEFS.find(m => m.id === lastMod);
-    modText.textContent = def ? (def.icon + ' ' + def.name + ' ACTIVE') : lastMod;
-  } else {
-    modText.textContent = 'NO MODIFIER';
   }
-  roundAnn.classList.add('visible');
-  roundAnnounceTimer = 2.0;
 
-  gs.phase = 'playing';
-  sfxRound();
-  startBGM();
-  updateHUD();
+  document.getElementById('vote-screen').style.display = 'flex';
 }
 
-// ─── GAME START / RESTART ─────────────────────────────────────────────────────
-function startGame() {
-  ensureAudio();
-  initGS();
-  ['start-screen','vote-screen','death-screen','win-screen'].forEach(id => {
-    document.getElementById(id).classList.add('hidden');
-  });
-  startRound();
-  if (!animId) animate();
-}
-
-function restartGame() {
-  if (animId) { cancelAnimationFrame(animId); animId = null; }
-  clearScene();
-  stopBGM();
-  ['vote-screen','death-screen','win-screen'].forEach(id => {
-    document.getElementById(id).classList.add('hidden');
-  });
-  startGame();
-}
-
-document.getElementById('start-btn').addEventListener('click', startGame);
-document.getElementById('retry-btn').addEventListener('click', restartGame);
-document.getElementById('win-retry-btn').addEventListener('click', restartGame);
-
-// ─── DAMAGE PLAYER ────────────────────────────────────────────────────────────
-function damagePlayer() {
-  if (gs.invincibleTimer > 0) return;
-  gs.health--;
-  gs.invincibleTimer = 1.5;
-  sfxHit();
-  triggerShake(0.4, 0.3);
-
-  // Flash player red
-  if (playerMesh) {
-    playerMesh.material.emissive.set(0xff0000);
-    setTimeout(() => {
-      if (playerMesh) playerMesh.material.emissive.set(0x002244);
-    }, 250);
-  }
-  updateHUD();
-
-  if (gs.health <= 0) {
-    showDeath();
-  }
-}
-
-function triggerShake(intensity, duration) {
-  shakeIntensity = intensity;
-  shakeTimer = duration;
-}
-
-function showDeath() {
-  gs.phase = 'dead';
-  stopBGM();
-  sfxLose();
-  clearScene();
-  document.getElementById('death-score-text').textContent = 'Score: ' + gs.score;
-  const lastMod = gs.chosenModifiers[gs.chosenModifiers.length - 1];
-  if (lastMod) {
-    const def = MODIFIER_DEFS.find(m => m.id === lastMod);
-    document.getElementById('death-modifier-text').textContent = def ? (def.icon + ' ' + def.name) : lastMod;
-    document.getElementById('death-blame').textContent = '💀 You chose this.';
-  } else {
-    document.getElementById('death-modifier-text').textContent = 'No modifier';
-    document.getElementById('death-blame').textContent = '💀';
-  }
-  document.getElementById('death-screen').classList.remove('hidden');
-}
-
-function showWin() {
-  gs.phase = 'win';
-  stopBGM();
-  sfxWin();
-  clearScene();
-  document.getElementById('win-score-text').textContent = gs.score;
-  // Show voted modifiers
-  const mods = gs.chosenModifiers.map(id => {
-    const def = MODIFIER_DEFS.find(m => m.id === id);
-    return def ? (def.icon + ' ' + def.name) : id;
-  }).join('  ·  ');
-  document.getElementById('win-mods-list').textContent = 'Voted: ' + (mods || 'Nothing');
-  document.getElementById('win-screen').classList.remove('hidden');
-}
-
-// ─── SCORE FLASH ──────────────────────────────────────────────────────────────
-function flashScore(text) {
-  const el = document.getElementById('score-flash');
+// ─── ROUND FLASH ─────────────────────────────────────────────────────────────
+function showRoundFlash(text, color = '#ffffff') {
+  const el = document.getElementById('round-flash');
   el.textContent = text;
+  el.style.color = color;
   el.style.opacity = '1';
-  scoreFlashTimer = 0.8;
+  el.style.fontSize = '48px';
+  el.style.transition = 'opacity 0.8s ease, font-size 0.4s ease';
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.fontSize = '64px';
+  }, 800);
 }
 
-// ─── MAIN LOOP ────────────────────────────────────────────────────────────────
-const camOrigin = new THREE.Vector3(0, 20, 20);
+// ─── START ROUND ─────────────────────────────────────────────────────────────
+function startRound(r) {
+  round = r;
+  state = 'playing';
+  roundTimer = ROUND_DURATION;
+  enemySpawnTimer = 0;
+  enemySpawnInterval = Math.max(0.5, 2.0 - (r - 1) * 0.3);
+  document.getElementById('hud').style.display = 'flex';
+  updateHUD();
+  showRoundFlash(`ROUND ${r}`, '#ffd700');
+  sfxRoundStart();
+  startBGM();
+}
 
-function animate() {
-  animId = requestAnimationFrame(animate);
-  const rawDt = clock.getDelta();
-  const dt = Math.min(rawDt, 0.1);
+// ─── GAME START ──────────────────────────────────────────────────────────────
+window.startGame = function() {
+  initAudio();
+  document.getElementById('title-screen').style.display = 'none';
+  health = MAX_HEALTH;
+  score = 0;
+  round = 1;
+  activeModifier = null;
+  voteHistory = [];
+  player.position.set(0, 0, 0);
+  player.scale.setScalar(1.0);
+  clearEntities();
+  startRound(1);
+};
 
-  // Round announce fade
-  if (roundAnnounceTimer > 0) {
-    roundAnnounceTimer -= dt;
-    if (roundAnnounceTimer <= 0) {
-      document.getElementById('round-announce').classList.remove('visible');
+// ─── GAME RESTART ────────────────────────────────────────────────────────────
+window.restartGame = function() {
+  initAudio();
+  document.getElementById('end-screen').style.display = 'none';
+  health = MAX_HEALTH;
+  score = 0;
+  round = 1;
+  activeModifier = null;
+  voteHistory = [];
+  player.position.set(0, 0, 0);
+  player.scale.setScalar(1.0);
+  clearEntities();
+  startRound(1);
+};
+
+// ─── END GAME ────────────────────────────────────────────────────────────────
+function endGame(won) {
+  state = 'end';
+  clearEntities();
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('modifier-banner').style.display = 'none';
+  if (bgmNode) { clearTimeout(bgmNode); bgmNode = null; }
+
+  const endScreen = document.getElementById('end-screen');
+  const endTitle = document.getElementById('end-title');
+
+  if (won) {
+    endTitle.textContent = '🏆 YOU SURVIVED';
+    endTitle.style.color = '#ffd700';
+  } else {
+    endTitle.textContent = 'GAME OVER';
+    endTitle.style.color = '#ff4444';
+    sfxDie();
+  }
+
+  document.getElementById('end-score').textContent = `SCORE: ${score}`;
+
+  // Vote history
+  const histDiv = document.getElementById('end-vote-history');
+  histDiv.innerHTML = '';
+  if (voteHistory.length === 0) {
+    histDiv.innerHTML = '<div class="end-vote-item" style="color:#666">No modifiers chosen (Round 1 only)</div>';
+  } else {
+    for (const v of voteHistory) {
+      const item = document.createElement('div');
+      item.className = 'end-vote-item';
+      item.innerHTML = `<span class="end-vote-round">Round ${v.round}:</span><span>${v.icon} ${v.name}</span>`;
+      histDiv.appendChild(item);
     }
   }
 
-  // Score flash fade
-  if (scoreFlashTimer > 0) {
-    scoreFlashTimer -= dt;
-    const el = document.getElementById('score-flash');
-    el.style.opacity = Math.max(0, scoreFlashTimer / 0.8).toString();
-    if (scoreFlashTimer <= 0) el.style.opacity = '0';
-  }
+  endScreen.style.display = 'flex';
+}
 
-  // Camera shake
-  if (shakeTimer > 0) {
-    shakeTimer -= dt;
-    camera.position.x = camOrigin.x + (Math.random()-0.5) * shakeIntensity;
-    camera.position.y = camOrigin.y + (Math.random()-0.5) * shakeIntensity;
-    camera.position.z = camOrigin.z + (Math.random()-0.5) * shakeIntensity;
-    camera.lookAt(0, 0, 0);
+// ─── MAIN UPDATE LOOP ────────────────────────────────────────────────────────
+const clock = new THREE.Clock();
+
+function update(dt) {
+  if (state !== 'playing') return;
+
+  // Invincibility timer
+  if (invincibleTime > 0) invincibleTime -= dt;
+
+  // Screen shake
+  if (shakeTime > 0) {
+    shakeTime -= dt;
+    const s = shakeIntensity * (shakeTime / 0.2);
+    camera.position.x = (Math.random() - 0.5) * s;
+    camera.position.y = (Math.random() - 0.5) * s;
   } else {
-    camera.position.lerp(camOrigin, 0.15);
-    camera.lookAt(0, 0, 0);
+    camera.position.x = 0;
+    camera.position.y = 0;
   }
 
-  // Ring light pulse
-  ringLight.intensity = 3 + Math.sin(Date.now() * 0.002) * 1.5;
+  // ─── PLAYER MOVEMENT ───────────────────────────────────────────────────────
+  const speedMult = (activeModifier === 'slow_world') ? 0.4 : 1.0;
+  const canMove = activeModifier !== 'turret_only';
 
-  if (gs.phase !== 'playing') {
-    if (composer) composer.render(); else renderer.render(scene, camera);
-    return;
-  }
-
-  // ── ROUND TIMER ──
-  gs.roundTimer -= dt;
-  if (gs.roundTimer <= 0) {
-    gs.roundTimer = 0;
-    endRound();
-    if (composer) composer.render(); else renderer.render(scene, camera);
-    return;
-  }
-
-  // ── INVINCIBILITY ──
-  if (gs.invincibleTimer > 0) {
-    gs.invincibleTimer -= dt;
-    if (playerMesh) playerMesh.visible = Math.floor(Date.now() / 100) % 2 === 0;
-  } else {
-    if (playerMesh) playerMesh.visible = true;
-  }
-
-  // ── PLAYER MOVEMENT ──
-  if (playerMesh && !gs.turretOnly) {
-    const speed = 0.12 * (gs.slowWorld ? 0.4 : 1.0);
-    const mx = gs.mirrorMode ? -1 : 1;
-    if (keys['KeyW'] || keys['ArrowUp'])    playerMesh.position.z -= speed * mx;
-    if (keys['KeyS'] || keys['ArrowDown'])  playerMesh.position.z += speed * mx;
-    if (keys['KeyA'] || keys['ArrowLeft'])  playerMesh.position.x -= speed * mx;
-    if (keys['KeyD'] || keys['ArrowRight']) playerMesh.position.x += speed * mx;
-    playerMesh.position.x = Math.max(-ARENA, Math.min(ARENA, playerMesh.position.x));
-    playerMesh.position.z = Math.max(-ARENA, Math.min(ARENA, playerMesh.position.z));
-  }
-
-  // Player rotate toward mouse
-  if (playerMesh && mouseWorld.lengthSq() > 0.01) {
-    const angle = Math.atan2(mouseWorld.x - playerMesh.position.x, mouseWorld.z - playerMesh.position.z);
-    playerMesh.rotation.y = angle;
-  }
-
-  // Auto-fire for turret_only
-  if (gs.turretOnly && playerMesh) {
-    autoFireTimer += dt;
-    if (autoFireTimer >= 0.25 * (gs.slowWorld ? 2.5 : 1)) {
-      autoFireTimer = 0;
-      if (enemies.length > 0) {
-        // Aim at nearest enemy
-        let nearest = null, nearDist = 9999;
-        enemies.forEach(e => {
-          const d = e.mesh.position.distanceTo(playerMesh.position);
-          if (d < nearDist) { nearDist = d; nearest = e; }
-        });
-        if (nearest) {
-          const dir = nearest.mesh.position.clone().sub(playerMesh.position);
-          dir.y = 0;
-          fireBullet(playerMesh.position.clone(), dir);
-        }
-      }
+  if (canMove) {
+    const flipMult = (activeModifier === 'mirror_mode') ? -1 : 1;
+    let px = 0, py = 0;
+    if (keys['KeyW'] || keys['ArrowUp'])    py += 1;
+    if (keys['KeyS'] || keys['ArrowDown'])  py -= 1;
+    if (keys['KeyA'] || keys['ArrowLeft'])  px -= 1;
+    if (keys['KeyD'] || keys['ArrowRight']) px += 1;
+    const len = Math.sqrt(px*px + py*py) || 1;
+    if (px !== 0 || py !== 0) {
+      player.position.x += (px / len) * PLAYER_SPEED * speedMult * flipMult * dt;
+      player.position.y += (py / len) * PLAYER_SPEED * speedMult * flipMult * dt;
     }
   }
 
-  // ── SPAWN ENEMIES ──
-  const elapsed = ROUND_TIME - gs.roundTimer;
-  const spawnInterval = Math.max(600, ENEMY_SPAWN_BASE - elapsed * 40) * (gs.slowWorld ? 2.5 : 1);
-  const now = Date.now();
-  if (now - lastSpawnTime > spawnInterval) {
-    lastSpawnTime = now;
-    const count = Math.min(1 + Math.floor(elapsed / 8), 4);
-    for (let i = 0; i < count; i++) spawnEnemy();
+  // Clamp to arena
+  const scale = player.scale.x;
+  player.position.x = Math.max(-ARENA_SIZE + scale, Math.min(ARENA_SIZE - scale, player.position.x));
+  player.position.y = Math.max(-ARENA_SIZE + scale, Math.min(ARENA_SIZE - scale, player.position.y));
+
+  // Player rotation (cosmetic)
+  player.rotation.z += dt * 1.5;
+
+  // ─── SHOOTING ──────────────────────────────────────────────────────────────
+  shootTimer -= dt;
+  if (activeModifier === 'turret_only') {
+    // Auto-fire toward closest enemy
+    if (shootTimer <= 0 && enemies.length > 0) {
+      let closest = null, closestDist = Infinity;
+      for (const e of enemies) {
+        const d = e.mesh.position.distanceTo(player.position);
+        if (d < closestDist) { closestDist = d; closest = e; }
+      }
+      if (closest) {
+        mouseWorldX = closest.mesh.position.x;
+        mouseWorldY = closest.mesh.position.y;
+        fireBullet();
+        shootTimer = SHOOT_COOLDOWN * speedMult;
+      }
+    }
+  } else if (shooting && shootTimer <= 0) {
+    fireBullet();
+    shootTimer = SHOOT_COOLDOWN * speedMult;
   }
 
-  // ── UPDATE ENEMIES ──
-  const toRemoveE = [];
-  enemies.forEach(e => {
-    e.mesh.rotation.x += e.rotSpeed;
-    e.mesh.rotation.z += e.rotSpeed * 0.7;
+  // ─── ENEMIES ───────────────────────────────────────────────────────────────
+  enemySpawnTimer -= dt;
+  if (enemySpawnTimer <= 0) {
+    spawnEnemy();
+    spawnEnemy(); // 2 at a time for tension
+    if (round >= 3) spawnEnemy(); // 3 in round 3
+    enemySpawnTimer = enemySpawnInterval;
+  }
 
-    if (e.fallMode) {
-      // Fall down
-      e.mesh.position.y -= e.fallSpeed;
-      if (e.mesh.position.y <= 0.5) {
-        e.mesh.position.y = 0.5;
-        e.fallMode = false; // now chase
-      }
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    const dx = player.position.x - e.mesh.position.x;
+    const dy = player.position.y - e.mesh.position.y;
+    const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+
+    // Gravity flip: move downward primarily, slight player tracking
+    let moveX, moveY;
+    if (activeModifier === 'gravity_flip') {
+      moveX = (dx / dist) * 0.3;
+      moveY = -1.0; // primarily fall down
+      const len2 = Math.sqrt(moveX*moveX + moveY*moveY);
+      moveX /= len2; moveY /= len2;
     } else {
-      // Chase player
-      if (playerMesh) {
-        const dir = playerMesh.position.clone().sub(e.mesh.position);
-        dir.y = 0;
-        dir.normalize();
-        e.mesh.position.addScaledVector(dir, e.speed);
-      }
+      moveX = dx / dist;
+      moveY = dy / dist;
     }
 
-    // Out of bounds
-    if (Math.abs(e.mesh.position.x) > ARENA+5 || Math.abs(e.mesh.position.z) > ARENA+5 || e.mesh.position.y < -5) {
-      toRemoveE.push(e);
-      return;
+    e.mesh.position.x += moveX * e.speed * speedMult * dt;
+    e.mesh.position.y += moveY * e.speed * speedMult * dt;
+    e.mesh.rotation.x += dt * 2;
+    e.mesh.rotation.y += dt * 1.5;
+
+    // Hit flash
+    if (e.hitFlash > 0) {
+      e.hitFlash -= dt;
+      e.mesh.material.emissiveIntensity = 2.0;
+    } else {
+      e.mesh.material.emissiveIntensity = 0.4;
     }
 
-    // Hit player
-    if (playerMesh && e.mesh.position.distanceTo(playerMesh.position) < 0.85) {
-      toRemoveE.push(e);
-      damagePlayer();
-    }
-  });
-  toRemoveE.forEach(e => { scene.remove(e.mesh); enemies.splice(enemies.indexOf(e), 1); });
-
-  // ── UPDATE BULLETS ──
-  const toRemoveB = [];
-  bullets.forEach(b => {
-    b.mesh.position.add(b.vel);
-    b.life--;
-
-    if (b.life <= 0 ||
-        Math.abs(b.mesh.position.x) > ARENA+2 ||
-        Math.abs(b.mesh.position.z) > ARENA+2) {
-      toRemoveB.push(b);
-      return;
+    // Out of arena cleanup
+    if (Math.abs(e.mesh.position.x) > ARENA_SIZE + 3 || Math.abs(e.mesh.position.y) > ARENA_SIZE + 3) {
+      scene.remove(e.mesh);
+      enemies.splice(i, 1);
+      continue;
     }
 
-    // Hit enemy
-    for (let i = 0; i < enemies.length; i++) {
-      const e = enemies[i];
-      if (b.mesh.position.distanceTo(e.mesh.position) < 0.7) {
-        e.hp--;
-        spawnParticles(e.mesh.position.clone(), e.mesh.material.color.getHex());
-        if (e.hp <= 0) {
-          scene.remove(e.mesh);
-          enemies.splice(i, 1);
-          gs.score += 10 * gs.round;
-          sfxKill();
-          flashScore('+' + (10 * gs.round));
-        } else {
-          e.mesh.material.emissiveIntensity = 1.5;
-          setTimeout(() => { if (e.mesh) e.mesh.material.emissiveIntensity = 0.35; }, 100);
-        }
-        toRemoveB.push(b);
+    // Collision with player
+    const hitRadius = (activeModifier === 'tiny_you') ? 0.3 : 0.7;
+    if (dist < hitRadius) {
+      scene.remove(e.mesh);
+      enemies.splice(i, 1);
+      hitPlayer();
+      if (state !== 'playing') return;
+    }
+  }
+
+  // ─── BULLETS ───────────────────────────────────────────────────────────────
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    b.mesh.position.x += b.vx * dt;
+    b.mesh.position.y += b.vy * dt;
+    b.life -= dt;
+
+    if (b.life <= 0 || Math.abs(b.mesh.position.x) > ARENA_SIZE + 2 || Math.abs(b.mesh.position.y) > ARENA_SIZE + 2) {
+      scene.remove(b.mesh);
+      bullets.splice(i, 1);
+      continue;
+    }
+
+    // Check bullet vs enemies
+    let hit = false;
+    for (let j = enemies.length - 1; j >= 0; j--) {
+      const e = enemies[j];
+      const d = b.mesh.position.distanceTo(e.mesh.position);
+      if (d < 0.5) {
+        spawnParticles(e.mesh.position.x, e.mesh.position.y, 0xff4422, 10);
+        scene.remove(e.mesh);
+        enemies.splice(j, 1);
+        score += 10;
+        sfxKill();
+        hit = true;
         break;
       }
     }
-  });
-  toRemoveB.forEach(b => { scene.remove(b.mesh); bullets.splice(bullets.indexOf(b), 1); });
-
-  // ── PARTICLES ──
-  const toRemoveP = [];
-  particles.forEach(p => {
-    p.life--;
-    const pos = p.pts.geometry.attributes.position;
-    for (let i = 0; i < p.vels.length/3; i++) {
-      pos.array[i*3]   += p.vels[i*3];
-      pos.array[i*3+1] += p.vels[i*3+1] - 0.008;
-      pos.array[i*3+2] += p.vels[i*3+2];
+    if (hit) {
+      scene.remove(b.mesh);
+      bullets.splice(i, 1);
     }
-    pos.needsUpdate = true;
-    p.pts.material.opacity = p.life / 45;
-    if (p.life <= 0) toRemoveP.push(p);
-  });
-  toRemoveP.forEach(p => { scene.remove(p.pts); particles.splice(particles.indexOf(p), 1); });
+  }
+
+  // ─── PARTICLES ─────────────────────────────────────────────────────────────
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.mesh.position.x += p.vx * dt;
+    p.mesh.position.y += p.vy * dt;
+    p.vx *= 0.9;
+    p.vy *= 0.9;
+    p.life -= dt;
+    p.mesh.material.opacity = p.life / 0.5;
+    p.mesh.material.transparent = true;
+    if (p.life <= 0) {
+      scene.remove(p.mesh);
+      particles.splice(i, 1);
+    }
+  }
+
+  // ─── TIMER ─────────────────────────────────────────────────────────────────
+  roundTimer -= dt;
+  const timerEl = document.getElementById('timer');
+  timerEl.textContent = Math.max(0, Math.ceil(roundTimer));
+  timerEl.style.color = roundTimer < 8 ? '#ff4444' : '#ffffff';
 
   updateHUD();
-  if (composer) composer.render(); else renderer.render(scene, camera);
-}
 
-// ─── END ROUND ────────────────────────────────────────────────────────────────
-function endRound() {
-  gs.phase = 'roundEnd';
-  enemies.forEach(e => scene.remove(e.mesh)); enemies = [];
-  bullets.forEach(b => scene.remove(b.mesh)); bullets = [];
-  stopBGM();
-
-  const roundBonus = 50 * gs.round;
-  gs.score += roundBonus;
-  flashScore('ROUND ' + gs.round + ' CLEAR! +' + roundBonus);
-
-  if (gs.round >= TOTAL_ROUNDS) {
-    setTimeout(showWin, 1500);
-  } else {
-    gs.round++;
-    setTimeout(showVoteScreen, 1500);
+  if (roundTimer <= 0) {
+    // Round complete
+    score += 50 * round; // round bonus
+    if (round >= TOTAL_ROUNDS) {
+      endGame(true);
+    } else {
+      showVoteScreen();
+    }
   }
 }
 
-// ─── START ────────────────────────────────────────────────────────────────────
-initGS();
-animate(); // start render loop idle
+// ─── ANIMATE ─────────────────────────────────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
 
+  update(dt);
+
+  // Player ring pulse
+  const t = clock.elapsedTime;
+  playerRing.material.opacity = 0.2 + Math.sin(t * 3) * 0.15;
+  playerRing.rotation.z = t * 0.5;
+
+  // Point light pulse
+  pointLight.intensity = 1.0 + Math.sin(t * 2) * 0.5;
+
+  composer.render();
+}
+
+animate();
 </script>
 </body>
 </html>

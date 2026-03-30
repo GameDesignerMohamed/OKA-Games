@@ -1,32 +1,32 @@
-# Rule Breaker
+# Rule Breaker (Build #30)
 
-**Idea:** A 3-round arena shooter where YOU vote on one rule modifier per round — then survive the chaos you chose.
-**Status:** Working prototype ✅
+**Idea:** A 3-round arena shooter where the player votes on one rule modifier between rounds — then survives the chaos they chose.  
+**Status:** Working prototype  
 **Date:** 2026-03-30
-**Build:** #30
 
 ## How to Run
 ```
-cd ~/Projects/OKA-Games/2026-03-30-rule-breaker && python3 -m http.server 8080
+cd ~/Projects/OKA-Games/2026-03-30-rule-breaker
+python3 -m http.server 8080
 ```
 Then open: http://localhost:8080
 
 ## What Was Built
-A fully playable Three.js top-down arena game. Three 30-second rounds. Between rounds, an HTML vote screen overlays the Three.js canvas presenting 3 random modifier cards. Player clicks one. The modifier activates for the next round, changing what skill class the session demands. WASD move, mouse aim, click shoot. Enemies spawn and chase. Survive all 3 rounds to win.
+Three-round top-down arena shooter (WASD + mouse aim + click to shoot). Between rounds 1→2 and 2→3, the player is shown a "vote screen" with 3 randomly chosen modifiers from a pool of 5. They pick one, and that modifier reshapes the next round's mechanics. The death/win screen shows which modifiers were voted for, with the caption "You voted for this 💀".
 
 **5 modifiers:**
-- 🌀 Gravity Flip — enemies rain from above (positioning vs. dodging)
-- 🔬 Tiny You — player shrinks 60% (precision aim required)
-- 🐌 Slow World — 40% speed across all entities (patience/timing replaces reflexes)
-- 🪞 Mirror Mode — WASD inverted (muscle memory rewiring)
-- 🔫 Turret Only — player immobile, auto-fires (spatial positioning prediction)
+1. **Gravity Flip** — enemies spawn from top edge, fall downward (repositioning skill)
+2. **Tiny You** — player shrinks 60%, bullets shrink too (precision skill)
+3. **Slow World** — everything at 40% speed (timing/patience skill)
+4. **Mirror Mode** — WASD inverted (adaptation/muscle memory skill)
+5. **Turret Only** — player can't move, auto-aims (prediction skill)
 
-**Stack:** Three.js r169 CDN importmap, WebGL renderer + EffectComposer/UnrealBloomPass, Web Audio API BGM + SFX, single index.html, static only.
+**Stack:** Three.js r169 via CDN importmap, UnrealBloomPass, Web Audio API (SFX + BGM), single index.html, static.
 
 ## Key Takeaway
-Proved: pre-round rule voting creates "player authors the condition" ownership at *session structure* level, not just card-activation level (IP Clash Neon Syndicate). The death screen showing which modifier you voted for is the shareable moment — "I chose this and it destroyed me."
+The "player authors the condition" principle works at session-structure level. The vote screen creates a genuine commitment moment — you know what you're walking into, and the death screen's callback loop makes the shareable caption obvious.
 
 ## What I'd Change Next
-- Per-modifier best-time tracking (localStorage) to create cross-run mastery identity per modifier
-- Show run history of voted modifiers on win screen (was already implemented)
-- Add a 4th round or escalating modifier combo (stack two modifiers by round 3) for deeper chaos arc
+- Per-round difficulty scaling (more enemies per round, not just faster spawns)
+- Show vote results between rounds (brief reveal before round starts)
+- Leaderboard/sharing mechanic: copy-paste death screen text with modifier history

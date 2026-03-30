@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rule Breaker</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+canvas { display: block; position: fixed; top: 0; left: 0; z-index: 0; }
+
+#hud {
+  position: fixed; top: 0; left: 0; width: 100%;
+  padding: 16px 24px;
+  display: flex; justify-content: space-between; align-items: flex-start;
+  pointer-events: none; z-index: 10;
+}
+#health-display { display: flex; gap: 8px; align-items: center; }
+.heart { font-size: 24px; transition: transform 0.2s; }
+.heart.lost { opacity: 0.2; transform: scale(0.8); }
+#score-display { font-size: 20px; color: #fff; text-shadow: 0 0 10px #0ff; letter-spacing: 2px; }
+#timer-display { font-size: 28px; color: #fff; font-weight: bold; text-shadow: 0 0 15px #f0f; letter-spacing: 3px; text-align: center; }
+#round-display { font-size: 14px; color: #888; letter-spacing: 2px; text-transform: uppercase; text-align: center; }
+
+#active-modifier {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.7); border: 1px solid #f0f; color: #f0f;
+  padding: 6px 18px; font-size: 13px; letter-spacing: 2px; text-transform: uppercase;
+  pointer-events: none; display: none; z-index: 10;
+}
+
+.screen {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.88); z-index: 100; pointer-events: all;
+}
+.screen.hidden { display: none; }
+.screen h1 { font-size: 52px; color: #fff; letter-spacing: 6px; text-transform: uppercase; text-shadow: 0 0 30px #f0f, 0 0 60px #f0f; margin-bottom: 12px; }
+.screen h2 { font-size: 28px; color: #f0f; letter-spacing: 4px; text-transform: uppercase; text-shadow: 0 0 20px #f0f; margin-bottom: 8px; }
+.screen p { color: #aaa; font-size: 14px; letter-spacing: 1px; margin-bottom: 8px; text-align: center; max-width: 500px; }
+.screen .subtitle { color: #666; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 40px; }
+.btn {
+  background: transparent; border: 2px solid #f0f; color: #f0f;
+  font-family: 'Courier New', monospace; font-size: 16px; letter-spacing: 3px; text-transform: uppercase;
+  padding: 14px 40px; cursor: pointer; transition: all 0.2s; margin-top: 20px;
+}
+.btn:hover { background: #f0f; color: #000; box-shadow: 0 0 30px #f0f; }
+
+/* VOTE SCREEN */
+#vote-screen { background: rgba(0,0,5,0.92); }
+.vote-header { font-size: 13px; color: #888; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 8px; }
+.vote-title-big { font-size: 32px; color: #0ff; letter-spacing: 4px; text-transform: uppercase; text-shadow: 0 0 20px #0ff; margin-bottom: 6px; }
+.vote-sub { color: #666; font-size: 12px; letter-spacing: 2px; margin-bottom: 36px; }
+.vote-cards { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+.vote-card {
+  background: rgba(0,0,0,0.8); border: 2px solid #333; padding: 24px 20px;
+  width: 180px; cursor: pointer; transition: all 0.25s; text-align: center;
+}
+.vote-card:hover { border-color: #0ff; box-shadow: 0 0 25px rgba(0,255,255,0.4); transform: translateY(-4px); }
+.card-icon { font-size: 36px; margin-bottom: 12px; display: block; }
+.card-name { color: #fff; font-size: 14px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+.card-desc { color: #888; font-size: 11px; letter-spacing: 1px; line-height: 1.5; }
+.card-skill { color: #0ff; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-top: 12px; padding-top: 10px; border-top: 1px solid #333; }
+
+/* ROUND ANNOUNCE */
+#round-announce {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  text-align: center; z-index: 200; pointer-events: none; opacity: 0; transition: opacity 0.3s;
+}
+#round-announce.visible { opacity: 1; }
+#round-announce .ann-round { font-size: 56px; color: #fff; letter-spacing: 8px; text-shadow: 0 0 40px #f0f; }
+#round-announce .ann-mod { font-size: 18px; color: #0ff; letter-spacing: 3px; margin-top: 8px; }
+
+/* DEATH SCREEN */
+#death-screen .you-voted { font-size: 13px; color: #888; letter-spacing: 3px; text-transform: uppercase; margin-top: 24px; margin-bottom: 8px; }
+#death-screen .voted-modifier { font-size: 24px; color: #f44; letter-spacing: 3px; text-shadow: 0 0 20px #f44; margin-bottom: 6px; }
+#death-screen .blame { font-size: 28px; margin-bottom: 4px; }
+#death-screen .death-score { font-size: 16px; color: #888; letter-spacing: 2px; margin-bottom: 4px; }
+
+/* WIN SCREEN */
+#win-screen .win-score { font-size: 48px; color: #0ff; text-shadow: 0 0 30px #0ff; letter-spacing: 4px; margin-bottom: 8px; }
+#win-screen .win-label { color: #666; font-size: 12px; letter-spacing: 3px; margin-bottom: 20px; }
+#win-screen .mods-list { color: #888; font-size: 13px; letter-spacing: 2px; margin-bottom: 8px; }
+
+#score-flash {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  font-size: 32px; color: #0ff; letter-spacing: 4px; text-shadow: 0 0 20px #0ff;
+  pointer-events: none; opacity: 0; z-index: 150;
+}
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div id="health-display">
+    <span class="heart" id="h1">❤️</span>
+    <span class="heart" id="h2">❤️</span>
+    <span class="heart" id="h3">❤️</span>
+  </div>
+  <div>
+    <div id="timer-display">0:30</div>
+    <div id="round-display">Round 1 / 3</div>
+  </div>
+  <div id="score-display">SCORE: 0</div>
+</div>
+<div id="active-modifier"></div>
+
+<div id="round-announce">
+  <div class="ann-round" id="ann-round-text">ROUND 1</div>
+  <div class="ann-mod" id="ann-mod-text"></div>
+</div>
+<div id="score-flash"></div>
+
+<!-- START -->
+<div class="screen" id="start-screen">
+  <h1>Rule Breaker</h1>
+  <p class="subtitle">Vote for the chaos. Survive it.</p>
+  <p>Shoot enemies. Survive 3 rounds of 30 seconds each.<br>Between rounds, YOU vote on the next rule modifier.</p>
+  <p style="color:#888;font-size:12px;margin-top:4px">WASD to move · Mouse to aim · Click to shoot</p>
+  <button class="btn" id="start-btn">BREAK RULES</button>
+</div>
+
+<!-- VOTE -->
+<div class="screen hidden" id="vote-screen">
+  <div class="vote-header">⚡ Between Rounds</div>
+  <div class="vote-title-big">CHOOSE YOUR CHAOS</div>
+  <div class="vote-sub">You voted for it. You survive it.</div>
+  <div class="vote-cards" id="vote-cards-container"></div>
+</div>
+
+<!-- DEATH -->
+<div class="screen hidden" id="death-screen">
+  <h1>💀 DEAD</h1>
+  <div class="death-score" id="death-score-text">Score: 0</div>
+  <div class="you-voted">You voted for:</div>
+  <div class="voted-modifier" id="death-modifier-text">—</div>
+  <div class="blame" id="death-blame">💀</div>
+  <button class="btn" id="retry-btn">TRY AGAIN</button>
+</div>
+
+<!-- WIN -->
+<div class="screen hidden" id="win-screen">
+  <h1>🏆 SURVIVED</h1>
+  <div class="win-score" id="win-score-text">0</div>
+  <div class="win-label">FINAL SCORE</div>
+  <p>You voted for chaos and lived through it all.</p>
+  <div class="mods-list" id="win-mods-list"></div>
+  <button class="btn" id="win-retry-btn">PLAY AGAIN</button>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// ─── AUDIO ───────────────────────────────────────────────────────────────────
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+function playTone(freq, type, duration, vol=0.3, delay=0) {
+  if (!audioCtx) return;
+  try {
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = type; o.frequency.setValueAtTime(freq, audioCtx.currentTime + delay);
+    g.gain.setValueAtTime(vol, audioCtx.currentTime + delay);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration);
+    o.start(audioCtx.currentTime + delay);
+    o.stop(audioCtx.currentTime + delay + duration);
+  } catch(e){}
+}
+const sfxShoot = () => { playTone(440,'sawtooth',0.08,0.18); playTone(220,'sine',0.06,0.1); };
+const sfxHit   = () => { playTone(80,'sawtooth',0.2,0.4); playTone(60,'sine',0.15,0.3); };
+const sfxKill  = () => { playTone(660,'triangle',0.12,0.22); playTone(880,'triangle',0.1,0.15,0.06); };
+const sfxVote  = () => { [330,440,550].forEach((f,i) => playTone(f,'sine',0.15,0.3,i*0.08)); };
+const sfxRound = () => { [220,330,440,550].forEach((f,i) => playTone(f,'triangle',0.15,0.3,i*0.08)); };
+const sfxWin   = () => { [330,440,550,660,770,880].forEach((f,i) => playTone(f,'sine',0.3,0.3,i*0.1)); };
+const sfxLose  = () => { [440,330,220,110].forEach((f,i) => playTone(f,'sawtooth',0.22,0.3,i*0.1)); };
+
+let bgmRunning = false, bgmTimer = null, bgmStep = 0;
+const BGM_NOTES = [110,138.6,164.8,185,220,185,164.8,138.6];
+function startBGM() {
+  if (bgmRunning || !audioCtx) return;
+  bgmRunning = true;
+  function tick() {
+    if (!bgmRunning || !audioCtx) return;
+    playTone(BGM_NOTES[bgmStep % BGM_NOTES.length], 'triangle', 0.35, 0.08);
+    bgmStep++;
+    bgmTimer = setTimeout(tick, 380);
+  }
+  tick();
+}
+function stopBGM() { bgmRunning = false; if (bgmTimer) clearTimeout(bgmTimer); }
+
+// ─── THREE.JS SETUP ──────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x050010, 0.035);
+scene.background = new THREE.Color(0x050010);
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 300);
+camera.position.set(0, 20, 20);
+camera.lookAt(0, 0, 0);
+
+const ambient = new THREE.AmbientLight(0xffffff, 2.5);
+scene.add(ambient);
+const dirLight = new THREE.DirectionalLight(0xffffff, 3.0);
+dirLight.position.set(5, 15, 5);
+scene.add(dirLight);
+
+let composer = null;
+try {
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.5, 0.4, 0.85);
+  composer.addPass(bloom);
+} catch(e) { composer = null; }
+
+// Starfield
+const sfGeo = new THREE.BufferGeometry();
+const sfV = [];
+for (let i = 0; i < 1400; i++) sfV.push((Math.random()-0.5)*200,(Math.random()-0.5)*200,(Math.random()-0.5)*200);
+sfGeo.setAttribute('position', new THREE.Float32BufferAttribute(sfV, 3));
+scene.add(new THREE.Points(sfGeo, new THREE.PointsMaterial({ color:0xffffff, size:0.28, transparent:true, opacity:0.7 })));
+
+// Grid
+const grid = new THREE.GridHelper(20, 20, 0x110022, 0x110022);
+grid.position.y = -0.5;
+scene.add(grid);
+
+// Arena ring light
+const ringLight = new THREE.PointLight(0x4400aa, 3, 25);
+ringLight.position.set(0, 3, 0);
+scene.add(ringLight);
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  if (composer) composer.setSize(innerWidth, innerHeight);
+});
+
+// ─── MODIFIERS ────────────────────────────────────────────────────────────────
+const MODIFIER_DEFS = [
+  {
+    id: 'gravity_flip', name: 'Gravity Flip', icon: '🌀',
+    desc: 'Enemies rain down from above — not sides.',
+    skill: 'Positioning vs. Dodging',
+    color: '#ff6600'
+  },
+  {
+    id: 'tiny_you', name: 'Tiny You', icon: '🔬',
+    desc: 'You shrink 60%. Tiny hitbox — tiny bullets too.',
+    skill: 'Precision Aim',
+    color: '#00ffaa'
+  },
+  {
+    id: 'slow_world', name: 'Slow World', icon: '🐌',
+    desc: 'Everything moves at 40% speed. No more reflexes.',
+    skill: 'Patience & Timing',
+    color: '#0099ff'
+  },
+  {
+    id: 'mirror_mode', name: 'Mirror Mode', icon: '🪞',
+    desc: 'WASD is inverted. Muscle memory betrays you.',
+    skill: 'Control Rewiring',
+    color: '#ff00ff'
+  },
+  {
+    id: 'turret_only', name: 'Turret Only', icon: '🔫',
+    desc: "You can't move. Auto-fire on. Survive by positioning.",
+    skill: 'Positioning Prediction',
+    color: '#ffcc00'
+  }
+];
+
+// ─── GAME STATE (MODULE-SCOPE) ─────────────────────────────────────────────
+const ARENA = 9;
+const ROUND_TIME = 30;
+const TOTAL_ROUNDS = 3;
+
+let gs = {};
+let playerMesh = null, playerLight = null;
+let bullets = [], enemies = [], particles = [];
+let keys = {};
+let mouseWorld = new THREE.Vector3();
+let animId = null;
+let clock = new THREE.Clock();
+let lastSpawnTime = 0;
+let shakeTimer = 0, shakeIntensity = 0;
+let autoFireTimer = 0;
+let scoreFlashTimer = 0;
+let roundAnnounceTimer = 0;
+
+function initGS() {
+  gs = {
+    phase: 'idle',
+    round: 1,
+    health: 3,
+    score: 0,
+    roundTimer: ROUND_TIME,
+    chosenModifiers: [],
+    // active modifiers
+    gravityFlip: false,
+    tinyYou: false,
+    slowWorld: false,
+    mirrorMode: false,
+    turretOnly: false,
+    invincibleTimer: 0,
+  };
+}
+
+function applyModifier(id) {
+  gs.gravityFlip  = (id === 'gravity_flip');
+  gs.tinyYou      = (id === 'tiny_you');
+  gs.slowWorld    = (id === 'slow_world');
+  gs.mirrorMode   = (id === 'mirror_mode');
+  gs.turretOnly   = (id === 'turret_only');
+}
+
+// ─── SCENE OBJECTS ────────────────────────────────────────────────────────────
+function clearScene() {
+  bullets.forEach(b => scene.remove(b.mesh));
+  enemies.forEach(e => scene.remove(e.mesh));
+  particles.forEach(p => scene.remove(p.pts));
+  bullets = []; enemies = []; particles = [];
+  if (playerMesh) { scene.remove(playerMesh); playerMesh = null; }
+}
+
+function createPlayer() {
+  clearScene();
+  const scale = gs.tinyYou ? 0.4 : 1.0;
+  const geo = new THREE.SphereGeometry(0.5, 16, 16);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x00ddee, emissive: 0x002244, metalness: 0.3, roughness: 0.5 });
+  playerMesh = new THREE.Mesh(geo, mat);
+  playerMesh.scale.setScalar(scale);
+  playerMesh.position.set(0, 0.5, 0);
+  playerLight = new THREE.PointLight(0x00ddee, 2.5, 7);
+  playerMesh.add(playerLight);
+  scene.add(playerMesh);
+}
+
+function spawnEnemy() {
+  const colors = [0xff3333, 0xff6600, 0xffaa00, 0xff00aa, 0x9900ff];
+  const col = colors[Math.floor(Math.random() * colors.length)];
+  const geos = [
+    new THREE.IcosahedronGeometry(0.45, 0),
+    new THREE.OctahedronGeometry(0.5, 0),
+    new THREE.TetrahedronGeometry(0.52, 0),
+  ];
+  const geo = geos[Math.floor(Math.random() * geos.length)];
+  const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.35, metalness: 0.2, roughness: 0.6 });
+  const mesh = new THREE.Mesh(geo, mat);
+  const light = new THREE.PointLight(col, 1.8, 5);
+  mesh.add(light);
+
+  let x, z, y = 0.5;
+  if (gs.gravityFlip) {
+    x = (Math.random()-0.5) * (ARENA*2 - 2);
+    z = (Math.random()-0.5) * (ARENA*2 - 2);
+    y = 14 + Math.random() * 4;
+  } else {
+    const side = Math.floor(Math.random() * 4);
+    const off = (Math.random()-0.5) * (ARENA*2);
+    if (side===0) { x=-ARENA-2; z=off; }
+    else if (side===1) { x= ARENA+2; z=off; }
+    else if (side===2) { x=off; z=-ARENA-2; }
+    else               { x=off; z= ARENA+2; }
+  }
+  mesh.position.set(x, y, z);
+  scene.add(mesh);
+
+  const sm = gs.slowWorld ? 0.4 : 1.0;
+  const speed = (0.032 + Math.random()*0.022 + (gs.round-1)*0.009) * sm;
+  enemies.push({
+    mesh, speed,
+    rotSpeed: (Math.random()-0.5)*0.09,
+    hp: gs.round >= 3 ? 2 : 1,
+    fallMode: gs.gravityFlip,
+    fallSpeed: gs.gravityFlip ? (0.045 + Math.random()*0.025)*sm : 0,
+  });
+}
+
+function fireBullet(fromPos, dir) {
+  const scale = gs.tinyYou ? 0.28 : 1.0;
+  const geo = new THREE.SphereGeometry(0.14*scale, 8, 8);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 2.0 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.copy(fromPos);
+  mesh.position.y = 0.5;
+  const bLight = new THREE.PointLight(0xffffff, 2.5, 3.5);
+  mesh.add(bLight);
+  scene.add(mesh);
+  const sm = gs.slowWorld ? 0.4 : 1.0;
+  bullets.push({ mesh, vel: dir.clone().normalize().multiplyScalar(0.38*sm), life: 85 });
+  sfxShoot();
+}
+
+function spawnParticles(pos, color=0xff6600, count=14) {
+  const verts = [];
+  const vels = [];
+  for (let i = 0; i < count; i++) {
+    verts.push(pos.x, pos.y+0.3, pos.z);
+    vels.push((Math.random()-0.5)*0.28, Math.random()*0.22+0.05, (Math.random()-0.5)*0.28);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  const mat = new THREE.PointsMaterial({ color, size: 0.28, transparent: true, opacity: 1.0 });
+  const pts = new THREE.Points(geo, mat);
+  scene.add(pts);
+  particles.push({ pts, vels, life: 45 });
+}
+
+// ─── RAYCASTER ────────────────────────────────────────────────────────────────
+const raycaster = new THREE.Raycaster();
+const groundPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
+const mouseNDC = new THREE.Vector2();
+
+window.addEventListener('mousemove', e => {
+  mouseNDC.x = (e.clientX / innerWidth)*2 - 1;
+  mouseNDC.y = -(e.clientY / innerHeight)*2 + 1;
+  if (gs.phase === 'playing') {
+    raycaster.setFromCamera(mouseNDC, camera);
+    raycaster.ray.intersectPlane(groundPlane, mouseWorld);
+  }
+});
+
+window.addEventListener('mousedown', e => {
+  if (e.button === 0) {
+    ensureAudio();
+    if (gs.phase === 'playing' && !gs.turretOnly) shootPlayer();
+  }
+});
+
+window.addEventListener('keydown', e => { keys[e.code] = true; });
+window.addEventListener('keyup',   e => { keys[e.code] = false; });
+
+function shootPlayer() {
+  if (!playerMesh) return;
+  const dir = mouseWorld.clone().sub(playerMesh.position);
+  dir.y = 0;
+  if (dir.lengthSq() < 0.01) return;
+  fireBullet(playerMesh.position.clone(), dir);
+}
+
+// ─── HUD ─────────────────────────────────────────────────────────────────────
+function updateHUD() {
+  ['h1','h2','h3'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (el) el.className = 'heart' + (i >= gs.health ? ' lost' : '');
+  });
+  const sc = document.getElementById('score-display');
+  if (sc) sc.textContent = 'SCORE: ' + gs.score;
+  const tm = document.getElementById('timer-display');
+  if (tm) {
+    const t = Math.max(0, Math.ceil(gs.roundTimer));
+    tm.textContent = '0:' + String(t).padStart(2,'0');
+    tm.style.color = t <= 5 ? '#ff4444' : '#fff';
+  }
+  const rd = document.getElementById('round-display');
+  if (rd) rd.textContent = 'Round ' + gs.round + ' / ' + TOTAL_ROUNDS;
+
+  const am = document.getElementById('active-modifier');
+  if (am) {
+    const mod = gs.chosenModifiers[gs.chosenModifiers.length - 1];
+    if (mod && gs.phase === 'playing') {
+      const def = MODIFIER_DEFS.find(m => m.id === mod);
+      am.style.display = 'block';
+      am.textContent = def ? (def.icon + ' ' + def.name) : mod;
+    } else {
+      am.style.display = 'none';
+    }
+  }
+}
+
+// ─── VOTE SCREEN ─────────────────────────────────────────────────────────────
+function showVoteScreen() {
+  gs.phase = 'voting';
+  stopBGM();
+
+  // Pick 3 random modifiers (don't repeat previous unless all used)
+  const pool = MODIFIER_DEFS.filter(m => true); // all 5 always available
+  const shuffled = pool.sort(() => Math.random()-0.5).slice(0, 3);
+
+  const container = document.getElementById('vote-cards-container');
+  container.innerHTML = '';
+  shuffled.forEach(mod => {
+    const card = document.createElement('div');
+    card.className = 'vote-card';
+    card.innerHTML = `
+      <span class="card-icon">${mod.icon}</span>
+      <div class="card-name">${mod.name}</div>
+      <div class="card-desc">${mod.desc}</div>
+      <div class="card-skill">Skill: ${mod.skill}</div>
+    `;
+    card.addEventListener('click', () => {
+      ensureAudio();
+      sfxVote();
+      gs.chosenModifiers.push(mod.id);
+      applyModifier(mod.id);
+      document.getElementById('vote-screen').classList.add('hidden');
+      startRound();
+    });
+    container.appendChild(card);
+  });
+
+  document.getElementById('vote-screen').classList.remove('hidden');
+}
+
+// ─── ROUND START ─────────────────────────────────────────────────────────────
+function startRound() {
+  ensureAudio();
+  enemies.forEach(e => scene.remove(e.mesh));
+  bullets.forEach(b => scene.remove(b.mesh));
+  enemies = []; bullets = [];
+
+  createPlayer(); // recreates with current modifiers applied
+  gs.roundTimer = ROUND_TIME;
+  lastSpawnTime = 0;
+  clock.getDelta();
+  // Show round announce
+  const roundAnn = document.getElementById('round-announce');
+  const modText = document.getElementById('ann-mod-text');
+  document.getElementById('ann-round-text').textContent = 'ROUND ' + gs.round;
+  const lastMod = gs.chosenModifiers[gs.chosenModifiers.length - 1];
+  if (lastMod) {
+    const def = MODIFIER_DEFS.find(m => m.id === lastMod);
+    modText.textContent = def ? (def.icon + ' ' + def.name + ' ACTIVE') : lastMod;
+  } else {
+    modText.textContent = 'NO MODIFIER';
+  }
+  roundAnn.classList.add('visible');
+  roundAnnounceTimer = 2.0;
+
+  gs.phase = 'playing';
+  sfxRound();
+  startBGM();
+  updateHUD();
+}
+
+// ─── GAME START / RESTART ─────────────────────────────────────────────────────
+function startGame() {
+  ensureAudio();
+  initGS();
+  ['start-screen','vote-screen','death-screen','win-screen'].forEach(id => {
+    document.getElementById(id).classList.add('hidden');
+  });
+  startRound();
+  if (!animId) animate();
+}
+
+function restartGame() {
+  if (animId) { cancelAnimationFrame(animId); animId = null; }
+  clearScene();
+  stopBGM();
+  ['vote-screen','death-screen','win-screen'].forEach(id => {
+    document.getElementById(id).classList.add('hidden');
+  });
+  startGame();
+}
+
+document.getElementById('start-btn').addEventListener('click', startGame);
+document.getElementById('retry-btn').addEventListener('click', restartGame);
+document.getElementById('win-retry-btn').addEventListener('click', restartGame);
+
+// ─── DAMAGE PLAYER ────────────────────────────────────────────────────────────
+function damagePlayer() {
+  if (gs.invincibleTimer > 0) return;
+  gs.health--;
+  gs.invincibleTimer = 1.5;
+  sfxHit();
+  triggerShake(0.4, 0.3);
+
+  // Flash player red
+  if (playerMesh) {
+    playerMesh.material.emissive.set(0xff0000);
+    setTimeout(() => {
+      if (playerMesh) playerMesh.material.emissive.set(0x002244);
+    }, 250);
+  }
+  updateHUD();
+
+  if (gs.health <= 0) {
+    showDeath();
+  }
+}
+
+function triggerShake(intensity, duration) {
+  shakeIntensity = intensity;
+  shakeTimer = duration;
+}
+
+function showDeath() {
+  gs.phase = 'dead';
+  stopBGM();
+  sfxLose();
+  clearScene();
+  document.getElementById('death-score-text').textContent = 'Score: ' + gs.score;
+  const lastMod = gs.chosenModifiers[gs.chosenModifiers.length - 1];
+  if (lastMod) {
+    const def = MODIFIER_DEFS.find(m => m.id === lastMod);
+    document.getElementById('death-modifier-text').textContent = def ? (def.icon + ' ' + def.name) : lastMod;
+    document.getElementById('death-blame').textContent = '💀 You chose this.';
+  } else {
+    document.getElementById('death-modifier-text').textContent = 'No modifier';
+    document.getElementById('death-blame').textContent = '💀';
+  }
+  document.getElementById('death-screen').classList.remove('hidden');
+}
+
+function showWin() {
+  gs.phase = 'win';
+  stopBGM();
+  sfxWin();
+  clearScene();
+  document.getElementById('win-score-text').textContent = gs.score;
+  // Show voted modifiers
+  const mods = gs.chosenModifiers.map(id => {
+    const def = MODIFIER_DEFS.find(m => m.id === id);
+    return def ? (def.icon + ' ' + def.name) : id;
+  }).join('  ·  ');
+  document.getElementById('win-mods-list').textContent = 'Voted: ' + (mods || 'Nothing');
+  document.getElementById('win-screen').classList.remove('hidden');
+}
+
+// ─── SCORE FLASH ──────────────────────────────────────────────────────────────
+function flashScore(text) {
+  const el = document.getElementById('score-flash');
+  el.textContent = text;
+  el.style.opacity = '1';
+  scoreFlashTimer = 0.8;
+}
+
+// ─── MAIN LOOP ────────────────────────────────────────────────────────────────
+const camOrigin = new THREE.Vector3(0, 20, 20);
+
+function animate() {
+  animId = requestAnimationFrame(animate);
+  const rawDt = clock.getDelta();
+  const dt = Math.min(rawDt, 0.1);
+
+  // Round announce fade
+  if (roundAnnounceTimer > 0) {
+    roundAnnounceTimer -= dt;
+    if (roundAnnounceTimer <= 0) {
+      document.getElementById('round-announce').classList.remove('visible');
+    }
+  }
+
+  // Score flash fade
+  if (scoreFlashTimer > 0) {
+    scoreFlashTimer -= dt;
+    const el = document.getElementById('score-flash');
+    el.style.opacity = Math.max(0, scoreFlashTimer / 0.8).toString();
+    if (scoreFlashTimer <= 0) el.style.opacity = '0';
+  }
+
+  // Camera shake
+  if (shakeTimer > 0) {
+    shakeTimer -= dt;
+    camera.position.x = camOrigin.x + (Math.random()-0.5) * shakeIntensity;
+    camera.position.y = camOrigin.y + (Math.random()-0.5) * shakeIntensity;
+    camera.position.z = camOrigin.z + (Math.random()-0.5) * shakeIntensity;
+    camera.lookAt(0, 0, 0);
+  } else {
+    camera.position.lerp(camOrigin, 0.15);
+    camera.lookAt(0, 0, 0);
+  }
+
+  // Ring light pulse
+  ringLight.intensity = 3 + Math.sin(Date.now() * 0.002) * 1.5;
+
+  if (gs.phase !== 'playing') {
+    if (composer) composer.render(); else renderer.render(scene, camera);
+    return;
+  }
+
+  // ── ROUND TIMER ──
+  gs.roundTimer -= dt;
+  if (gs.roundTimer <= 0) {
+    gs.roundTimer = 0;
+    endRound();
+    if (composer) composer.render(); else renderer.render(scene, camera);
+    return;
+  }
+
+  // ── INVINCIBILITY ──
+  if (gs.invincibleTimer > 0) {
+    gs.invincibleTimer -= dt;
+    if (playerMesh) playerMesh.visible = Math.floor(Date.now() / 100) % 2 === 0;
+  } else {
+    if (playerMesh) playerMesh.visible = true;
+  }
+
+  // ── PLAYER MOVEMENT ──
+  if (playerMesh && !gs.turretOnly) {
+    const speed = 0.12 * (gs.slowWorld ? 0.4 : 1.0);
+    const mx = gs.mirrorMode ? -1 : 1;
+    if (keys['KeyW'] || keys['ArrowUp'])    playerMesh.position.z -= speed * mx;
+    if (keys['KeyS'] || keys['ArrowDown'])  playerMesh.position.z += speed * mx;
+    if (keys['KeyA'] || keys['ArrowLeft'])  playerMesh.position.x -= speed * mx;
+    if (keys['KeyD'] || keys['ArrowRight']) playerMesh.position.x += speed * mx;
+    playerMesh.position.x = Math.max(-ARENA, Math.min(ARENA, playerMesh.position.x));
+    playerMesh.position.z = Math.max(-ARENA, Math.min(ARENA, playerMesh.position.z));
+  }
+
+  // Player rotate toward mouse
+  if (playerMesh && mouseWorld.lengthSq() > 0.01) {
+    const angle = Math.atan2(mouseWorld.x - playerMesh.position.x, mouseWorld.z - playerMesh.position.z);
+    playerMesh.rotation.y = angle;
+  }
+
+  // Auto-fire for turret_only
+  if (gs.turretOnly && playerMesh) {
+    autoFireTimer += dt;
+    if (autoFireTimer >= 0.25 * (gs.slowWorld ? 2.5 : 1)) {
+      autoFireTimer = 0;
+      if (enemies.length > 0) {
+        // Aim at nearest enemy
+        let nearest = null, nearDist = 9999;
+        enemies.forEach(e => {
+          const d = e.mesh.position.distanceTo(playerMesh.position);
+          if (d < nearDist) { nearDist = d; nearest = e; }
+        });
+        if (nearest) {
+          const dir = nearest.mesh.position.clone().sub(playerMesh.position);
+          dir.y = 0;
+          fireBullet(playerMesh.position.clone(), dir);
+        }
+      }
+    }
+  }
+
+  // ── SPAWN ENEMIES ──
+  const elapsed = ROUND_TIME - gs.roundTimer;
+  const spawnInterval = Math.max(600, ENEMY_SPAWN_BASE - elapsed * 40) * (gs.slowWorld ? 2.5 : 1);
+  const now = Date.now();
+  if (now - lastSpawnTime > spawnInterval) {
+    lastSpawnTime = now;
+    const count = Math.min(1 + Math.floor(elapsed / 8), 4);
+    for (let i = 0; i < count; i++) spawnEnemy();
+  }
+
+  // ── UPDATE ENEMIES ──
+  const toRemoveE = [];
+  enemies.forEach(e => {
+    e.mesh.rotation.x += e.rotSpeed;
+    e.mesh.rotation.z += e.rotSpeed * 0.7;
+
+    if (e.fallMode) {
+      // Fall down
+      e.mesh.position.y -= e.fallSpeed;
+      if (e.mesh.position.y <= 0.5) {
+        e.mesh.position.y = 0.5;
+        e.fallMode = false; // now chase
+      }
+    } else {
+      // Chase player
+      if (playerMesh) {
+        const dir = playerMesh.position.clone().sub(e.mesh.position);
+        dir.y = 0;
+        dir.normalize();
+        e.mesh.position.addScaledVector(dir, e.speed);
+      }
+    }
+
+    // Out of bounds
+    if (Math.abs(e.mesh.position.x) > ARENA+5 || Math.abs(e.mesh.position.z) > ARENA+5 || e.mesh.position.y < -5) {
+      toRemoveE.push(e);
+      return;
+    }
+
+    // Hit player
+    if (playerMesh && e.mesh.position.distanceTo(playerMesh.position) < 0.85) {
+      toRemoveE.push(e);
+      damagePlayer();
+    }
+  });
+  toRemoveE.forEach(e => { scene.remove(e.mesh); enemies.splice(enemies.indexOf(e), 1); });
+
+  // ── UPDATE BULLETS ──
+  const toRemoveB = [];
+  bullets.forEach(b => {
+    b.mesh.position.add(b.vel);
+    b.life--;
+
+    if (b.life <= 0 ||
+        Math.abs(b.mesh.position.x) > ARENA+2 ||
+        Math.abs(b.mesh.position.z) > ARENA+2) {
+      toRemoveB.push(b);
+      return;
+    }
+
+    // Hit enemy
+    for (let i = 0; i < enemies.length; i++) {
+      const e = enemies[i];
+      if (b.mesh.position.distanceTo(e.mesh.position) < 0.7) {
+        e.hp--;
+        spawnParticles(e.mesh.position.clone(), e.mesh.material.color.getHex());
+        if (e.hp <= 0) {
+          scene.remove(e.mesh);
+          enemies.splice(i, 1);
+          gs.score += 10 * gs.round;
+          sfxKill();
+          flashScore('+' + (10 * gs.round));
+        } else {
+          e.mesh.material.emissiveIntensity = 1.5;
+          setTimeout(() => { if (e.mesh) e.mesh.material.emissiveIntensity = 0.35; }, 100);
+        }
+        toRemoveB.push(b);
+        break;
+      }
+    }
+  });
+  toRemoveB.forEach(b => { scene.remove(b.mesh); bullets.splice(bullets.indexOf(b), 1); });
+
+  // ── PARTICLES ──
+  const toRemoveP = [];
+  particles.forEach(p => {
+    p.life--;
+    const pos = p.pts.geometry.attributes.position;
+    for (let i = 0; i < p.vels.length/3; i++) {
+      pos.array[i*3]   += p.vels[i*3];
+      pos.array[i*3+1] += p.vels[i*3+1] - 0.008;
+      pos.array[i*3+2] += p.vels[i*3+2];
+    }
+    pos.needsUpdate = true;
+    p.pts.material.opacity = p.life / 45;
+    if (p.life <= 0) toRemoveP.push(p);
+  });
+  toRemoveP.forEach(p => { scene.remove(p.pts); particles.splice(particles.indexOf(p), 1); });
+
+  updateHUD();
+  if (composer) composer.render(); else renderer.render(scene, camera);
+}
+
+// ─── END ROUND ────────────────────────────────────────────────────────────────
+function endRound() {
+  gs.phase = 'roundEnd';
+  enemies.forEach(e => scene.remove(e.mesh)); enemies = [];
+  bullets.forEach(b => scene.remove(b.mesh)); bullets = [];
+  stopBGM();
+
+  const roundBonus = 50 * gs.round;
+  gs.score += roundBonus;
+  flashScore('ROUND ' + gs.round + ' CLEAR! +' + roundBonus);
+
+  if (gs.round >= TOTAL_ROUNDS) {
+    setTimeout(showWin, 1500);
+  } else {
+    gs.round++;
+    setTimeout(showVoteScreen, 1500);
+  }
+}
+
+// ─── START ────────────────────────────────────────────────────────────────────
+initGS();
+animate(); // start render loop idle
+
+</script>
+</body>
+</html>

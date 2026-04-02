@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Data Vault</title>
+<style>
+* { margin:0;padding:0;box-sizing:border-box; }
+body { background:#000;overflow:hidden;font-family:'Courier New',monospace; }
+canvas { display:block; }
+#ui { position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:10; }
+#hud { position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-start; }
+#chain-wrap { max-width:50%; }
+#chain-label { color:#00ffaa;font-size:10px;letter-spacing:2px;opacity:0.6;margin-bottom:5px; }
+#chain-row { display:flex;gap:5px;flex-wrap:wrap; }
+.cblock { background:rgba(0,255,170,0.12);border:1px solid #00ffaa;color:#00ffaa;font-size:8px;padding:2px 7px;letter-spacing:1px;border-radius:1px;animation:bIn 0.3s ease; }
+@keyframes bIn { from{transform:scale(0.5);opacity:0}to{transform:scale(1);opacity:1} }
+#hud-right { text-align:right;color:rgba(0,255,170,0.7);font-size:10px;letter-spacing:2px;line-height:2; }
+#alert-bar { width:110px;height:3px;background:rgba(255,255,255,0.1);margin-top:5px;margin-left:auto;border-radius:1px;overflow:hidden; }
+#alert-fill { height:100%;width:0%;background:#ff3366;transition:width 0.1s; }
+#flash { position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#00ffaa;font-size:13px;letter-spacing:3px;text-align:center;line-height:2;opacity:0;transition:opacity 0.2s;pointer-events:none;text-shadow:0 0 20px #00ffaa; }
+#noise-tag { position:absolute;bottom:14px;left:14px;color:#ff6600;font-size:9px;letter-spacing:2px;opacity:0;transition:opacity 0.2s; }
+#progress { position:absolute;bottom:14px;right:14px;color:#00ffaa;font-size:10px;letter-spacing:2px;opacity:0.7; }
+#overlay { position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,0,0.92);pointer-events:all; }
+#overlay h1 { color:#00ffaa;font-size:38px;letter-spacing:8px;text-shadow:0 0 30px #00ffaa;margin-bottom:6px; }
+.sub { color:rgba(0,255,170,0.45);font-size:10px;letter-spacing:4px;margin-bottom:36px; }
+.desc { color:rgba(255,255,255,0.55);font-size:11px;line-height:2.2;text-align:center;max-width:480px;margin-bottom:28px;letter-spacing:1px; }
+.ctrl { color:rgba(255,255,255,0.35);font-size:9px;letter-spacing:2px;line-height:2.5;margin-bottom:34px;text-align:center; }
+.btn { background:transparent;border:1px solid #00ffaa;color:#00ffaa;font-family:'Courier New',monospace;font-size:12px;letter-spacing:4px;padding:11px 34px;cursor:pointer;pointer-events:all;transition:all 0.2s;text-transform:uppercase; }
+.btn:hover { background:rgba(0,255,170,0.1);box-shadow:0 0 20px rgba(0,255,170,0.3); }
+#win-chain { display:flex;flex-direction:column;align-items:center;gap:5px;margin:18px 0;max-width:500px; }
+#win-chain-title { color:rgba(0,255,170,0.55);font-size:9px;letter-spacing:3px;margin-bottom:6px; }
+#win-chain-blocks { display:flex;gap:7px;flex-wrap:wrap;justify-content:center; }
+.wblock { background:rgba(0,255,170,0.1);border:1px solid rgba(0,255,170,0.5);color:#00ffaa;font-size:8px;padding:4px 9px;letter-spacing:1px; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <div id="hud">
+    <div id="chain-wrap">
+      <div id="chain-label">YOUR DATA CHAIN</div>
+      <div id="chain-row"></div>
+    </div>
+    <div id="hud-right">
+      <div id="lvl-txt">LEVEL 1</div>
+      <div id="grd-txt">GUARDS: —</div>
+      <div id="alert-bar"><div id="alert-fill"></div></div>
+    </div>
+  </div>
+  <div id="flash"></div>
+  <div id="noise-tag">⚡ NOISE — GUARDS ALERTED</div>
+  <div id="progress">BLOCKS: 0 / 5</div>
+</div>
+
+<div id="overlay">
+  <h1>DATA VAULT</h1>
+  <div class="sub">reclaim what's yours</div>
+  <div class="desc">
+    Your behavioral data is locked in Google's servers.<br>
+    Every click, every session, every choice — catalogued.<br>
+    Infiltrate the vault. Steal it back. Carry the chain out alive.
+  </div>
+  <div class="ctrl">
+    WASD — move &nbsp;|&nbsp; MOUSE — aim flashlight<br>
+    E — grab data block (when adjacent)<br>
+    SHIFT — sprint (expands guard alert radius)<br>
+    SPACE — drop decoy (sacrifices 1 block to distract guard)<br>
+    Reach the EXIT with 5+ data blocks
+  </div>
+  <button class="btn" id="startBtn" onclick="startGame()">Begin Infiltration</button>
+  <div id="win-chain" style="display:none">
+    <div id="win-chain-title">RECOVERED CHAIN</div>
+    <div id="win-chain-blocks"></div>
+  </div>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"}}
+</script>
+<script type="module" src="main.js"></script>
+</body>
+</html>

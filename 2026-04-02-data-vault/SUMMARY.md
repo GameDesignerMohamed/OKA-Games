@@ -1,9 +1,8 @@
-# Data Vault
+# Data Vault (Build #31)
 
-**Idea:** Top-down stealth heist — infiltrate Google's server room, steal back your behavioral data blocks, carry the growing chain to the exit alive.
+**Idea:** Top-down stealth heist where you infiltrate server rooms to steal back your own behavioral data blocks and carry the growing chain out alive.
 **Status:** Working prototype
 **Date:** 2026-04-02
-**Build:** #31
 
 ## How to Run
 ```
@@ -13,13 +12,19 @@ python3 -m http.server 8080
 Then open: http://localhost:8080
 
 ## What Was Built
-A top-down orthographic stealth game in Three.js where the player (green cylinder) navigates a procedural server room grid. Data blocks (spinning blue cubes) are scattered across the level — each labeled with a real behavioral data type ("SESSION #4: replayed lvl2 × 7", "LOCATION: Cairo, 02:04"). The player grabs blocks with E, building a visible neon chain that physically trails behind them. Guards (red cylinders) patrol with spotlight cones and audio detection; sprinting triggers wider alert radius. Reach the glowing orange EXIT with 5+ blocks to win. Chain shatters on capture — "Data returned to Google." Procedural level generation scales difficulty per level, with more walls and guards. Bloom postprocessing + looping BGM + SFX on every key event.
+Top-down stealth game on a procedural server grid. Player uses WASD to move, mouse to aim flashlight, E to grab data blocks. Each block shows a real-sounding behavioral label ("You clicked 'Skip Tutorial'"). Collected blocks trail behind the player as a neon chain. Guards patrol with sight cones; sprinting increases noise detection. Drop decoys (Space) to distract guards. Reach the exit with 5+ blocks to win.
+
+**The ownership moment:** Win screen displays "YOUR DATA CHAIN — ON-CHAIN" with every block and its decision label. Loss screen shows "DATA RETURNED TO GOOGLE" with the blocks you lost. The loss state is visceral.
+
+**5 Guard types used:** patrol sweep, wide arc, stationary, all with sight-cone detection.
+
+## Stack
+Three.js r169 CDN, UnrealBloomPass, Web Audio API (SFX + ambient BGM), single index.html, static files only.
 
 ## Key Takeaway
-The ownership signal works as a game mechanic. The labeled data blocks make the player feel genuine stakes — losing the chain reads as "my data is gone again." The sprint mechanic creates meaningful tension: faster but noisier, which maps perfectly to the signal (speed = convenience at cost of privacy). The death screen "DATA RETURNED TO GOOGLE" is the single strongest line in the game.
+Data ownership is most emotionally charged when you've physically fought to earn it — then watch it shatter. The chain visual makes the "you own this" feeling tangible. The "Data returned to Google" loss state lands harder than expected.
 
 ## What I'd Change Next
-- Minimap showing guard positions (reduces frustration of blind guard spawns)
-- On-chain display at win screen rendered as a visual ledger, not just badges
-- Sound design refinement: guard detection should have a distinct "awareness building" tone before full alert
-- Boss vault room at Level 3 with concentrated guards and a "master data block" (your full behavioral profile)
+- Add actual walls/obstacles that force routing decisions
+- Per-block reveal timing (chain assembles with a typewriter delay)
+- A "share your chain" export feature for the win screen

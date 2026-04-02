@@ -2,80 +2,998 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Vault</title>
 <style>
-* { margin:0;padding:0;box-sizing:border-box; }
-body { background:#000;overflow:hidden;font-family:'Courier New',monospace; }
-canvas { display:block; }
-#ui { position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:10; }
-#hud { position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-start; }
-#chain-wrap { max-width:50%; }
-#chain-label { color:#00ffaa;font-size:10px;letter-spacing:2px;opacity:0.6;margin-bottom:5px; }
-#chain-row { display:flex;gap:5px;flex-wrap:wrap; }
-.cblock { background:rgba(0,255,170,0.12);border:1px solid #00ffaa;color:#00ffaa;font-size:8px;padding:2px 7px;letter-spacing:1px;border-radius:1px;animation:bIn 0.3s ease; }
-@keyframes bIn { from{transform:scale(0.5);opacity:0}to{transform:scale(1);opacity:1} }
-#hud-right { text-align:right;color:rgba(0,255,170,0.7);font-size:10px;letter-spacing:2px;line-height:2; }
-#alert-bar { width:110px;height:3px;background:rgba(255,255,255,0.1);margin-top:5px;margin-left:auto;border-radius:1px;overflow:hidden; }
-#alert-fill { height:100%;width:0%;background:#ff3366;transition:width 0.1s; }
-#flash { position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#00ffaa;font-size:13px;letter-spacing:3px;text-align:center;line-height:2;opacity:0;transition:opacity 0.2s;pointer-events:none;text-shadow:0 0 20px #00ffaa; }
-#noise-tag { position:absolute;bottom:14px;left:14px;color:#ff6600;font-size:9px;letter-spacing:2px;opacity:0;transition:opacity 0.2s; }
-#progress { position:absolute;bottom:14px;right:14px;color:#00ffaa;font-size:10px;letter-spacing:2px;opacity:0.7; }
-#overlay { position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,0,0.92);pointer-events:all; }
-#overlay h1 { color:#00ffaa;font-size:38px;letter-spacing:8px;text-shadow:0 0 30px #00ffaa;margin-bottom:6px; }
-.sub { color:rgba(0,255,170,0.45);font-size:10px;letter-spacing:4px;margin-bottom:36px; }
-.desc { color:rgba(255,255,255,0.55);font-size:11px;line-height:2.2;text-align:center;max-width:480px;margin-bottom:28px;letter-spacing:1px; }
-.ctrl { color:rgba(255,255,255,0.35);font-size:9px;letter-spacing:2px;line-height:2.5;margin-bottom:34px;text-align:center; }
-.btn { background:transparent;border:1px solid #00ffaa;color:#00ffaa;font-family:'Courier New',monospace;font-size:12px;letter-spacing:4px;padding:11px 34px;cursor:pointer;pointer-events:all;transition:all 0.2s;text-transform:uppercase; }
-.btn:hover { background:rgba(0,255,170,0.1);box-shadow:0 0 20px rgba(0,255,170,0.3); }
-#win-chain { display:flex;flex-direction:column;align-items:center;gap:5px;margin:18px 0;max-width:500px; }
-#win-chain-title { color:rgba(0,255,170,0.55);font-size:9px;letter-spacing:3px;margin-bottom:6px; }
-#win-chain-blocks { display:flex;gap:7px;flex-wrap:wrap;justify-content:center; }
-.wblock { background:rgba(0,255,170,0.1);border:1px solid rgba(0,255,170,0.5);color:#00ffaa;font-size:8px;padding:4px 9px;letter-spacing:1px; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; cursor: none; }
+  canvas { display: block; }
+
+  #ui {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    color: #fff;
+  }
+
+  #hud {
+    position: absolute;
+    top: 16px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; gap: 32px; align-items: center;
+    background: rgba(0,0,0,0.7);
+    border: 1px solid rgba(0,255,150,0.3);
+    padding: 8px 24px; border-radius: 6px;
+    font-size: 13px; display: none;
+  }
+
+  #chain-count { color: #00ff96; font-weight: bold; font-size: 16px; }
+  #alert-bar {
+    color: #ff4444;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    display: none;
+  }
+  #noise-bar {
+    width: 80px; height: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  #noise-fill {
+    height: 100%;
+    background: #ffcc00;
+    transition: width 0.1s;
+    border-radius: 3px;
+  }
+
+  /* TITLE SCREEN */
+  #title-screen {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #000;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    pointer-events: all;
+  }
+  #title-screen h1 {
+    font-size: 52px; font-weight: bold;
+    color: #00ff96; letter-spacing: 6px;
+    margin-bottom: 8px; text-shadow: 0 0 30px #00ff9666;
+  }
+  #title-sub {
+    font-size: 14px; color: #666;
+    margin-bottom: 12px;
+  }
+  #title-tagline {
+    font-size: 13px; color: #444;
+    max-width: 400px; text-align: center;
+    line-height: 1.7; margin-bottom: 48px;
+  }
+  #start-btn {
+    background: transparent; color: #00ff96;
+    border: 2px solid #00ff96;
+    padding: 14px 40px; font-size: 16px;
+    font-family: 'Courier New', monospace;
+    cursor: pointer; letter-spacing: 3px;
+    transition: all 0.15s;
+  }
+  #start-btn:hover { background: #00ff9622; }
+
+  #controls-hint {
+    position: absolute; bottom: 40px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px; color: #333;
+    letter-spacing: 1px; text-align: center;
+    line-height: 1.8;
+  }
+
+  /* DATA BLOCK PICKUP FLASH */
+  #pickup-flash {
+    position: absolute; bottom: 80px; left: 50%;
+    transform: translateX(-50%);
+    color: #00ff96; font-size: 13px;
+    opacity: 0; text-align: center;
+    letter-spacing: 1px;
+    transition: opacity 0.2s;
+    max-width: 400px;
+  }
+
+  /* ALERT PULSE */
+  #alert-screen {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(255,0,0,0.05);
+    pointer-events: none;
+    opacity: 0;
+    border: 2px solid rgba(255,0,0,0.4);
+  }
+
+  /* END SCREEN */
+  #end-screen {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    pointer-events: all; display: none;
+    background: rgba(0,0,0,0.92);
+  }
+  #end-title {
+    font-size: 48px; font-weight: bold;
+    margin-bottom: 16px; letter-spacing: 4px;
+  }
+  #end-subtitle { font-size: 15px; color: #666; margin-bottom: 40px; }
+
+  /* WALLET SCREEN */
+  #wallet-box {
+    background: rgba(0,255,150,0.05);
+    border: 1px solid rgba(0,255,150,0.3);
+    border-radius: 10px; padding: 24px 36px;
+    margin-bottom: 32px; max-width: 480px;
+    min-width: 380px;
+  }
+  #wallet-header {
+    font-size: 11px; color: #00ff96;
+    letter-spacing: 3px; margin-bottom: 16px;
+    text-transform: uppercase;
+  }
+  #wallet-chain { display: flex; flex-direction: column; gap: 8px; }
+  .chain-block {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; color: #aaa;
+  }
+  .chain-block-icon { color: #00ff96; font-size: 14px; }
+  .chain-block-index { color: #444; font-size: 10px; min-width: 30px; }
+
+  /* DEATH BOX */
+  #death-box {
+    background: rgba(255,50,50,0.05);
+    border: 1px solid rgba(255,50,50,0.3);
+    border-radius: 10px; padding: 24px 36px;
+    margin-bottom: 32px; max-width: 480px;
+    min-width: 380px;
+  }
+  #death-header { font-size: 11px; color: #ff4444; letter-spacing: 2px; margin-bottom: 12px; }
+  #death-blocks { font-size: 12px; color: #444; line-height: 1.8; }
+
+  #restart-btn {
+    background: transparent; color: #fff;
+    border: 1px solid rgba(255,255,255,0.3);
+    padding: 12px 36px; font-size: 14px;
+    font-family: 'Courier New', monospace;
+    cursor: pointer; letter-spacing: 2px;
+    transition: all 0.15s;
+  }
+  #restart-btn:hover { border-color: #fff; background: rgba(255,255,255,0.08); }
+
+  /* OBJECTIVE INDICATOR */
+  #obj-bar {
+    position: absolute; top: 70px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px; color: #555;
+    letter-spacing: 1px; display: none;
+  }
+
+  /* CUSTOM CURSOR */
+  #cursor {
+    position: fixed; pointer-events: none;
+    width: 14px; height: 14px;
+    transform: translate(-50%,-50%);
+    z-index: 9999;
+  }
+  #cursor::before, #cursor::after {
+    content: ''; position: absolute;
+    background: rgba(0,255,150,0.7);
+  }
+  #cursor::before { width: 1px; height: 14px; left: 6px; top: 0; }
+  #cursor::after { width: 14px; height: 1px; top: 6px; left: 0; }
 </style>
 </head>
 <body>
+<div id="cursor"></div>
+
 <div id="ui">
   <div id="hud">
-    <div id="chain-wrap">
-      <div id="chain-label">YOUR DATA CHAIN</div>
-      <div id="chain-row"></div>
+    <div>CHAIN: <span id="chain-count">0</span>/5</div>
+    <div id="noise-container">
+      NOISE: <div id="noise-bar"><div id="noise-fill" style="width:0%"></div></div>
     </div>
-    <div id="hud-right">
-      <div id="lvl-txt">LEVEL 1</div>
-      <div id="grd-txt">GUARDS: —</div>
-      <div id="alert-bar"><div id="alert-fill"></div></div>
-    </div>
+    <div id="alert-bar">⚠ DETECTED</div>
   </div>
-  <div id="flash"></div>
-  <div id="noise-tag">⚡ NOISE — GUARDS ALERTED</div>
-  <div id="progress">BLOCKS: 0 / 5</div>
+  <div id="obj-bar">REACH THE EXIT WITH 5+ DATA BLOCKS</div>
+  <div id="pickup-flash"></div>
+  <div id="alert-screen"></div>
 </div>
 
-<div id="overlay">
+<!-- TITLE -->
+<div id="title-screen">
   <h1>DATA VAULT</h1>
-  <div class="sub">reclaim what's yours</div>
-  <div class="desc">
-    Your behavioral data is locked in Google's servers.<br>
-    Every click, every session, every choice — catalogued.<br>
-    Infiltrate the vault. Steal it back. Carry the chain out alive.
+  <div id="title-sub">steal back what's yours</div>
+  <p id="title-tagline">
+    Your behavioral data is locked in their servers.<br>
+    Infiltrate. Grab the chain. Get out alive.
+  </p>
+  <button id="start-btn" onclick="startGame()">BREACH</button>
+  <div id="controls-hint">
+    WASD — move &nbsp;|&nbsp; MOUSE — flashlight direction &nbsp;|&nbsp; E — grab data block<br>
+    SHIFT — sprint (increases noise) &nbsp;|&nbsp; SPACE — drop decoy<br>
+    Stay out of guard sight cones. Reach the EXIT with 5+ blocks.
   </div>
-  <div class="ctrl">
-    WASD — move &nbsp;|&nbsp; MOUSE — aim flashlight<br>
-    E — grab data block (when adjacent)<br>
-    SHIFT — sprint (expands guard alert radius)<br>
-    SPACE — drop decoy (sacrifices 1 block to distract guard)<br>
-    Reach the EXIT with 5+ data blocks
+</div>
+
+<!-- END SCREEN -->
+<div id="end-screen">
+  <div id="end-title"></div>
+  <div id="end-subtitle"></div>
+  <div id="wallet-box" style="display:none">
+    <div id="wallet-header">🔒 YOUR DATA CHAIN — ON-CHAIN</div>
+    <div id="wallet-chain"></div>
   </div>
-  <button class="btn" id="startBtn" onclick="startGame()">Begin Infiltration</button>
-  <div id="win-chain" style="display:none">
-    <div id="win-chain-title">RECOVERED CHAIN</div>
-    <div id="win-chain-blocks"></div>
+  <div id="death-box" style="display:none">
+    <div id="death-header">DATA RETURNED TO GOOGLE</div>
+    <div id="death-blocks"></div>
   </div>
+  <button id="restart-btn" onclick="restartGame()">TRY AGAIN</button>
 </div>
 
 <script type="importmap">
-{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"}}
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
 </script>
-<script type="module" src="main.js"></script>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// ─── DATA LABELS ─────────────────────────────────────────────────────────────
+const DATA_LABELS = [
+  'You clicked "Skip Tutorial"',
+  'Session #4 — 47 min playtime',
+  'You replayed Level 2 × 7',
+  'Purchase: VIP Pass ($4.99)',
+  'You paused at the boss intro',
+  'Search: "how to beat wave 3"',
+  'You quit mid-battle at 11:42 PM',
+  'Watched 4 reward ads in a row',
+  'Achievement: First Kill (6.3s)',
+  'You changed your username twice',
+  'Joined "CasualPlayers" guild',
+  'Left match early × 3 times'
+];
+
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const GRID_W = 22, GRID_H = 18;
+const CELL = 2.0;
+const PLAYER_SPEED = 4.5;
+const SPRINT_MULT = 1.8;
+const GUARD_SPEED = 2.2;
+const GUARD_SIGHT = 6.5;
+const GUARD_FOV = Math.PI / 3.5; // ~51 degrees
+const BLOCKS_NEEDED = 5;
+const NUM_GUARDS = 4;
+const NUM_BLOCKS = 8;
+const DECOY_LIMIT = 2;
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let state = 'title';
+let playerPos = new THREE.Vector2(2, 2);
+let playerChain = [];
+let guards = [];
+let dataBlocks = [];
+let decoys = [];
+let particles = [];
+let exitPos = new THREE.Vector2(GRID_W - 2, GRID_H - 2);
+let noiseLevel = 0;
+let decoyCount = DECOY_LIMIT;
+let alertFlash = 0;
+let detected = false;
+let detectedTimer = 0;
+let shakeTime = 0;
+let bgmPlaying = false;
+
+// Mouse aim
+let mouseNX = 0, mouseNY = 0;
+let aimAngle = 0;
+
+// Keys
+const keys = {};
+
+// ─── SCENE ───────────────────────────────────────────────────────────────────
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x000508, 0.045);
+
+const aspect = window.innerWidth / window.innerHeight;
+const frustH = 12;
+const camera = new THREE.OrthographicCamera(
+  -frustH * aspect, frustH * aspect,
+  frustH, -frustH, 0.1, 100
+);
+camera.position.set(0, 0, 30);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+document.body.insertBefore(renderer.domElement, document.body.firstChild);
+
+window.addEventListener('resize', () => {
+  const a = window.innerWidth / window.innerHeight;
+  camera.left = -frustH * a; camera.right = frustH * a;
+  camera.top = frustH; camera.bottom = -frustH;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+});
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.4, 0.4, 0.85);
+composer.addPass(bloom);
+
+// ─── LIGHTING ─────────────────────────────────────────────────────────────────
+const ambient = new THREE.AmbientLight(0xffffff, 2.0);
+scene.add(ambient);
+const dirLight = new THREE.DirectionalLight(0x4488ff, 1.0);
+dirLight.position.set(5, 5, 20);
+scene.add(dirLight);
+
+// ─── GRID FLOOR ───────────────────────────────────────────────────────────────
+function makeGrid() {
+  // Floor plane
+  const geo = new THREE.PlaneGeometry(GRID_W * CELL, GRID_H * CELL);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x030812, roughness: 0.9 });
+  const floor = new THREE.Mesh(geo, mat);
+  floor.position.set((GRID_W - 1) * CELL / 2, (GRID_H - 1) * CELL / 2, -0.5);
+  scene.add(floor);
+
+  // Grid lines
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x0a1520, transparent: true, opacity: 0.6 });
+  for (let x = 0; x <= GRID_W; x++) {
+    const g = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(x * CELL, 0, -0.4),
+      new THREE.Vector3(x * CELL, GRID_H * CELL, -0.4)
+    ]);
+    scene.add(new THREE.Line(g, lineMat));
+  }
+  for (let y = 0; y <= GRID_H; y++) {
+    const g = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, y * CELL, -0.4),
+      new THREE.Vector3(GRID_W * CELL, y * CELL, -0.4)
+    ]);
+    scene.add(new THREE.Line(g, lineMat));
+  }
+
+  // Server racks (obstacles) — scattered blocks
+  const rackGeo = new THREE.BoxGeometry(1.6, 1.6, 1.0);
+  const rackMat = new THREE.MeshStandardMaterial({ color: 0x0d1a28, roughness: 0.6, metalness: 0.4 });
+  const rackPositions = [
+    [4,4],[4,5],[8,3],[8,4],[12,6],[12,7],[16,4],[16,5],
+    [5,10],[5,11],[10,9],[10,10],[14,12],[14,13],[18,10],[18,11],
+    [3,14],[7,14],[11,14],[15,14],[19,6]
+  ];
+  for (const [rx, ry] of rackPositions) {
+    const rack = new THREE.Mesh(rackGeo, rackMat);
+    rack.position.set(rx * CELL, ry * CELL, 0);
+    scene.add(rack);
+    // Rack glow stripe
+    const stripeGeo = new THREE.PlaneGeometry(0.1, 1.4);
+    const stripeMat = new THREE.MeshBasicMaterial({ color: 0x004422 });
+    const stripe = new THREE.Mesh(stripeGeo, stripeMat);
+    stripe.position.set(rx * CELL + 0.7, ry * CELL, 0.51);
+    scene.add(stripe);
+  }
+
+  // Perimeter walls
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x05101a, roughness: 0.8 });
+  const wallGeo = new THREE.BoxGeometry(GRID_W * CELL + 0.2, 0.5, 1.5);
+  const wallGeoV = new THREE.BoxGeometry(0.5, GRID_H * CELL + 0.2, 1.5);
+  const cx = (GRID_W - 1) * CELL / 2;
+  const cy = (GRID_H - 1) * CELL / 2;
+  [[cx, -0.5], [cx, (GRID_H) * CELL - 0.5]].forEach(([wx, wy]) => {
+    const w = new THREE.Mesh(wallGeo, wallMat); w.position.set(wx, wy, 0); scene.add(w);
+  });
+  [[-0.5, cy], [(GRID_W) * CELL - 0.5, cy]].forEach(([wx, wy]) => {
+    const w = new THREE.Mesh(wallGeoV, wallMat); w.position.set(wx, wy, 0); scene.add(w);
+  });
+}
+
+// ─── PLAYER ───────────────────────────────────────────────────────────────────
+const playerGeo = new THREE.SphereGeometry(0.35, 16, 16);
+const playerMat = new THREE.MeshStandardMaterial({
+  color: 0x00ff96, emissive: 0x00ff96, emissiveIntensity: 0.4,
+  roughness: 0.3, metalness: 0.6
+});
+const playerMesh = new THREE.Mesh(playerGeo, playerMat);
+scene.add(playerMesh);
+
+// Player flashlight cone (visual only)
+const lightGeo = new THREE.ConeGeometry(0.1, 4.0, 12, 1, true);
+lightGeo.translate(0, 2.0, 0);
+lightGeo.rotateZ(Math.PI);
+const lightMat = new THREE.MeshBasicMaterial({
+  color: 0x88ffcc, transparent: true, opacity: 0.08, side: THREE.DoubleSide
+});
+const flashlightMesh = new THREE.Mesh(lightGeo, lightMat);
+playerMesh.add(flashlightMesh);
+
+// ─── EXIT ZONE ────────────────────────────────────────────────────────────────
+const exitGeo = new THREE.PlaneGeometry(1.6, 1.6);
+const exitMat = new THREE.MeshBasicMaterial({ color: 0x00ff96, transparent: true, opacity: 0.15, side: THREE.DoubleSide });
+const exitMesh = new THREE.Mesh(exitGeo, exitMat);
+exitMesh.position.set(exitPos.x * CELL, exitPos.y * CELL, 0.1);
+scene.add(exitMesh);
+
+// Exit label
+const exitRingGeo = new THREE.RingGeometry(0.7, 0.9, 32);
+const exitRingMat = new THREE.MeshBasicMaterial({ color: 0x00ff96, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+const exitRing = new THREE.Mesh(exitRingGeo, exitRingMat);
+exitRing.position.copy(exitMesh.position);
+exitRing.position.z = 0.2;
+scene.add(exitRing);
+
+// ─── DATA BLOCKS ──────────────────────────────────────────────────────────────
+function placeDataBlocks() {
+  const used = [[2,2], [exitPos.x, exitPos.y]]; // avoid spawn/exit
+  const labels = [...DATA_LABELS].sort(() => Math.random() - 0.5);
+
+  for (let i = 0; i < NUM_BLOCKS; i++) {
+    let bx, by;
+    do {
+      bx = 3 + Math.floor(Math.random() * (GRID_W - 5));
+      by = 3 + Math.floor(Math.random() * (GRID_H - 5));
+    } while (used.some(([ux,uy]) => Math.abs(ux-bx) < 2 && Math.abs(uy-by) < 2));
+    used.push([bx, by]);
+
+    const geo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x0055ff, emissive: 0x0033cc, emissiveIntensity: 0.8,
+      roughness: 0.2, metalness: 0.8
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(bx * CELL, by * CELL, 0.2);
+    scene.add(mesh);
+    dataBlocks.push({ mesh, pos: new THREE.Vector2(bx, by), label: labels[i % labels.length], grabbed: false });
+  }
+}
+
+// ─── GUARDS ───────────────────────────────────────────────────────────────────
+const GUARD_COLORS = [0xff2200, 0xff6600, 0xffaa00];
+
+function placeGuards() {
+  const guardStartPos = [
+    {x: 10, y: 5, dir: 0},
+    {x: 5, y: 12, dir: Math.PI/2},
+    {x: 17, y: 8, dir: Math.PI},
+    {x: 12, y: 15, dir: -Math.PI/2}
+  ];
+  for (let i = 0; i < NUM_GUARDS; i++) {
+    const sp = guardStartPos[i];
+    const geo = new THREE.SphereGeometry(0.38, 16, 16);
+    const mat = new THREE.MeshStandardMaterial({
+      color: GUARD_COLORS[i % GUARD_COLORS.length],
+      emissive: GUARD_COLORS[i % GUARD_COLORS.length],
+      emissiveIntensity: 0.5, roughness: 0.3
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(sp.x * CELL, sp.y * CELL, 0);
+    scene.add(mesh);
+
+    // Guard sight cone
+    const coneGeo = new THREE.ConeGeometry(0.12, GUARD_SIGHT, 12, 1, true);
+    coneGeo.translate(0, GUARD_SIGHT / 2, 0);
+    coneGeo.rotateZ(Math.PI);
+    const coneMat = new THREE.MeshBasicMaterial({
+      color: 0xff3300, transparent: true, opacity: 0.12, side: THREE.DoubleSide
+    });
+    const coneMesh = new THREE.Mesh(coneGeo, coneMat);
+    mesh.add(coneMesh);
+
+    guards.push({
+      mesh, coneMesh,
+      pos: new THREE.Vector2(sp.x, sp.y),
+      dir: sp.dir,
+      turnSpeed: 0.6 + Math.random() * 0.4,
+      patrolAngle: sp.dir,
+      patrolArc: (Math.PI / 3) + Math.random() * (Math.PI / 4),
+      patrolTime: 0,
+      alertLevel: 0,
+      alertTimer: 0,
+      type: i % 3 // 0=patrol, 1=wide-sweep, 2=stationary
+    });
+  }
+}
+
+// ─── CHAIN SEGMENTS ───────────────────────────────────────────────────────────
+const chainMeshes = [];
+
+function addChainSegment(label) {
+  const idx = playerChain.length;
+  const geo = new THREE.SphereGeometry(0.18, 8, 8);
+  const t = idx / (NUM_BLOCKS - 1);
+  const r = Math.floor(0 + t * 0 * 255);
+  const g = Math.floor(200 - t * 80);
+  const b = Math.floor(255 - t * 100);
+  const mat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0, g / 255, b / 255),
+    emissive: new THREE.Color(0, g / 255, b / 255),
+    emissiveIntensity: 0.7
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  scene.add(mesh);
+  chainMeshes.push({ mesh, offset: (idx + 1) * 0.55, label });
+  playerChain.push({ label, idx });
+}
+
+// ─── PARTICLES ────────────────────────────────────────────────────────────────
+function spawnParticles(x, y, color, count = 10) {
+  for (let i = 0; i < count; i++) {
+    const geo = new THREE.SphereGeometry(0.05 + Math.random() * 0.07, 6, 6);
+    const mat = new THREE.MeshBasicMaterial({ color });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, y, 0.1);
+    scene.add(mesh);
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1.5 + Math.random() * 3;
+    particles.push({
+      mesh,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 0.4 + Math.random() * 0.3
+    });
+  }
+}
+
+// ─── AUDIO ────────────────────────────────────────────────────────────────────
+let audioCtx = null;
+let bgmTimeout = null;
+
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function playTone(freq, type, duration, vol = 0.15, delay = 0) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.frequency.value = freq; osc.type = type;
+  gain.gain.setValueAtTime(0, audioCtx.currentTime + delay);
+  gain.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + delay + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration);
+  osc.start(audioCtx.currentTime + delay);
+  osc.stop(audioCtx.currentTime + delay + duration);
+}
+
+function sfxGrab() {
+  playTone(440, 'sine', 0.1, 0.2);
+  playTone(660, 'sine', 0.15, 0.15, 0.05);
+  playTone(880, 'sine', 0.12, 0.1, 0.1);
+}
+
+function sfxDetect() {
+  playTone(180, 'sawtooth', 0.3, 0.3);
+  playTone(160, 'sine', 0.4, 0.2);
+}
+
+function sfxEscape() {
+  playTone(440, 'sine', 0.1, 0.2);
+  playTone(550, 'sine', 0.12, 0.2, 0.1);
+  playTone(660, 'sine', 0.15, 0.2, 0.2);
+  playTone(880, 'sine', 0.2, 0.2, 0.3);
+}
+
+function sfxFail() {
+  playTone(220, 'sawtooth', 0.5, 0.3);
+  playTone(180, 'sine', 0.6, 0.3, 0.15);
+  playTone(100, 'square', 0.8, 0.2, 0.35);
+}
+
+function sfxStep(sprint) {
+  playTone(sprint ? 200 : 120, 'sine', 0.04, 0.03);
+}
+
+function startBGM() {
+  if (!audioCtx || bgmPlaying) return;
+  bgmPlaying = true;
+  const notes = [110, 123, 130, 146, 165];
+  let idx = 0;
+  function next() {
+    if (state === 'end') { bgmPlaying = false; return; }
+    playTone(notes[idx % notes.length], 'sine', 0.4, 0.03);
+    idx++;
+    bgmTimeout = setTimeout(next, 600);
+  }
+  next();
+}
+
+// ─── INPUT ────────────────────────────────────────────────────────────────────
+window.addEventListener('keydown', e => { keys[e.code] = true; });
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+window.addEventListener('mousemove', e => {
+  mouseNX = (e.clientX / window.innerWidth) * 2 - 1;
+  mouseNY = -((e.clientY / window.innerHeight) * 2 - 1);
+  document.getElementById('cursor').style.left = e.clientX + 'px';
+  document.getElementById('cursor').style.top = e.clientY + 'px';
+});
+
+// ─── CLEAR SCENE ─────────────────────────────────────────────────────────────
+function clearLevel() {
+  for (const b of dataBlocks) scene.remove(b.mesh);
+  for (const g of guards) { scene.remove(g.mesh); }
+  for (const c of chainMeshes) scene.remove(c.mesh);
+  for (const p of particles) scene.remove(p.mesh);
+  for (const d of decoys) scene.remove(d.mesh);
+  dataBlocks = []; guards = []; particles = []; decoys = [];
+  playerChain = []; chainMeshes.length = 0;
+}
+
+// ─── INIT LEVEL ───────────────────────────────────────────────────────────────
+let sceneReady = false;
+
+function initLevel() {
+  if (!sceneReady) { makeGrid(); sceneReady = true; }
+  clearLevel();
+  playerPos.set(2, 2);
+  playerMesh.position.set(playerPos.x * CELL, playerPos.y * CELL, 0);
+  noiseLevel = 0;
+  decoyCount = DECOY_LIMIT;
+  detected = false;
+  detectedTimer = 0;
+  alertFlash = 0;
+  shakeTime = 0;
+  bgmPlaying = false;
+  placeDataBlocks();
+  placeGuards();
+}
+
+// ─── SHOW PICKUP TEXT ─────────────────────────────────────────────────────────
+let pickupTimer = 0;
+function showPickup(label) {
+  const el = document.getElementById('pickup-flash');
+  el.textContent = `🔗 "${label}"`;
+  el.style.opacity = '1';
+  pickupTimer = 2.0;
+}
+
+// ─── FLASHLIGHT DIRECTION ─────────────────────────────────────────────────────
+function updateFlashlight() {
+  const a = window.innerWidth / window.innerHeight;
+  const worldMouseX = mouseNX * frustH * a;
+  const worldMouseY = mouseNY * frustH;
+  const px = playerMesh.position.x;
+  const py = playerMesh.position.y;
+  aimAngle = Math.atan2(worldMouseY - py, worldMouseX - px);
+  // Cone faces aim direction
+  flashlightMesh.rotation.z = aimAngle - Math.PI / 2;
+}
+
+// ─── GUARD UPDATE ─────────────────────────────────────────────────────────────
+function updateGuards(dt) {
+  for (const g of guards) {
+    g.patrolTime += dt;
+
+    if (g.type === 2) {
+      // Stationary: just sweep
+      g.dir = g.patrolAngle + Math.sin(g.patrolTime * g.turnSpeed) * g.patrolArc;
+    } else if (g.type === 1) {
+      // Wide sweep + slow drift
+      g.dir = g.patrolAngle + Math.sin(g.patrolTime * g.turnSpeed * 0.5) * g.patrolArc * 1.5;
+      g.pos.x += Math.cos(g.dir) * GUARD_SPEED * 0.3 * dt;
+      g.pos.y += Math.sin(g.dir) * GUARD_SPEED * 0.3 * dt;
+      g.pos.x = Math.max(1, Math.min(GRID_W - 2, g.pos.x));
+      g.pos.y = Math.max(1, Math.min(GRID_H - 2, g.pos.y));
+    } else {
+      // Patrol: move forward, sweep back
+      const t = (Math.sin(g.patrolTime * g.turnSpeed) + 1) / 2;
+      g.dir = g.patrolAngle - g.patrolArc / 2 + t * g.patrolArc;
+      g.pos.x += Math.cos(g.dir) * GUARD_SPEED * dt;
+      g.pos.y += Math.sin(g.dir) * GUARD_SPEED * dt;
+      g.pos.x = Math.max(1, Math.min(GRID_W - 2, g.pos.x));
+      g.pos.y = Math.max(1, Math.min(GRID_H - 2, g.pos.y));
+    }
+
+    g.mesh.position.set(g.pos.x * CELL, g.pos.y * CELL, 0);
+    g.mesh.rotation.z = g.dir - Math.PI / 2;
+
+    // ── Check if player in sight cone ──
+    const dx = playerPos.x - g.pos.x;
+    const dy = playerPos.y - g.pos.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const angleToPlayer = Math.atan2(dy, dx);
+    const angleDiff = Math.abs(((angleToPlayer - g.dir) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
+
+    if (dist < GUARD_SIGHT && angleDiff < GUARD_FOV / 2) {
+      g.alertLevel += dt * (2.0 + noiseLevel * 1.5);
+      g.coneMesh.material.color.setHex(0xff8800);
+      g.coneMesh.material.opacity = 0.2 + g.alertLevel * 0.15;
+    } else {
+      g.alertLevel = Math.max(0, g.alertLevel - dt * 0.8);
+      g.coneMesh.material.color.setHex(0xff3300);
+      g.coneMesh.material.opacity = 0.12;
+    }
+
+    if (g.alertLevel >= 1.0 && !detected) {
+      triggerDetection(g);
+    }
+
+    // Also check decoy distraction
+    for (let di = decoys.length - 1; di >= 0; di--) {
+      const d = decoys[di];
+      const ddx = d.pos.x - g.pos.x;
+      const ddy = d.pos.y - g.pos.y;
+      const ddist = Math.sqrt(ddx * ddx + ddy * ddy);
+      if (ddist < 3.0) {
+        // Guard investigates decoy — reset alert
+        g.alertLevel = 0;
+        g.patrolAngle = Math.atan2(ddy, ddx);
+        d.life -= dt * 2;
+        if (d.life <= 0) {
+          scene.remove(d.mesh);
+          decoys.splice(di, 1);
+        }
+      }
+    }
+  }
+}
+
+function triggerDetection(guard) {
+  detected = true;
+  detectedTimer = 1.5;
+  sfxDetect();
+  alertFlash = 0.5;
+  document.getElementById('alert-bar').style.display = 'block';
+
+  // Chain shatters — scatter to guard
+  setTimeout(() => endGame(false), 1500);
+}
+
+// ─── PLAYER UPDATE ────────────────────────────────────────────────────────────
+let stepTimer = 0;
+
+function updatePlayer(dt) {
+  if (detected) return;
+
+  const sprinting = keys['ShiftLeft'] || keys['ShiftRight'];
+  const speed = PLAYER_SPEED * (sprinting ? SPRINT_MULT : 1.0) * CELL * dt;
+
+  let mx = 0, my = 0;
+  if (keys['KeyW'] || keys['ArrowUp'])    my += 1;
+  if (keys['KeyS'] || keys['ArrowDown'])  my -= 1;
+  if (keys['KeyA'] || keys['ArrowLeft'])  mx -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) mx += 1;
+
+  const len = Math.sqrt(mx*mx + my*my);
+  if (len > 0) {
+    mx /= len; my /= len;
+    playerPos.x += mx * speed / CELL;
+    playerPos.y += my * speed / CELL;
+    playerPos.x = Math.max(0.5, Math.min(GRID_W - 1.5, playerPos.x));
+    playerPos.y = Math.max(0.5, Math.min(GRID_H - 1.5, playerPos.y));
+
+    // Noise generation
+    noiseLevel = sprinting ? 0.9 : 0.2;
+    stepTimer -= dt;
+    if (stepTimer <= 0) {
+      sfxStep(sprinting);
+      stepTimer = sprinting ? 0.18 : 0.35;
+    }
+  } else {
+    noiseLevel = Math.max(0, noiseLevel - dt * 2);
+  }
+
+  document.getElementById('noise-fill').style.width = (noiseLevel * 100) + '%';
+
+  playerMesh.position.set(playerPos.x * CELL, playerPos.y * CELL, 0);
+
+  // Camera follows player
+  camera.position.x = playerPos.x * CELL;
+  camera.position.y = playerPos.y * CELL;
+  camera.lookAt(playerPos.x * CELL, playerPos.y * CELL, 0);
+
+  // ── Grab data block ──
+  if (keys['KeyE']) {
+    for (let i = 0; i < dataBlocks.length; i++) {
+      const b = dataBlocks[i];
+      if (b.grabbed) continue;
+      const dx = b.pos.x - playerPos.x;
+      const dy = b.pos.y - playerPos.y;
+      if (Math.sqrt(dx*dx + dy*dy) < 1.2) {
+        b.grabbed = true;
+        scene.remove(b.mesh);
+        spawnParticles(b.pos.x * CELL, b.pos.y * CELL, 0x0055ff, 10);
+        addChainSegment(b.label);
+        sfxGrab();
+        showPickup(b.label);
+        document.getElementById('chain-count').textContent = playerChain.length;
+        break;
+      }
+    }
+  }
+
+  // ── Drop decoy ──
+  if (keys['Space'] && decoyCount > 0) {
+    keys['Space'] = false;
+    decoyCount--;
+    const geo = new THREE.SphereGeometry(0.2, 8, 8);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(playerPos.x * CELL, playerPos.y * CELL, 0.1);
+    scene.add(mesh);
+    decoys.push({ mesh, pos: new THREE.Vector2(playerPos.x, playerPos.y), life: 4.0 });
+  }
+
+  // ── Update chain positions ──
+  const angle = aimAngle + Math.PI; // chain trails behind
+  for (let i = 0; i < chainMeshes.length; i++) {
+    const c = chainMeshes[i];
+    const ox = Math.cos(angle) * c.offset;
+    const oy = Math.sin(angle) * c.offset;
+    c.mesh.position.set(playerPos.x * CELL + ox, playerPos.y * CELL + oy, 0.1);
+    c.mesh.rotation.z += 0.05;
+  }
+
+  // ── Check exit ──
+  const ex = exitPos.x - playerPos.x;
+  const ey = exitPos.y - playerPos.y;
+  if (Math.sqrt(ex*ex + ey*ey) < 1.5 && playerChain.length >= BLOCKS_NEEDED) {
+    endGame(true);
+  }
+}
+
+// ─── ALERT FLASH ──────────────────────────────────────────────────────────────
+function updateAlertFlash(dt) {
+  if (alertFlash > 0) {
+    alertFlash -= dt;
+    document.getElementById('alert-screen').style.opacity = Math.sin(alertFlash * 20) > 0 ? '1' : '0';
+  } else {
+    document.getElementById('alert-screen').style.opacity = '0';
+  }
+}
+
+// ─── PICKUP TIMER ─────────────────────────────────────────────────────────────
+function updatePickupFlash(dt) {
+  if (pickupTimer > 0) {
+    pickupTimer -= dt;
+    if (pickupTimer <= 0) {
+      document.getElementById('pickup-flash').style.opacity = '0';
+    }
+  }
+}
+
+// ─── PARTICLES ────────────────────────────────────────────────────────────────
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.mesh.position.x += p.vx * dt;
+    p.mesh.position.y += p.vy * dt;
+    p.vx *= 0.9; p.vy *= 0.9;
+    p.life -= dt;
+    p.mesh.material.opacity = p.life / 0.5;
+    p.mesh.material.transparent = true;
+    if (p.life <= 0) { scene.remove(p.mesh); particles.splice(i, 1); }
+  }
+}
+
+// ─── END GAME ─────────────────────────────────────────────────────────────────
+function endGame(won) {
+  state = 'end';
+  if (bgmTimeout) clearTimeout(bgmTimeout);
+  bgmPlaying = false;
+
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('obj-bar').style.display = 'none';
+
+  const endTitle = document.getElementById('end-title');
+  const endSub = document.getElementById('end-subtitle');
+  const endScreen = document.getElementById('end-screen');
+
+  if (won) {
+    sfxEscape();
+    endTitle.textContent = '🔒 DATA SECURED';
+    endTitle.style.color = '#00ff96';
+    endSub.textContent = `${playerChain.length} blocks locked to your chain.`;
+    document.getElementById('wallet-box').style.display = 'block';
+    const chainDiv = document.getElementById('wallet-chain');
+    chainDiv.innerHTML = '';
+    for (let i = 0; i < playerChain.length; i++) {
+      const div = document.createElement('div');
+      div.className = 'chain-block';
+      div.innerHTML = `<span class="chain-block-icon">🔗</span><span class="chain-block-index">Block ${i+1}:</span><span>"${playerChain[i].label}"</span>`;
+      chainDiv.appendChild(div);
+    }
+  } else {
+    sfxFail();
+    endTitle.textContent = '⚡ CAUGHT';
+    endTitle.style.color = '#ff4444';
+    const lostCount = playerChain.length;
+    endSub.textContent = lostCount > 0
+      ? `${lostCount} blocks shattered. Data returned to Google.`
+      : 'You never had a chance.';
+    if (lostCount > 0) {
+      document.getElementById('death-box').style.display = 'block';
+      const deathDiv = document.getElementById('death-blocks');
+      deathDiv.innerHTML = playerChain.map((c,i) =>
+        `Block ${i+1}: "${c.label}"<br>`
+      ).join('');
+    }
+  }
+
+  endScreen.style.display = 'flex';
+}
+
+// ─── GAME START/RESTART ───────────────────────────────────────────────────────
+window.startGame = function() {
+  initAudio();
+  document.getElementById('title-screen').style.display = 'none';
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('obj-bar').style.display = 'block';
+  document.getElementById('alert-bar').style.display = 'none';
+  state = 'playing';
+  initLevel();
+  startBGM();
+};
+
+window.restartGame = function() {
+  initAudio();
+  document.getElementById('end-screen').style.display = 'none';
+  document.getElementById('wallet-box').style.display = 'none';
+  document.getElementById('death-box').style.display = 'none';
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('obj-bar').style.display = 'block';
+  document.getElementById('alert-bar').style.display = 'none';
+  document.getElementById('alert-screen').style.opacity = '0';
+  document.getElementById('chain-count').textContent = '0';
+  state = 'playing';
+  detected = false;
+  initLevel();
+  startBGM();
+};
+
+// ─── EXIT PULSE ───────────────────────────────────────────────────────────────
+function updateExit(t) {
+  exitRing.material.opacity = 0.3 + Math.sin(t * 3) * 0.2;
+  exitMesh.material.opacity = 0.1 + Math.sin(t * 2) * 0.05;
+  if (playerChain.length >= BLOCKS_NEEDED) {
+    exitRing.material.color.setHex(0xffd700);
+    exitMesh.material.color.setHex(0xffd700);
+  } else {
+    exitRing.material.color.setHex(0x00ff96);
+    exitMesh.material.color.setHex(0x00ff96);
+  }
+}
+
+// ─── ANIMATE ──────────────────────────────────────────────────────────────────
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  if (state === 'playing') {
+    updateFlashlight();
+    updatePlayer(dt);
+    updateGuards(dt);
+    updateParticles(dt);
+    updateAlertFlash(dt);
+    updatePickupFlash(dt);
+    updateExit(t);
+
+    // Player pulse
+    playerMat.emissiveIntensity = 0.3 + Math.sin(t * 4) * 0.15;
+  }
+
+  composer.render();
+}
+
+animate();</script>
 </body>
 </html>

@@ -1,168 +1,159 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NEXUS RAID</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:#000; overflow:hidden; font-family:'Courier New', monospace; }
-  canvas { display:block; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+  canvas { display: block; }
+
+  #ui { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; color: #fff; }
+
+  /* HUD */
   #hud {
-    position:fixed; top:0; left:0; width:100%; height:100%;
-    pointer-events:none; z-index:10;
+    position: absolute; top: 16px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; gap: 24px; align-items: center;
+    background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.15);
+    padding: 8px 20px; border-radius: 6px; font-size: 13px; display: none;
   }
-  #hp-bar-container {
-    position:fixed; bottom:30px; left:50%; transform:translateX(-50%);
-    width:300px; background:rgba(0,0,0,0.7); border:2px solid #444;
-    border-radius:4px; padding:6px 10px;
+  #hp-bar { display: flex; gap: 4px; }
+  .hp-pip { width: 14px; height: 14px; border-radius: 2px; border: 1px solid rgba(255,255,255,0.2); }
+  #wave-text { color: #ffd700; font-size: 13px; }
+  #core-label { font-size: 12px; letter-spacing: 1px; }
+  #ult-bar { width: 80px; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; position: relative; }
+  #ult-fill { height: 100%; border-radius: 3px; transition: width 0.1s; }
+
+  /* CORE SELECT */
+  #core-select {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.95);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    pointer-events: all;
   }
-  #hp-label { color:#fff; font-size:11px; letter-spacing:2px; margin-bottom:4px; }
-  #hp-bar { height:10px; background:#e74c3c; border-radius:2px; transition:width 0.2s; }
-  #ult-bar { height:6px; margin-top:4px; border-radius:2px; transition:width 0.3s; }
-  #wave-info {
-    position:fixed; top:20px; left:50%; transform:translateX(-50%);
-    color:#fff; font-size:14px; letter-spacing:3px; text-align:center;
-    text-shadow:0 0 10px currentColor;
-  }
-  #core-label {
-    position:fixed; top:50px; left:50%; transform:translateX(-50%);
-    font-size:11px; letter-spacing:4px; opacity:0.7;
-  }
-  #vignette {
-    position:fixed; inset:0; pointer-events:none; opacity:0;
-    background:radial-gradient(transparent 50%, rgba(255,0,0,0.6) 100%);
-    transition:opacity 0.1s;
-  }
-  #overlay {
-    position:fixed; inset:0; display:flex; flex-direction:column;
-    align-items:center; justify-content:center; z-index:20;
-    background:rgba(0,0,0,0.85);
-  }
-  #overlay.hidden { display:none; }
-  #overlay h1 {
-    font-size:52px; letter-spacing:12px; color:#fff;
-    text-shadow:0 0 30px #fff, 0 0 60px rgba(255,255,255,0.3);
-    margin-bottom:10px;
-  }
-  #overlay .subtitle {
-    font-size:12px; letter-spacing:6px; color:#888; margin-bottom:50px;
-  }
-  .core-grid {
-    display:flex; gap:30px; margin-bottom:40px;
-  }
+  #core-select h1 { font-size: 48px; letter-spacing: 6px; color: #fff; margin-bottom: 8px; }
+  #core-select .sub { font-size: 13px; color: #444; margin-bottom: 48px; letter-spacing: 1px; }
+  #core-cards { display: flex; gap: 20px; }
   .core-card {
-    width:160px; padding:20px; border:2px solid #333; border-radius:8px;
-    cursor:pointer; transition:all 0.3s; text-align:center;
-    background:rgba(0,0,0,0.5);
+    width: 210px; padding: 24px 18px;
+    border: 2px solid rgba(255,255,255,0.15);
+    border-radius: 10px; cursor: pointer;
+    background: rgba(10,10,20,0.8);
+    transition: all 0.15s; text-align: center;
   }
-  .core-card:hover { transform:translateY(-4px); }
-  .core-card.selected { transform:translateY(-8px); }
-  .core-card.shield { border-color:#3498db; }
-  .core-card.shield:hover, .core-card.shield.selected { background:rgba(52,152,219,0.2); box-shadow:0 0 20px rgba(52,152,219,0.4); }
-  .core-card.blade { border-color:#e74c3c; }
-  .core-card.blade:hover, .core-card.blade.selected { background:rgba(231,76,60,0.2); box-shadow:0 0 20px rgba(231,76,60,0.4); }
-  .core-card.flux { border-color:#f1c40f; }
-  .core-card.flux:hover, .core-card.flux.selected { background:rgba(241,196,15,0.2); box-shadow:0 0 20px rgba(241,196,15,0.4); }
-  .core-icon { font-size:36px; margin-bottom:10px; }
-  .core-name { font-size:14px; letter-spacing:4px; margin-bottom:8px; }
-  .core-desc { font-size:10px; color:#888; line-height:1.5; letter-spacing:1px; }
-  #start-btn {
-    padding:14px 40px; font-size:14px; letter-spacing:6px;
-    background:transparent; color:#fff; border:2px solid #fff;
-    cursor:pointer; font-family:'Courier New', monospace;
-    transition:all 0.3s; opacity:0.4; pointer-events:none;
+  .core-card:hover { transform: translateY(-4px); }
+  .core-card .icon { font-size: 36px; margin-bottom: 10px; }
+  .core-card .name { font-size: 16px; font-weight: bold; margin-bottom: 8px; }
+  .core-card .desc { font-size: 11px; color: #666; line-height: 1.5; }
+  .core-card .skill { font-size: 10px; margin-top: 10px; letter-spacing: 1px; text-transform: uppercase; }
+  #card-shield { border-color: rgba(100,180,255,0.4); }
+  #card-shield:hover { border-color: #64b4ff; box-shadow: 0 8px 30px rgba(100,180,255,0.2); }
+  #card-shield .name { color: #64b4ff; }
+  #card-shield .skill { color: #64b4ff44; }
+  #card-blade { border-color: rgba(255,80,80,0.4); }
+  #card-blade:hover { border-color: #ff5050; box-shadow: 0 8px 30px rgba(255,80,80,0.2); }
+  #card-blade .name { color: #ff5050; }
+  #card-blade .skill { color: #ff505044; }
+  #card-flux { border-color: rgba(180,100,255,0.4); }
+  #card-flux:hover { border-color: #b464ff; box-shadow: 0 8px 30px rgba(180,100,255,0.2); }
+  #card-flux .name { color: #b464ff; }
+  #card-flux .skill { color: #b464ff44; }
+
+  /* WAVE BANNER */
+  #wave-banner {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 40px; font-weight: bold; color: #fff;
+    letter-spacing: 4px; opacity: 0;
+    transition: opacity 0.3s; pointer-events: none;
   }
-  #start-btn.active { opacity:1; pointer-events:all; }
-  #start-btn.active:hover { background:#fff; color:#000; }
-  #result-screen {
-    position:fixed; inset:0; display:flex; flex-direction:column;
-    align-items:center; justify-content:center; z-index:25;
-    background:rgba(0,0,0,0.9);
+
+  /* DAMAGE FLASH */
+  #dmg-flash {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(255,0,0,0.12);
+    opacity: 0; pointer-events: none;
   }
-  #result-screen.hidden { display:none; }
-  #result-title { font-size:48px; letter-spacing:8px; margin-bottom:20px; }
-  #result-stats { font-size:13px; color:#888; letter-spacing:3px; margin-bottom:40px; line-height:2; text-align:center; }
-  #play-again-btn {
-    padding:14px 40px; font-size:13px; letter-spacing:6px;
-    background:transparent; border:2px solid #fff; color:#fff;
-    cursor:pointer; font-family:'Courier New', monospace; transition:all 0.3s;
+
+  /* ULTIMATE FLASH */
+  #ult-flash {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    opacity: 0; pointer-events: none;
   }
-  #play-again-btn:hover { background:#fff; color:#000; }
-  #upgrade-screen {
-    position:fixed; inset:0; display:flex; flex-direction:column;
-    align-items:center; justify-content:center; z-index:22;
-    background:rgba(0,0,0,0.92);
+
+  /* END SCREEN */
+  #end-screen {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.88);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    pointer-events: all; display: none;
   }
-  #upgrade-screen.hidden { display:none; }
-  #upgrade-screen h2 { font-size:24px; letter-spacing:6px; color:#fff; margin-bottom:8px; }
-  #upgrade-screen .sub { font-size:11px; color:#666; letter-spacing:4px; margin-bottom:40px; }
-  .upgrade-grid { display:flex; gap:20px; }
-  .upgrade-card {
-    width:200px; padding:20px; border:2px solid #555; border-radius:6px;
-    cursor:pointer; transition:all 0.2s; text-align:center;
+  #end-title { font-size: 52px; font-weight: bold; letter-spacing: 4px; margin-bottom: 12px; }
+  #end-sub { font-size: 14px; color: #666; margin-bottom: 40px; }
+  #end-stat { font-size: 13px; color: #aaa; margin-bottom: 32px; line-height: 2; text-align: center; }
+  #end-btn {
+    background: transparent; color: #fff;
+    border: 1px solid rgba(255,255,255,0.4);
+    padding: 12px 40px; font-size: 14px;
+    font-family: 'Courier New', monospace;
+    cursor: pointer; letter-spacing: 2px; transition: all 0.15s;
   }
-  .upgrade-card:hover { border-color:#fff; background:rgba(255,255,255,0.05); transform:scale(1.03); }
-  .upgrade-card .ug-name { font-size:13px; letter-spacing:3px; color:#fff; margin-bottom:8px; }
-  .upgrade-card .ug-desc { font-size:10px; color:#888; line-height:1.6; }
-  #ult-ready-flash {
-    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
-    font-size:14px; letter-spacing:6px; color:#fff; pointer-events:none;
-    opacity:0; z-index:15; text-shadow:0 0 20px #fff;
-  }
+  #end-btn:hover { border-color: #fff; background: rgba(255,255,255,0.08); }
 </style>
 </head>
 <body>
-
-<!-- HUD -->
-<div id="hud">
-  <div id="wave-info">WAVE 1 / 5</div>
-  <div id="core-label" style="color:#3498db">SHIELD CORE</div>
-  <div id="hp-bar-container">
-    <div id="hp-label">HP ████████████████████</div>
-    <div id="hp-bar" style="width:100%"></div>
-    <div id="ult-bar" style="width:0%; background:#f1c40f;"></div>
+<div id="ui">
+  <div id="hud">
+    <div id="hp-bar"></div>
+    <div id="wave-text">WAVE 1/5</div>
+    <div id="core-label"></div>
+    <div>ULT: <div id="ult-bar"><div id="ult-fill"></div></div></div>
   </div>
-  <div id="ult-ready-flash">ULTIMATE READY</div>
+  <div id="wave-banner"></div>
+  <div id="dmg-flash"></div>
+  <div id="ult-flash"></div>
 </div>
-<div id="vignette"></div>
 
-<!-- Core Selection -->
-<div id="overlay">
+<!-- CORE SELECT -->
+<div id="core-select">
   <h1>NEXUS RAID</h1>
-  <div class="subtitle">CHOOSE YOUR CORE — IDENTITY CHANGES EVERYTHING</div>
-  <div class="core-grid">
-    <div class="core-card shield" onclick="selectCore('shield')">
-      <div class="core-icon">🛡</div>
-      <div class="core-name" style="color:#3498db">SHIELD CORE</div>
-      <div class="core-desc">Hold to deflect.<br>Redirect enemy fire.<br>Offense through defense.</div>
+  <div class="sub">SELECT YOUR CORE — YOUR MECHANICS CHANGE</div>
+  <div id="core-cards">
+    <div class="core-card" id="card-shield" onclick="selectCore('shield')">
+      <div class="icon">🛡</div>
+      <div class="name">SHIELD</div>
+      <div class="desc">Hold LMB to raise deflector. Redirect enemy projectiles by facing angle. You never fire — you redirect.</div>
+      <div class="skill">Skill: Deflection &amp; Redirection</div>
     </div>
-    <div class="core-card blade" onclick="selectCore('blade')">
-      <div class="core-icon">⚔️</div>
-      <div class="core-name" style="color:#e74c3c">BLADE CORE</div>
-      <div class="core-desc">Charge & lunge.<br>Chain hits reset dash.<br>High risk. High reward.</div>
+    <div class="core-card" id="card-blade" onclick="selectCore('blade')">
+      <div class="icon">⚔</div>
+      <div class="name">BLADE</div>
+      <div class="desc">Hold LMB to charge lunge. Hit resets cooldown instantly. Chain lunges for juggle bonus. Miss = 1s stun.</div>
+      <div class="skill">Skill: Aggression &amp; Commitment</div>
     </div>
-    <div class="core-card flux" onclick="selectCore('flux')">
-      <div class="core-icon">⚡</div>
-      <div class="core-name" style="color:#f1c40f">FLUX CORE</div>
-      <div class="core-desc">Hold to charge.<br>Release for plasma burst.<br>Timing over reaction.</div>
+    <div class="core-card" id="card-flux" onclick="selectCore('flux')">
+      <div class="icon">⚡</div>
+      <div class="name">FLUX</div>
+      <div class="desc">Hold LMB to charge orb. Short = narrow bolt. Full charge = wide AoE + self-damage risk. Bounces off walls.</div>
+      <div class="skill">Skill: Timing &amp; Positioning</div>
     </div>
   </div>
-  <button id="start-btn" onclick="startGame()">ENTER NEXUS</button>
 </div>
 
-<!-- Result Screen -->
-<div id="result-screen" class="hidden">
-  <div id="result-title"></div>
-  <div id="result-stats"></div>
-  <button id="play-again-btn" onclick="showCoreSelect()">PLAY AGAIN</button>
-</div>
-
-<!-- Upgrade Screen -->
-<div id="upgrade-screen" class="hidden">
-  <h2>NEXUS UPGRADE</h2>
-  <div class="sub">WAVE CLEARED — CHOOSE AN UPGRADE</div>
-  <div class="upgrade-grid" id="upgrade-options"></div>
+<!-- END SCREEN -->
+<div id="end-screen">
+  <div id="end-title"></div>
+  <div id="end-sub"></div>
+  <div id="end-stat"></div>
+  <button id="end-btn" onclick="toSelectScreen()">CHOOSE CORE</button>
 </div>
 
 <script type="importmap">
@@ -176,1199 +167,720 @@
 
 <script type="module">
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-// ─── AUDIO ENGINE ────────────────────────────────────────────────────────────
-let audioCtx = null;
-let musicGain = null, sfxGain = null;
-let musicNodes = [];
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const ARENA = 14;
+const MAX_HP = 5;
+const ENEMY_TYPES = ['drone', 'tank', 'boss'];
+const WAVE_COUNT = 5;
 
-function initAudio() {
-  if (audioCtx) return;
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  musicGain = audioCtx.createGain(); musicGain.gain.value = 0.12; musicGain.connect(audioCtx.destination);
-  sfxGain = audioCtx.createGain(); sfxGain.gain.value = 0.3; sfxGain.connect(audioCtx.destination);
-}
+// Per-wave enemy count: [drones, tanks] (boss always on wave 5)
+const WAVE_DEFS = [
+  [4, 0], [5, 1], [6, 1], [6, 2], [4, 2]
+];
 
-function playTone(freq, type, duration, vol=0.3, delay=0, gain=sfxGain) {
-  if (!audioCtx) return;
-  const osc = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
-  osc.type = type; osc.frequency.value = freq;
-  g.gain.setValueAtTime(vol, audioCtx.currentTime + delay);
-  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration);
-  osc.connect(g); g.connect(gain);
-  osc.start(audioCtx.currentTime + delay);
-  osc.stop(audioCtx.currentTime + delay + duration + 0.05);
-}
+const CORE_COLORS = { shield: 0x64b4ff, blade: 0xff5050, flux: 0xb464ff };
+const CORE_ULT_COLORS = { shield: '#64b4ff', blade: '#ff5050', flux: '#b464ff' };
 
-function playSFX(type) {
-  if (!audioCtx) return;
-  switch(type) {
-    case 'deflect':
-      playTone(800, 'square', 0.1, 0.4); playTone(1200,'sine',0.15,0.3,0.05); break;
-    case 'lunge':
-      [200,300,450].forEach((f,i)=>playTone(f,'sawtooth',0.15,0.3,i*0.03)); break;
-    case 'flux_fire':
-      playTone(60,'sine',0.3,0.5); playTone(120,'square',0.2,0.3,0.05); break;
-    case 'enemy_death':
-      playTone(300,'sawtooth',0.08,0.4); playTone(150,'square',0.12,0.3,0.05); break;
-    case 'player_hit':
-      playTone(200,'sawtooth',0.12,0.5); break;
-    case 'boss_death':
-      [50,80,120,200].forEach((f,i)=>playTone(f,'sawtooth',0.4,0.6,i*0.08)); break;
-    case 'ult_ready':
-      [440,550,660,880].forEach((f,i)=>playTone(f,'sine',0.2,0.3,i*0.1)); break;
-    case 'ult_fire':
-      playTone(40,'sine',0.5,0.8); playTone(80,'square',0.4,0.5,0.1); break;
-    case 'stun':
-      playTone(150,'square',0.3,0.4); break;
-  }
-}
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let state = 'select'; // select | playing | end
+let chosenCore = null;
+let hp = MAX_HP;
+let wave = 1;
+let killCount = 0;
+let ultCharge = 0; // 0–1
+let enemies = [];
+let projectiles = [];
+let particles = [];
+let shieldActive = false;
+let lungeState = { charging: false, charge: 0, stunTimer: 0 };
+let fluxState = { charging: false, charge: 0 };
+let dashCooldown = 0;
+let dashActive = false;
+let dashVel = new THREE.Vector2(0, 0);
+let dashTimer = 0;
+let invincible = 0;
+let waveClearing = false;
+let waveComplete = false;
+let waveTransitionTimer = 0;
+let gameRunning = false;
 
-function startMusic(coreType) {
-  stopMusic();
-  if (!audioCtx) return;
-  const configs = {
-    shield: [{f:55,t:'sine'},{f:82,t:'sine'},{f:110,t:'triangle'}],
-    blade:  [{f:150,t:'sawtooth'},{f:200,t:'square'},{f:300,t:'sawtooth'}],
-    flux:   [{f:100,t:'triangle'},{f:150,t:'sawtooth'},{f:225,t:'sine'}]
-  };
-  const cfg = configs[coreType] || configs.shield;
-  cfg.forEach(({f,t},i) => {
-    const osc = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    osc.type = t; osc.frequency.value = f;
-    g.gain.value = 0.03 + i*0.01;
-    osc.connect(g); g.connect(musicGain);
-    osc.start();
-    musicNodes.push(osc, g);
-  });
-  // Add subtle LFO wobble
-  const lfo = audioCtx.createOscillator();
-  const lfoGain = audioCtx.createGain();
-  lfo.frequency.value = coreType === 'blade' ? 8 : 0.5;
-  lfoGain.gain.value = 3;
-  lfo.connect(lfoGain);
-  if(musicNodes[0]) lfoGain.connect(musicNodes[0].frequency);
-  lfo.start();
-  musicNodes.push(lfo, lfoGain);
-}
+const keys = {};
+let mouseX = 0, mouseY = 0;
+let mouseWorldX = 0, mouseWorldY = 0;
+let lmbDown = false;
+let rmbDown = false;
+let playerPos = new THREE.Vector2(0, 0);
+let aimAngle = 0;
 
-function stopMusic() {
-  musicNodes.forEach(n => { try { n.stop && n.stop(); n.disconnect && n.disconnect(); } catch(e){} });
-  musicNodes = [];
-}
+// ─── THREE SETUP ──────────────────────────────────────────────────────────────
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x000510, 0.025);
 
-// ─── THREE.JS SETUP ──────────────────────────────────────────────────────────
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 22, 16);
+camera.lookAt(0, 0, 0);
+
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
 document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x030508);
-scene.fog = new THREE.Fog(0x030508, 20, 50);
-
-// Isometric-ish orthographic camera
-const aspect = window.innerWidth / window.innerHeight;
-const frustum = 14;
-const camera = new THREE.OrthographicCamera(
-  -frustum*aspect, frustum*aspect, frustum, -frustum, 0.1, 200
-);
-camera.position.set(0, 25, 20);
-camera.lookAt(0, 0, 0);
-
-// Lighting
-const ambLight = new THREE.AmbientLight(0x111122, 1.5);
-scene.add(ambLight);
-const dirLight = new THREE.DirectionalLight(0xffffff, 2);
-dirLight.position.set(10, 20, 10);
-dirLight.castShadow = true;
-scene.add(dirLight);
-const pointLight = new THREE.PointLight(0x3399ff, 2, 30);
-pointLight.position.set(0, 10, 0);
-scene.add(pointLight);
-
-const clock = new THREE.Clock();
-
-// ─── GAME STATE ──────────────────────────────────────────────────────────────
-let gameState = 'menu'; // menu | playing | upgrade | result
-let selectedCore = null;
-let player = null;
-let enemies = [];
-let playerProjectiles = [];
-let enemyProjectiles = [];
-let particles = [];
-let shieldMesh = null;
-let chargeOrb = null;
-let lungeTrail = [];
-
-const ARENA_SIZE = 12;
-const PLAYER_SPEED = 5;
-const PLAYER_HP_MAX = 10;
-
-let playerHP = PLAYER_HP_MAX;
-let ultCharge = 0;
-let ultMax = 100;
-let ultReady = false;
-let prevUltReady = false;
-let wave = 1;
-let kills = 0;
-let waveStartTime = 0;
-let dashCooldown = 0;
-let isDashing = false;
-let isShielding = false;
-let isCharging = false;
-let chargeTime = 0;
-let luneCharging = false;
-let lungeChargeTime = 0;
-let isStunned = false;
-let stunTimer = 0;
-let upgrades = [];
-let bossSpawned = false;
-let waveEnemiesSpawned = false;
-let waveClearing = false;
-let invincibleTimer = 0;
-
-// Upgrade pool
-const UPGRADE_POOL = {
-  shield: [
-    {id:'shield_speed', name:'DEFLECTION SPEED', desc:'Shield raises 50% faster'},
-    {id:'shield_range', name:'WIDE ARC', desc:'Shield deflects from wider angle'},
-    {id:'shield_burst', name:'NOVA BURST', desc:'Ricochet burst deals double damage'},
-    {id:'shield_thorns', name:'THORNS', desc:'Melee enemies take damage on contact'},
-    {id:'speed_boost', name:'SWIFT STEP', desc:'Move 25% faster'},
-  ],
-  blade: [
-    {id:'blade_range', name:'LONG REACH', desc:'Lunge range +50%'},
-    {id:'blade_damage', name:'KEEN EDGE', desc:'Lunge deals double damage'},
-    {id:'blade_cooldown', name:'QUICK STEP', desc:'Dash cooldown -30%'},
-    {id:'blade_chain', name:'CHAIN SLASH', desc:'Chain kills heal 1 HP'},
-    {id:'speed_boost', name:'SWIFT STEP', desc:'Move 25% faster'},
-  ],
-  flux: [
-    {id:'flux_damage', name:'OVERLOAD', desc:'Plasma burst radius +50%'},
-    {id:'flux_speed', name:'FAST CHARGE', desc:'Charge time -30%'},
-    {id:'flux_bounce', name:'MULTI-BOUNCE', desc:'Bolt bounces twice instead of once'},
-    {id:'flux_regen', name:'ENERGY DRAIN', desc:'Kills restore 5 ult charge'},
-    {id:'speed_boost', name:'SWIFT STEP', desc:'Move 25% faster'},
-  ]
-};
-
-// Keys
-const keys = {};
-document.addEventListener('keydown', e => { keys[e.code] = true; });
-document.addEventListener('keyup', e => { keys[e.code] = false; });
-
-// Mouse
-const mouse = new THREE.Vector2();
-const mouseWorld = new THREE.Vector3();
-document.addEventListener('mousemove', e => {
-  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-});
-
-// Raycaster for mouse world pos
-const raycaster = new THREE.Raycaster();
-const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-
-function getMouseWorldPos() {
-  raycaster.setFromCamera(mouse, camera);
-  raycaster.ray.intersectPlane(groundPlane, mouseWorld);
-  return mouseWorld.clone();
-}
-
-// ─── ARENA GEOMETRY ──────────────────────────────────────────────────────────
-function buildArena() {
-  // Floor
-  const floorGeo = new THREE.PlaneGeometry(ARENA_SIZE*2, ARENA_SIZE*2, 24, 24);
-  const floorMat = new THREE.MeshStandardMaterial({
-    color: 0x050a0f, roughness:0.9, metalness:0.1, wireframe:false
-  });
-  const floor = new THREE.Mesh(floorGeo, floorMat);
-  floor.rotation.x = -Math.PI/2;
-  floor.receiveShadow = true;
-  scene.add(floor);
-
-  // Grid lines on floor
-  const gridHelper = new THREE.GridHelper(ARENA_SIZE*2, 24, 0x112233, 0x0a1522);
-  gridHelper.position.y = 0.02;
-  scene.add(gridHelper);
-
-  // Walls (glowing)
-  const wallMat = new THREE.MeshStandardMaterial({ color:0x001133, emissive:0x002255, roughness:0.5, metalness:0.8 });
-  const wallH = 2;
-  const wallT = 0.3;
-  // North wall
-  [
-    [0, ARENA_SIZE, ARENA_SIZE*2, wallT],
-    [0, -ARENA_SIZE, ARENA_SIZE*2, wallT],
-    [ARENA_SIZE, 0, wallT, ARENA_SIZE*2],
-    [-ARENA_SIZE, 0, wallT, ARENA_SIZE*2],
-  ].forEach(([x,z,w,d]) => {
-    const geo = new THREE.BoxGeometry(w, wallH, d);
-    const wall = new THREE.Mesh(geo, wallMat.clone());
-    wall.position.set(x, wallH/2, z);
-    wall.castShadow = true;
-    scene.add(wall);
-  });
-
-  // Corner accents
-  for(let i=0; i<4; i++) {
-    const angle = (i/4) * Math.PI * 2 + Math.PI/4;
-    const r = ARENA_SIZE * 1.35;
-    const pillarGeo = new THREE.CylinderGeometry(0.3, 0.3, wallH*2, 6);
-    const pillarMat = new THREE.MeshStandardMaterial({ color:0x003366, emissive:0x0044aa, emissiveIntensity:0.8 });
-    const pillar = new THREE.Mesh(pillarGeo, pillarMat);
-    pillar.position.set(Math.cos(angle)*r, wallH, Math.sin(angle)*r);
-    scene.add(pillar);
-  }
-}
-
-// ─── PLAYER ──────────────────────────────────────────────────────────────────
-function getCoreColor(core) {
-  return { shield: 0x3498db, blade: 0xe74c3c, flux: 0xf1c40f }[core] || 0xffffff;
-}
-
-function createPlayer() {
-  if (player) { scene.remove(player); player = null; }
-  const geo = new THREE.SphereGeometry(0.55, 16, 16);
-  const col = getCoreColor(selectedCore);
-  const mat = new THREE.MeshStandardMaterial({
-    color: col, emissive: col, emissiveIntensity: 0.8,
-    roughness: 0.3, metalness: 0.7
-  });
-  player = new THREE.Mesh(geo, mat);
-  player.position.set(0, 0.55, 0);
-  player.castShadow = true;
-  scene.add(player);
-
-  // Player glow point light
-  const pl = new THREE.PointLight(col, 3, 6);
-  player.add(pl);
-  player.coreLight = pl;
-
-  // Shield mesh (only for shield core)
-  if (selectedCore === 'shield') {
-    const sGeo = new THREE.TorusGeometry(1.2, 0.12, 8, 24, Math.PI);
-    const sMat = new THREE.MeshStandardMaterial({ color:0x3498db, emissive:0x3498db, emissiveIntensity:2, transparent:true, opacity:0.8 });
-    shieldMesh = new THREE.Mesh(sGeo, sMat);
-    shieldMesh.visible = false;
-    player.add(shieldMesh);
-  }
-
-  // Flux charge orb
-  if (selectedCore === 'flux') {
-    const oGeo = new THREE.SphereGeometry(0.3, 12, 12);
-    const oMat = new THREE.MeshStandardMaterial({ color:0xf1c40f, emissive:0xf1c40f, emissiveIntensity:1, transparent:true, opacity:0.7 });
-    chargeOrb = new THREE.Mesh(oGeo, oMat);
-    chargeOrb.scale.set(0,0,0);
-    player.add(chargeOrb);
-  }
-}
-
-// ─── ENEMIES ─────────────────────────────────────────────────────────────────
-function spawnEnemy(type, x, z) {
-  let mesh, hp, speed, fireRate, damage, radius;
-  if (type === 'drone') {
-    const geo = new THREE.OctahedronGeometry(0.5);
-    const mat = new THREE.MeshStandardMaterial({ color:0xff4422, emissive:0xff2200, emissiveIntensity:0.7, roughness:0.4 });
-    mesh = new THREE.Mesh(geo, mat);
-    hp = 3; speed = 3.5; fireRate = 2.5; damage = 1; radius = 0.5;
-  } else if (type === 'tank') {
-    const geo = new THREE.BoxGeometry(1.4, 1.0, 1.4);
-    const mat = new THREE.MeshStandardMaterial({ color:0xff7700, emissive:0xff4400, emissiveIntensity:0.5, roughness:0.6 });
-    mesh = new THREE.Mesh(geo, mat);
-    hp = 10; speed = 1.8; fireRate = 3.5; damage = 2; radius = 1.0;
-  } else { // boss
-    const geo = new THREE.OctahedronGeometry(1.5, 1);
-    const mat = new THREE.MeshStandardMaterial({ color:0xaa00ff, emissive:0x7700cc, emissiveIntensity:0.9, roughness:0.2, metalness:0.8 });
-    mesh = new THREE.Mesh(geo, mat);
-    hp = 30; speed = 2.2; fireRate = 1.8; damage = 2; radius = 1.5;
-  }
-  mesh.position.set(x, radius*0.7, z);
-  mesh.castShadow = true;
-  scene.add(mesh);
-
-  // Enemy light
-  const el = new THREE.PointLight(type==='boss'?0xaa00ff:(type==='tank'?0xff7700:0xff4422), 2, 5);
-  mesh.add(el);
-
-  const e = {
-    mesh, type, hp, maxHp: hp, speed, fireRate, damage, radius,
-    fireTimer: Math.random() * fireRate,
-    dead: false,
-    chargeTimer: 0, isCharging: false, chargeDir: new THREE.Vector3(),
-    chargeTelegraph: null
-  };
-  enemies.push(e);
-}
-
-// ─── WAVE SPAWNING ──────────────────────────────────────────────────────────
-const WAVE_CONFIGS = [
-  [{type:'drone', count:3}],
-  [{type:'drone', count:4}, {type:'tank', count:1}],
-  [{type:'drone', count:5}, {type:'tank', count:2}],
-  [{type:'drone', count:6}, {type:'tank', count:3}],
-  [{type:'boss', count:1}, {type:'drone', count:2}],
-];
-
-function spawnWave(waveIndex) {
-  const cfg = WAVE_CONFIGS[waveIndex] || WAVE_CONFIGS[WAVE_CONFIGS.length-1];
-  cfg.forEach(({type, count}) => {
-    for(let i=0; i<count; i++) {
-      let x, z;
-      do {
-        const edge = Math.floor(Math.random()*4);
-        const t = (Math.random()-0.5) * (ARENA_SIZE*2-2);
-        const margin = ARENA_SIZE - 1;
-        x = edge<2 ? (edge===0?-margin:margin) : t;
-        z = edge<2 ? t : (edge===2?-margin:margin);
-      } while(Math.hypot(x, z) < 4);
-      setTimeout(() => spawnEnemy(type, x, z), i * 400);
-    }
-  });
-  waveEnemiesSpawned = true;
-  bossSpawned = cfg.some(c=>c.type==='boss');
-}
-
-// ─── PROJECTILES ─────────────────────────────────────────────────────────────
-function firePlayerProjectile(pos, dir, isBolt=true, bounces=1) {
-  const geo = new THREE.SphereGeometry(isBolt?0.18:0.5, 8, 8);
-  const col = getCoreColor(selectedCore);
-  const mat = new THREE.MeshStandardMaterial({ color:col, emissive:col, emissiveIntensity:2 });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.copy(pos);
-  mesh.position.y = 0.55;
-  scene.add(mesh);
-  const pl = new THREE.PointLight(col, 3, 4);
-  mesh.add(pl);
-
-  const d = dir.clone().normalize();
-  const p = {
-    mesh, vel: d.multiplyScalar(isBolt?16:10),
-    damage: isBolt ? 1.5 : (3 + (upgrades.includes('flux_damage')?2:0)),
-    isAoE: !isBolt, radius: isBolt ? 0.18 : 2.5,
-    bounces: upgrades.includes('flux_bounce') ? 2 : bounces,
-    dead: false, age: 0
-  };
-  playerProjectiles.push(p);
-  playSFX('flux_fire');
-}
-
-function fireDeflectedProjectile(pos, vel) {
-  const geo = new THREE.SphereGeometry(0.2, 8, 8);
-  const mat = new THREE.MeshStandardMaterial({ color:0x44aaff, emissive:0x44aaff, emissiveIntensity:2 });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.copy(pos);
-  scene.add(mesh);
-  const pl = new THREE.PointLight(0x44aaff, 3, 4);
-  mesh.add(pl);
-  playerProjectiles.push({
-    mesh, vel: vel.clone().multiplyScalar(1.2),
-    damage: 2, radius: 0.2, bounces: 0, dead: false, age: 0, isDeflected: true
-  });
-}
-
-function fireEnemyProjectile(pos, dir, damage, speed=8) {
-  const geo = new THREE.SphereGeometry(0.22, 8, 8);
-  const mat = new THREE.MeshStandardMaterial({ color:0xff3300, emissive:0xff2200, emissiveIntensity:1.5 });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.copy(pos);
-  mesh.position.y = 0.55;
-  scene.add(mesh);
-  const pl = new THREE.PointLight(0xff3300, 2, 3);
-  mesh.add(pl);
-  enemyProjectiles.push({ mesh, vel: dir.clone().normalize().multiplyScalar(speed), damage, radius: 0.22, dead: false, age: 0 });
-}
-
-// ─── PARTICLES ───────────────────────────────────────────────────────────────
-function spawnParticles(pos, col, count=20, speed=8) {
-  const geo = new THREE.BufferGeometry();
-  const positions = new Float32Array(count * 3);
-  const velocities = [];
-  for(let i=0; i<count; i++) {
-    positions[i*3] = pos.x; positions[i*3+1] = pos.y; positions[i*3+2] = pos.z;
-    const angle = (i/count)*Math.PI*2 + Math.random()*0.5;
-    const s = speed * (0.5 + Math.random());
-    velocities.push(new THREE.Vector3(Math.cos(angle)*s, (Math.random()+0.2)*4, Math.sin(angle)*s));
-  }
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  const mat = new THREE.PointsMaterial({ color: col, size: 0.25, transparent: true });
-  const pts = new THREE.Points(geo, mat);
-  scene.add(pts);
-  particles.push({ mesh: pts, velocities, positions: geo.attributes.position, life: 1.0, dead: false });
-}
-
-// ─── LUNGE (BLADE CORE) ──────────────────────────────────────────────────────
-let isLunging = false;
-let lungeDir = new THREE.Vector3();
-let lungeSpeed = 0;
-let lungeRemaining = 0;
-let lungeHitEnemies = new Set();
-let previouslyOnGround = true;
-
-function startLunge(dir, chargeT) {
-  const maxRange = upgrades.includes('blade_range') ? 8 : 5.5;
-  const dist = THREE.MathUtils.lerp(2, maxRange, chargeT);
-  isLunging = true;
-  lungeDir.copy(dir).normalize();
-  lungeSpeed = 22;
-  lungeRemaining = dist;
-  lungeHitEnemies.clear();
-  isDashing = true;
-  playSFX('lunge');
-}
-
-// ─── SHIELD DEFLECT (SHIELD CORE) ────────────────────────────────────────────
-let deflectCount = 0;
-let deflectTimer = 0;
-
-function tryDeflect(proj) {
-  if (!isShielding || !shieldMesh) return false;
-  // Check if projectile is in front of shield
-  const sp = player.position.clone();
-  const toProj = proj.mesh.position.clone().sub(sp);
-  const shieldDir = new THREE.Vector3(0, 0, -1).applyEuler(player.rotation);
-  // Use aim direction instead
-  const aimDir = getMouseWorldPos().sub(player.position).normalize();
-  aimDir.y = 0;
-  const dot = toProj.normalize().dot(aimDir);
-  if (dot < 0.2) return false;
-  if (toProj.length() > 2.5) return false;
-
-  // Reflect velocity
-  const normal = aimDir.clone().negate();
-  const reflected = proj.vel.clone().reflect(normal).negate();
-  reflected.y = 0;
-  fireDeflectedProjectile(proj.mesh.position.clone(), reflected);
-  proj.dead = true;
-
-  // Count deflects for ricochet
-  deflectCount++;
-  deflectTimer = 2.0;
-  if (deflectCount >= (upgrades.includes('shield_range') ? 2 : 3)) {
-    triggerRicochetBurst();
-    deflectCount = 0;
-  }
-  playSFX('deflect');
-  flashVignette(0x4499ff, 0.3);
-  return true;
-}
-
-function triggerRicochetBurst() {
-  const col = getCoreColor(selectedCore);
-  spawnParticles(player.position.clone(), col, 30, 12);
-  enemies.forEach(e => {
-    if (e.dead) return;
-    const dist = e.mesh.position.distanceTo(player.position);
-    if (dist < 8) {
-      const dmg = upgrades.includes('shield_burst') ? 4 : 2;
-      damageEnemy(e, dmg);
-      spawnParticles(e.mesh.position.clone(), 0x44aaff, 10, 6);
-    }
-  });
-  playSFX('ult_fire');
-  cameraShake(0.3, 0.4);
-}
-
-// ─── ULTIMATE ────────────────────────────────────────────────────────────────
-function fireUltimate() {
-  ultCharge = 0;
-  ultReady = false;
-  playSFX('ult_fire');
-  cameraShake(0.5, 0.6);
-  invincibleTimer = 1.0;
-
-  if (selectedCore === 'shield') {
-    // Shield expands to protect player
-    invincibleTimer = 3.0;
-    const flash = document.getElementById('vignette');
-    flash.style.background = 'radial-gradient(transparent 30%, rgba(52,152,219,0.5) 100%)';
-    flash.style.opacity = '0.8';
-    setTimeout(() => { flash.style.opacity='0'; flash.style.background='radial-gradient(transparent 60%, rgba(255,0,0,0.6) 100%)'; }, 500);
-    // Deflect all nearby projectiles
-    enemyProjectiles.forEach(p => {
-      if (p.dead) return;
-      const dist = p.mesh.position.distanceTo(player.position);
-      if (dist < 10) {
-        const dir = player.position.clone().sub(p.mesh.position).normalize();
-        p.vel.copy(dir.multiplyScalar(12));
-        p.dead = false;
-        fireDeflectedProjectile(p.mesh.position.clone(), p.vel);
-        p.dead = true;
-      }
-    });
-    triggerRicochetBurst();
-
-  } else if (selectedCore === 'blade') {
-    // Spin attack — damage all nearby enemies
-    spawnParticles(player.position.clone(), 0xe74c3c, 40, 14);
-    enemies.forEach(e => {
-      if (e.dead) return;
-      const dist = e.mesh.position.distanceTo(player.position);
-      if (dist < 5) damageEnemy(e, upgrades.includes('blade_damage')?12:8);
-    });
-    cameraShake(0.6, 0.8);
-
-  } else if (selectedCore === 'flux') {
-    // Beam that splits on enemies
-    const aimDir = getMouseWorldPos().sub(player.position);
-    aimDir.y = 0; aimDir.normalize();
-    // Fire 5 bolts in a spread
-    for(let i=-2; i<=2; i++) {
-      const angle = i * 0.25;
-      const d = aimDir.clone();
-      d.applyEuler(new THREE.Euler(0, angle, 0));
-      firePlayerProjectile(player.position.clone(), d, true, 1);
-    }
-    // Also AoE
-    firePlayerProjectile(player.position.clone(), aimDir, false, 0);
-    spawnParticles(player.position.clone(), 0xf1c40f, 30, 10);
-  }
-}
-
-// ─── DAMAGE FUNCTIONS ────────────────────────────────────────────────────────
-function damagePlayer(amount) {
-  if (invincibleTimer > 0) return;
-  playerHP -= amount;
-  invincibleTimer = 0.8;
-  playSFX('player_hit');
-  flashVignette(0xff0000, 0.6);
-  cameraShake(0.3, 0.3);
-  if (playerHP <= 0) { playerHP = 0; endGame(false); }
-  updateHUD();
-}
-
-function damageEnemy(e, amount) {
-  if (e.dead) return;
-  e.hp -= amount;
-  // Flash white
-  e.mesh.material.emissiveIntensity = 3;
-  setTimeout(() => { if (e.mesh.material) e.mesh.material.emissiveIntensity = 0.7; }, 100);
-  if (e.hp <= 0) killEnemy(e);
-}
-
-function killEnemy(e) {
-  if (e.dead) return;
-  e.dead = true;
-  const col = e.type==='boss' ? 0xaa00ff : (e.type==='tank'?0xff7700:0xff4422);
-  spawnParticles(e.mesh.position.clone(), col, e.type==='boss'?50:20, e.type==='boss'?12:8);
-  if (e.chargeTelegraph) { scene.remove(e.chargeTelegraph); }
-  scene.remove(e.mesh);
-  kills++;
-  if (e.type === 'boss') {
-    playSFX('boss_death'); cameraShake(0.8, 1.0);
-  } else {
-    playSFX('enemy_death');
-  }
-  addUltCharge(e.type==='boss'?30:(e.type==='tank'?10:5));
-  if (upgrades.includes('blade_chain') && selectedCore==='blade') {
-    playerHP = Math.min(playerHP+1, PLAYER_HP_MAX); updateHUD();
-  }
-  if (upgrades.includes('flux_regen') && selectedCore==='flux') {
-    addUltCharge(5);
-  }
-}
-
-function addUltCharge(amount) {
-  ultCharge = Math.min(ultCharge + amount, ultMax);
-  if (!ultReady && ultCharge >= ultMax) {
-    ultReady = true;
-    playSFX('ult_ready');
-    flashUltReady();
-  }
-  updateHUD();
-}
-
-function flashUltReady() {
-  const el = document.getElementById('ult-ready-flash');
-  el.style.opacity = '1';
-  el.style.color = getCoreColor(selectedCore) === 0x3498db ? '#3498db' :
-                   getCoreColor(selectedCore) === 0xe74c3c ? '#e74c3c' : '#f1c40f';
-  setTimeout(() => { el.style.opacity = '0'; }, 2000);
-}
-
-// ─── CAMERA SHAKE ────────────────────────────────────────────────────────────
-let shakeIntensity = 0, shakeDuration = 0, shakeTime = 0;
-function cameraShake(intensity, duration) {
-  shakeIntensity = Math.max(shakeIntensity, intensity);
-  shakeDuration = Math.max(shakeDuration, duration);
-  shakeTime = 0;
-}
-
-// ─── VIGNETTE FLASH ──────────────────────────────────────────────────────────
-function flashVignette(color, intensity) {
-  const el = document.getElementById('vignette');
-  const r = (color>>16)&0xff, g=(color>>8)&0xff, b=color&0xff;
-  el.style.background = `radial-gradient(transparent 50%, rgba(${r},${g},${b},${intensity}) 100%)`;
-  el.style.opacity = '1';
-  setTimeout(() => { el.style.opacity='0'; }, 300);
-}
-
-// ─── HUD UPDATE ──────────────────────────────────────────────────────────────
-function updateHUD() {
-  const hpBar = document.getElementById('hp-bar');
-  const ultBar = document.getElementById('ult-bar');
-  const waveInfo = document.getElementById('wave-info');
-  const coreLabel = document.getElementById('core-label');
-  if (!hpBar) return;
-
-  hpBar.style.width = (playerHP/PLAYER_HP_MAX*100)+'%';
-  ultBar.style.width = (ultCharge/ultMax*100)+'%';
-
-  const coreColors = { shield:'#3498db', blade:'#e74c3c', flux:'#f1c40f' };
-  const coreCol = coreColors[selectedCore] || '#fff';
-  ultBar.style.background = coreCol;
-  coreLabel.style.color = coreCol;
-  coreLabel.textContent = selectedCore.toUpperCase() + ' CORE';
-
-  if (wave < 5) {
-    waveInfo.textContent = 'WAVE ' + wave + ' / 5';
-  } else {
-    waveInfo.textContent = 'WAVE 5 — BOSS';
-  }
-}
-
-// ─── GAME FLOW ───────────────────────────────────────────────────────────────
-function checkWaveComplete() {
-  if (waveClearing) return;
-  const alive = enemies.filter(e => !e.dead);
-  if (alive.length === 0 && waveEnemiesSpawned) {
-    waveClearing = true;
-    setTimeout(() => {
-      if (wave >= 5) {
-        endGame(true);
-      } else {
-        wave++;
-        updateHUD();
-        showUpgradeScreen();
-      }
-    }, 800);
-  }
-}
-
-function showUpgradeScreen() {
-  const pool = UPGRADE_POOL[selectedCore] || [];
-  // Pick 2 random upgrades not already owned
-  const available = pool.filter(u => !upgrades.includes(u.id));
-  const picks = available.sort(()=>Math.random()-0.5).slice(0,2);
-  if (picks.length === 0) {
-    // Give HP restore if nothing available
-    playerHP = Math.min(playerHP + 3, PLAYER_HP_MAX);
-    updateHUD();
-    continueToNextWave();
-    return;
-  }
-
-  const screen = document.getElementById('upgrade-screen');
-  const grid = document.getElementById('upgrade-options');
-  grid.innerHTML = '';
-  picks.forEach(u => {
-    const card = document.createElement('div');
-    card.className = 'upgrade-card';
-    card.innerHTML = `<div class="ug-name">${u.name}</div><div class="ug-desc">${u.desc}</div>`;
-    card.onclick = () => {
-      upgrades.push(u.id);
-      screen.classList.add('hidden');
-      continueToNextWave();
-    };
-    grid.appendChild(card);
-  });
-  screen.classList.remove('hidden');
-}
-
-function continueToNextWave() {
-  enemies = [];
-  enemyProjectiles.forEach(p => { scene.remove(p.mesh); });
-  enemyProjectiles = [];
-  playerProjectiles.forEach(p => { scene.remove(p.mesh); });
-  playerProjectiles = [];
-  waveEnemiesSpawned = false;
-  waveClearing = false;
-  bossSpawned = false;
-  spawnWave(wave-1);
-  waveStartTime = performance.now();
-}
-
-function endGame(won) {
-  gameState = 'result';
-  stopMusic();
-  const elapsed = ((performance.now() - waveStartTime) / 1000).toFixed(1);
-  document.getElementById('result-title').textContent = won ? 'NEXUS CLEARED!' : 'CORE DESTROYED';
-  document.getElementById('result-title').style.color = won ? '#2ecc71' : '#e74c3c';
-  document.getElementById('result-stats').innerHTML =
-    `WAVES: ${wave} / 5<br>KILLS: ${kills}<br>CORE: ${selectedCore.toUpperCase()}<br>UPGRADES: ${upgrades.length}`;
-  document.getElementById('result-screen').classList.remove('hidden');
-  if (won) {
-    spawnParticles(player.position.clone(), getCoreColor(selectedCore), 60, 16);
-    cameraShake(0.5, 1.0);
-  }
-}
-
-// ─── UI FUNCTIONS ────────────────────────────────────────────────────────────
-window.selectCore = function(core) {
-  selectedCore = core;
-  document.querySelectorAll('.core-card').forEach(c => c.classList.remove('selected'));
-  document.querySelector('.core-card.'+core)?.classList.add('selected');
-  const btn = document.getElementById('start-btn');
-  btn.classList.add('active');
-  const coreColors = { shield:'#3498db', blade:'#e74c3c', flux:'#f1c40f' };
-  btn.style.borderColor = coreColors[core];
-  btn.style.color = coreColors[core];
-};
-
-window.startGame = function() {
-  initAudio();
-  startMusic(selectedCore);
-  document.getElementById('overlay').classList.add('hidden');
-  document.getElementById('result-screen').classList.add('hidden');
-
-  // Reset state
-  playerHP = PLAYER_HP_MAX;
-  ultCharge = 0; ultReady = false; prevUltReady = false;
-  wave = 1; kills = 0; upgrades = [];
-  enemies = []; playerProjectiles = []; enemyProjectiles = []; particles = [];
-  isLunging = false; lungeCharging = false; isShielding = false;
-  isCharging = false; chargeTime = 0; stunTimer = 0; isStunned = false;
-  invincibleTimer = 0; waveClearing = false; waveEnemiesSpawned = false; bossSpawned = false;
-  deflectCount = 0; deflectTimer = 0;
-  dashCooldown = 0;
-
-  // Clear scene of game objects
-  scene.children.filter(c => c.isGameObject).forEach(c => scene.remove(c));
-
-  // Build world
-  buildArena();
-  createPlayer();
-  spawnWave(0);
-  waveStartTime = performance.now();
-
-  updateHUD();
-  gameState = 'playing';
-};
-
-window.showCoreSelect = function() {
-  document.getElementById('result-screen').classList.add('hidden');
-  document.getElementById('upgrade-screen').classList.add('hidden');
-  document.getElementById('overlay').classList.remove('hidden');
-  gameState = 'menu';
-  stopMusic();
-  // Clean up scene
-  [...enemies, ...playerProjectiles, ...enemyProjectiles].forEach(o => scene.remove(o.mesh));
-  particles.forEach(p => scene.remove(p.mesh));
-  if (player) scene.remove(player);
-  enemies = []; playerProjectiles = []; enemyProjectiles = []; particles = [];
-};
-
-// ─── MAIN UPDATE LOOP ────────────────────────────────────────────────────────
-let cameraBase = camera.position.clone();
-
-function update(dt) {
-  if (gameState !== 'playing') return;
-  if (!player) return;
-
-  const t = performance.now() * 0.001;
-  const mw = getMouseWorldPos();
-
-  // ── Player Movement ──
-  if (!isLunging && !isStunned) {
-    let dx = 0, dz = 0;
-    if (keys['KeyW'] || keys['ArrowUp']) dz -= 1;
-    if (keys['KeyS'] || keys['ArrowDown']) dz += 1;
-    if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
-    if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
-    const speedMult = upgrades.includes('speed_boost') ? 1.25 : 1.0;
-    const speed = PLAYER_SPEED * speedMult;
-    if (dx || dz) {
-      const len = Math.sqrt(dx*dx+dz*dz);
-      player.position.x += (dx/len)*speed*dt;
-      player.position.z += (dz/len)*speed*dt;
-    }
-  }
-
-  // Clamp to arena
-  if (player.position.x > ARENA_SIZE-0.6) player.position.x = ARENA_SIZE-0.6;
-  if (player.position.x < -(ARENA_SIZE-0.6)) player.position.x = -(ARENA_SIZE-0.6);
-  if (player.position.z > ARENA_SIZE-0.6) player.position.z = ARENA_SIZE-0.6;
-  if (player.position.z < -(ARENA_SIZE-0.6)) player.position.z = -(ARENA_SIZE-0.6);
-
-  // ── Player Rotation (face mouse) ──
-  const aimDir = mw.clone().sub(player.position);
-  aimDir.y = 0;
-  if (aimDir.length() > 0.1) {
-    player.rotation.y = Math.atan2(aimDir.x, aimDir.z);
-  }
-
-  // ── Dash cooldown ──
-  if (dashCooldown > 0) dashCooldown -= dt;
-  if (invincibleTimer > 0) invincibleTimer -= dt;
-  if (stunTimer > 0) { stunTimer -= dt; if(stunTimer<=0) isStunned=false; }
-
-  // ── Deflect timer ──
-  if (deflectTimer > 0) { deflectTimer -= dt; if(deflectTimer<=0) deflectCount=0; }
-
-  // ── CORE ACTIONS ──
-  if (selectedCore === 'shield') {
-    // Hold LMB to shield
-    isShielding = mouseDown;
-    if (shieldMesh) {
-      shieldMesh.visible = isShielding;
-      if (isShielding) {
-        // Orient shield to face mouse
-        const sd = aimDir.clone().normalize();
-        shieldMesh.rotation.y = Math.atan2(sd.x, sd.z);
-        shieldMesh.rotation.x = -Math.PI/2;
-        shieldMesh.position.set(sd.x*1.1, 0, sd.z*1.1);
-      }
-    }
-    // Right click dash
-    if (rightClick && dashCooldown <= 0) {
-      const dashDist = 3;
-      const d = aimDir.normalize().multiplyScalar(dashDist);
-      player.position.add(d);
-      dashCooldown = upgrades.includes('blade_cooldown') ? 1.4 : 2.0;
-      rightClick = false;
-    }
-
-  } else if (selectedCore === 'blade') {
-    // Hold LMB to charge lunge
-    if (mouseDown && !isLunging && !isStunned) {
-      lungeCharging = true;
-      lungeChargeTime = Math.min((lungeChargeTime || 0) + dt, 1.0);
-    } else if (!mouseDown && lungeCharging) {
-      lungeCharging = false;
-      if (!isLunging && lungeChargeTime > 0.05) {
-        startLunge(aimDir.normalize(), lungeChargeTime);
-      }
-      lungeChargeTime = 0;
-    }
-    // Right click dash
-    if (rightClick && dashCooldown <= 0 && !isLunging) {
-      const d = aimDir.normalize().multiplyScalar(3);
-      player.position.add(d);
-      dashCooldown = upgrades.includes('blade_cooldown') ? 1.4 : 2.0;
-      rightClick = false;
-    }
-
-  } else if (selectedCore === 'flux') {
-    // Hold LMB to charge
-    if (mouseDown && !isStunned) {
-      isCharging = true;
-      const speedMult = upgrades.includes('flux_speed') ? 0.7 : 1.0;
-      chargeTime = Math.min((chargeTime||0) + dt * speedMult, 3.0);
-      if (chargeOrb) {
-        const s = chargeTime/3.0;
-        chargeOrb.scale.set(s*2, s*2, s*2);
-        chargeOrb.material.emissiveIntensity = 1 + s*3;
-      }
-    } else if (!mouseDown && isCharging) {
-      isCharging = false;
-      const ct = chargeTime || 0;
-      chargeTime = 0;
-      if (chargeOrb) chargeOrb.scale.set(0,0,0);
-      if (ct > 0.05) {
-        const isBolt = ct < 1.5;
-        firePlayerProjectile(player.position.clone(), aimDir.normalize(), isBolt, isBolt ? (upgrades.includes('flux_bounce')?2:1) : 0);
-      }
-    }
-    // Right click dash
-    if (rightClick && dashCooldown <= 0) {
-      const d = aimDir.normalize().multiplyScalar(3);
-      player.position.add(d);
-      dashCooldown = 2.0; rightClick = false;
-    }
-  }
-
-  // ── Lunge Update ──
-  if (isLunging) {
-    const step = lungeSpeed * dt;
-    const move = Math.min(step, lungeRemaining);
-    player.position.addScaledVector(lungeDir, move);
-    lungeRemaining -= move;
-
-    // Check wall collision
-    const wall = ARENA_SIZE - 0.7;
-    if (Math.abs(player.position.x) >= wall || Math.abs(player.position.z) >= wall) {
-      isLunging = false; isDashing = false;
-      isStunned = true; stunTimer = 1.0;
-      playSFX('stun');
-      flashVignette(0xffffff, 0.5);
-    }
-
-    // Hit enemies during lunge
-    enemies.forEach(e => {
-      if (e.dead || lungeHitEnemies.has(e)) return;
-      const dist = e.mesh.position.distanceTo(player.position);
-      if (dist < e.radius + 0.6) {
-        const dmg = upgrades.includes('blade_damage') ? 6 : 3;
-        damageEnemy(e, dmg);
-        lungeHitEnemies.add(e);
-        spawnParticles(e.mesh.position.clone(), 0xe74c3c, 15, 8);
-        // Chain reset
-        if (!e.dead) {
-          dashCooldown = 0;
-        } else if (selectedCore === 'blade') {
-          // kill reset
-          isLunging = true; lungeRemaining = 3;
-        }
-      }
-    });
-
-    if (lungeRemaining <= 0) { isLunging = false; isDashing = false; }
-  }
-
-  // ── Ultimate ──
-  if (keys['Space'] && !prevSpaceDown && ultReady && gameState==='playing') {
-    fireUltimate();
-    prevSpaceDown = true;
-  }
-  if (!keys['Space']) prevSpaceDown = false;
-
-  // ── Player glow pulse ──
-  if (player.coreLight) {
-    player.coreLight.intensity = 2 + Math.sin(t*4)*0.5;
-  }
-
-  // ── Enemy Update ──
-  enemies.forEach(e => {
-    if (e.dead) return;
-    e.mesh.rotation.y += dt * (e.type==='boss'?1.5:2.5);
-    e.mesh.rotation.x += dt * (e.type==='drone'?2:0.5);
-
-    // Move toward player
-    if (!e.isCharging) {
-      const dir = player.position.clone().sub(e.mesh.position);
-      dir.y = 0;
-      const dist = dir.length();
-      if (dist > 0.1) {
-        dir.normalize().multiplyScalar(e.speed * dt);
-        e.mesh.position.add(dir);
-      }
-    }
-
-    // Boss special: charge attack
-    if (e.type === 'boss') {
-      e.chargeTimer = (e.chargeTimer||0) + dt;
-      if (!e.isCharging && e.chargeTimer > 4.0) {
-        // Telegraph
-        if (!e.chargeTelegraph) {
-          const tGeo = new THREE.RingGeometry(0.5, 1.5, 32);
-          const tMat = new THREE.MeshBasicMaterial({ color:0xff0000, side:THREE.DoubleSide, transparent:true, opacity:0.5 });
-          e.chargeTelegraph = new THREE.Mesh(tGeo, tMat);
-          e.chargeTelegraph.rotation.x = -Math.PI/2;
-          e.mesh.add(e.chargeTelegraph);
-        }
-        e.chargeTimer += dt;
-        if (e.chargeTimer > 5.0) {
-          e.isCharging = true;
-          e.chargeDir = player.position.clone().sub(e.mesh.position).normalize();
-          e.chargeTimer = 0;
-          if (e.chargeTelegraph) { e.mesh.remove(e.chargeTelegraph); e.chargeTelegraph = null; }
-        }
-      }
-      if (e.isCharging) {
-        e.mesh.position.addScaledVector(e.chargeDir, 15 * dt);
-        // Check if off arena
-        if (Math.abs(e.mesh.position.x) > ARENA_SIZE || Math.abs(e.mesh.position.z) > ARENA_SIZE) {
-          e.isCharging = false; e.chargeTimer = 0;
-          e.mesh.position.x = THREE.MathUtils.clamp(e.mesh.position.x, -ARENA_SIZE+1, ARENA_SIZE-1);
-          e.mesh.position.z = THREE.MathUtils.clamp(e.mesh.position.z, -ARENA_SIZE+1, ARENA_SIZE-1);
-        }
-      }
-    }
-
-    // Fire projectiles
-    e.fireTimer -= dt;
-    if (e.fireTimer <= 0) {
-      e.fireTimer = e.fireRate;
-      const dir = player.position.clone().sub(e.mesh.position).normalize();
-      dir.y = 0;
-      if (e.type === 'boss') {
-        // Spread shot
-        for(let i=-2; i<=2; i++) {
-          const angle = i * 0.3;
-          const d = dir.clone().applyEuler(new THREE.Euler(0,angle,0));
-          fireEnemyProjectile(e.mesh.position.clone(), d, e.damage, 9);
-        }
-      } else {
-        fireEnemyProjectile(e.mesh.position.clone(), dir, e.damage);
-      }
-    }
-
-    // Melee damage
-    const distToPlayer = e.mesh.position.distanceTo(player.position);
-    if (distToPlayer < e.radius + 0.6) {
-      if (selectedCore==='shield' && isShielding && upgrades.includes('shield_thorns')) {
-        damageEnemy(e, 1);
-      }
-      if (!e.dead) damagePlayer(e.damage * dt * 2);
-    }
-  });
-
-  // ── Player Projectiles ──
-  playerProjectiles.forEach(p => {
-    if (p.dead) return;
-    p.age += dt;
-    if (p.age > 4) { p.dead = true; scene.remove(p.mesh); return; }
-    p.mesh.position.addScaledVector(p.vel, dt);
-    p.mesh.position.y = 0.55;
-
-    // Wall bounce
-    ['x','z'].forEach(axis => {
-      if (Math.abs(p.mesh.position[axis]) > ARENA_SIZE - 0.3) {
-        if (p.bounces > 0) {
-          p.vel[axis] *= -1;
-          p.bounces--;
-          p.mesh.position[axis] = THREE.MathUtils.clamp(p.mesh.position[axis], -(ARENA_SIZE-0.3), ARENA_SIZE-0.3);
-        } else {
-          p.dead = true; scene.remove(p.mesh);
-        }
-      }
-    });
-    if (p.dead) return;
-
-    // Hit enemies
-    if (p.isAoE) {
-      enemies.forEach(e => {
-        if (e.dead) return;
-        const dist = e.mesh.position.distanceTo(p.mesh.position);
-        if (dist < p.radius + e.radius) {
-          damageEnemy(e, p.damage);
-          spawnParticles(e.mesh.position.clone(), getCoreColor(selectedCore), 10, 5);
-        }
-      });
-      p.dead = true; scene.remove(p.mesh);
-    } else {
-      for(let i=0; i<enemies.length; i++) {
-        const e = enemies[i];
-        if (e.dead) continue;
-        const dist = e.mesh.position.distanceTo(p.mesh.position);
-        if (dist < p.radius + e.radius) {
-          damageEnemy(e, p.damage);
-          spawnParticles(e.mesh.position.clone(), getCoreColor(selectedCore), 8, 5);
-          p.dead = true; scene.remove(p.mesh);
-          break;
-        }
-      }
-    }
-  });
-  playerProjectiles = playerProjectiles.filter(p => !p.dead);
-
-  // ── Enemy Projectiles ──
-  enemyProjectiles.forEach(p => {
-    if (p.dead) return;
-    p.age += dt;
-    if (p.age > 5) { p.dead = true; scene.remove(p.mesh); return; }
-    p.mesh.position.addScaledVector(p.vel, dt);
-    p.mesh.position.y = 0.55;
-
-    // Wall collision
-    ['x','z'].forEach(axis => {
-      if (Math.abs(p.mesh.position[axis]) > ARENA_SIZE - 0.3) {
-        p.dead = true; scene.remove(p.mesh);
-      }
-    });
-    if (p.dead) return;
-
-    // Try deflect
-    if (selectedCore === 'shield' && tryDeflect(p)) return;
-
-    // Hit player
-    if (invincibleTimer <= 0) {
-      const dist = p.mesh.position.distanceTo(player.position);
-      if (dist < 0.55 + p.radius) {
-        damagePlayer(p.damage);
-        p.dead = true; scene.remove(p.mesh);
-      }
-    }
-  });
-  enemyProjectiles = enemyProjectiles.filter(p => !p.dead);
-
-  // ── Particles ──
-  particles.forEach(p => {
-    if (p.dead) return;
-    p.life -= dt * 2;
-    if (p.life <= 0) { p.dead = true; scene.remove(p.mesh); return; }
-    p.mesh.material.opacity = p.life;
-    const pos = p.positions;
-    p.velocities.forEach((v, i) => {
-      pos.array[i*3] += v.x * dt;
-      pos.array[i*3+1] += v.y * dt;
-      pos.array[i*3+2] += v.z * dt;
-      v.y -= 12 * dt; // gravity
-    });
-    pos.needsUpdate = true;
-  });
-  particles = particles.filter(p => !p.dead);
-
-  // ── Clean dead enemies ──
-  enemies = enemies.filter(e => !e.dead);
-
-  // ── Camera shake ──
-  if (shakeDuration > 0) {
-    shakeTime += dt;
-    shakeDuration -= dt;
-    const s = shakeIntensity * Math.max(0, 1 - shakeTime/0.5);
-    camera.position.set(
-      cameraBase.x + (Math.random()-0.5)*s,
-      cameraBase.y + (Math.random()-0.5)*s*0.3,
-      cameraBase.z + (Math.random()-0.5)*s
-    );
-  } else {
-    camera.position.copy(cameraBase);
-    shakeIntensity = 0;
-  }
-
-  // ── Check wave complete ──
-  checkWaveComplete();
-
-  // ── Ult bar pulse ──
-  const ultBar = document.getElementById('ult-bar');
-  if (ultBar && ultReady) {
-    const pulse = 0.7 + Math.sin(t*8)*0.3;
-    ultBar.style.opacity = pulse.toString();
-  }
-}
-
-// ─── INPUT STATE ─────────────────────────────────────────────────────────────
-let mouseDown = false;
-let rightClick = false;
-let prevSpaceDown = false;
-
-document.addEventListener('mousedown', e => {
-  if (gameState !== 'playing') return;
-  initAudio();
-  if (e.button === 0) mouseDown = true;
-  if (e.button === 2) rightClick = true;
-});
-document.addEventListener('mouseup', e => {
-  if (e.button === 0) mouseDown = false;
-});
-document.addEventListener('contextmenu', e => e.preventDefault());
-
-document.addEventListener('keydown', e => {
-  if (e.code === 'Space') { e.preventDefault(); initAudio(); }
-});
-
-// ─── ANIMATE ─────────────────────────────────────────────────────────────────
-function animate() {
-  requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.05);
-  update(dt);
-  renderer.render(scene, camera);
-}
-animate();
-
-// ─── RESIZE ──────────────────────────────────────────────────────────────────
 window.addEventListener('resize', () => {
-  const aspect = window.innerWidth / window.innerHeight;
-  camera.left = -frustum * aspect; camera.right = frustum * aspect;
+  camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
 });
 
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.4, 0.4, 0.82);
+composer.addPass(bloom);
+
+// Lighting
+const ambient = new THREE.AmbientLight(0xffffff, 2.0);
+scene.add(ambient);
+const dir = new THREE.DirectionalLight(0xffffff, 1.5);
+dir.position.set(5, 15, 10);
+scene.add(dir);
+const ptLight = new THREE.PointLight(0x4488ff, 2.0, 30);
+ptLight.position.set(0, 5, 0);
+scene.add(ptLight);
+
+// ─── ARENA ────────────────────────────────────────────────────────────────────
+// Floor
+const floorGeo = new THREE.PlaneGeometry(ARENA * 2, ARENA * 2, 20, 20);
+const floorMat = new THREE.MeshStandardMaterial({ color: 0x050d1a, roughness: 0.9 });
+const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+floorMesh.rotation.x = -Math.PI / 2;
+scene.add(floorMesh);
+
+// Grid lines on floor
+const gridHelper = new THREE.GridHelper(ARENA * 2, 20, 0x0a1a2e, 0x0a1a2e);
+gridHelper.position.y = 0.01;
+scene.add(gridHelper);
+
+// Walls
+const wallMat = new THREE.MeshStandardMaterial({ color: 0x081420, roughness: 0.8, metalness: 0.3 });
+const walls = [];
+[[0, ARENA, ARENA * 2, 2],[0, -ARENA, ARENA * 2, 2],[ARENA, 0, 2, ARENA * 2],[-ARENA, 0, 2, ARENA * 2]].forEach(([x, z, w, d]) => {
+  const geo = new THREE.BoxGeometry(w, 2, d);
+  const m = new THREE.Mesh(geo, wallMat);
+  m.position.set(x, 1, z);
+  scene.add(m);
+  walls.push({ x, z, w, d });
+});
+
+// Corner pillars
+[-1,1].forEach(sx => [-1,1].forEach(sz => {
+  const geo = new THREE.BoxGeometry(1.5, 3, 1.5);
+  const m = new THREE.Mesh(geo, wallMat);
+  m.position.set(sx * (ARENA - 0.75), 1.5, sz * (ARENA - 0.75));
+  scene.add(m);
+}));
+
+// ─── PLAYER ───────────────────────────────────────────────────────────────────
+const playerGeo = new THREE.SphereGeometry(0.5, 16, 16);
+const playerMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.3, roughness: 0.2, metalness: 0.8 });
+const playerMesh = new THREE.Mesh(playerGeo, playerMat);
+playerMesh.position.set(0, 0.5, 0);
+scene.add(playerMesh);
+
+// Player glow
+const playerLight = new THREE.PointLight(0xffffff, 1.5, 5);
+playerMesh.add(playerLight);
+
+// Shield panel (only visible in shield mode, when active)
+const shieldGeo = new THREE.PlaneGeometry(2.0, 1.5);
+const shieldMat = new THREE.MeshStandardMaterial({
+  color: 0x64b4ff, emissive: 0x64b4ff, emissiveIntensity: 0.8,
+  transparent: true, opacity: 0.5, side: THREE.DoubleSide
+});
+const shieldMesh = new THREE.Mesh(shieldGeo, shieldMat);
+shieldMesh.visible = false;
+scene.add(shieldMesh);
+
+// Aim direction arrow
+const arrowGeo = new THREE.ConeGeometry(0.12, 0.6, 8);
+const arrowMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
+const arrowMesh = new THREE.Mesh(arrowGeo, arrowMat);
+arrowMesh.rotation.z = -Math.PI / 2;
+playerMesh.add(arrowMesh);
+
+// Flux charge orb
+const fluxOrbGeo = new THREE.SphereGeometry(0.15, 8, 8);
+const fluxOrbMat = new THREE.MeshStandardMaterial({ color: 0xb464ff, emissive: 0xb464ff, emissiveIntensity: 1.2 });
+const fluxOrb = new THREE.Mesh(fluxOrbGeo, fluxOrbMat);
+fluxOrb.visible = false;
+playerMesh.add(fluxOrb);
+
+// Lunge trail
+const lugeTrailGeo = new THREE.CylinderGeometry(0.08, 0.08, 1, 8);
+const lungeTrailMat = new THREE.MeshBasicMaterial({ color: 0xff5050, transparent: true, opacity: 0.6 });
+const lungeTrail = new THREE.Mesh(lugeTrailGeo, lungeTrailMat);
+lungeTrail.visible = false;
+scene.add(lungeTrail);
+
+// ─── AUDIO ────────────────────────────────────────────────────────────────────
+let audioCtx = null;
+
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function tone(freq, type, dur, vol = 0.2, delay = 0) {
+  if (!audioCtx) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.connect(g); g.connect(audioCtx.destination);
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.001, audioCtx.currentTime + delay);
+  g.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + delay + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + dur);
+  o.start(audioCtx.currentTime + delay);
+  o.stop(audioCtx.currentTime + delay + dur);
+}
+
+function sfxShieldClang() {
+  tone(880, 'sine', 0.1, 0.3); tone(660, 'square', 0.15, 0.15, 0.05);
+}
+function sfxBlade() {
+  tone(200, 'sawtooth', 0.1, 0.3); tone(400, 'sine', 0.08, 0.2, 0.05);
+}
+function sfxFluxFire(charge) {
+  const f = 200 + charge * 400;
+  tone(f, 'sine', 0.2, 0.25); tone(f * 2, 'sine', 0.15, 0.15, 0.05);
+}
+function sfxHit() {
+  tone(180, 'sawtooth', 0.2, 0.3); tone(120, 'sine', 0.25, 0.2, 0.1);
+}
+function sfxKill() {
+  tone(440, 'square', 0.08, 0.2); tone(660, 'sine', 0.12, 0.15, 0.05);
+}
+function sfxUlt() {
+  tone(110, 'sine', 0.3, 0.3); tone(220, 'sine', 0.3, 0.25, 0.1); tone(440, 'sine', 0.4, 0.2, 0.2);
+}
+function sfxDash() { tone(300, 'sine', 0.08, 0.15); }
+
+// ─── PARTICLES ────────────────────────────────────────────────────────────────
+function spawnParticles(x, z, color, count = 10) {
+  for (let i = 0; i < count; i++) {
+    const g = new THREE.SphereGeometry(0.06 + Math.random() * 0.08, 6, 6);
+    const m = new THREE.MeshBasicMaterial({ color });
+    const mesh = new THREE.Mesh(g, m);
+    mesh.position.set(x, 0.5, z);
+    scene.add(mesh);
+    const a = Math.random() * Math.PI * 2;
+    const s = 2 + Math.random() * 4;
+    particles.push({ mesh, vx: Math.cos(a) * s, vz: Math.sin(a) * s, life: 0.4 + Math.random() * 0.3 });
+  }
+}
+
+// ─── ENEMY FACTORY ────────────────────────────────────────────────────────────
+function spawnEnemy(type) {
+  const side = Math.floor(Math.random() * 4);
+  let sx, sz;
+  const edge = ARENA - 1.5;
+  if (side === 0) { sx = (Math.random() - 0.5) * (ARENA * 1.8); sz = -edge; }
+  else if (side === 1) { sx = (Math.random() - 0.5) * (ARENA * 1.8); sz = edge; }
+  else if (side === 2) { sx = -edge; sz = (Math.random() - 0.5) * (ARENA * 1.8); }
+  else { sx = edge; sz = (Math.random() - 0.5) * (ARENA * 1.8); }
+
+  let geo, color, hp, speed, size;
+  if (type === 'boss') {
+    geo = new THREE.OctahedronGeometry(1.2); color = 0xff8800; hp = 15; speed = 1.8; size = 1.2;
+  } else if (type === 'tank') {
+    geo = new THREE.BoxGeometry(0.9, 0.9, 0.9); color = 0xff3300; hp = 4; speed = 1.5; size = 0.9;
+  } else {
+    geo = new THREE.SphereGeometry(0.4, 10, 10); color = 0xff0055; hp = 1; speed = 3.0; size = 0.4;
+  }
+
+  const mat = new THREE.MeshStandardMaterial({
+    color, emissive: color, emissiveIntensity: 0.5, roughness: 0.3
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(sx, size, sz);
+
+  // HP bar
+  const hpBarGeo = new THREE.PlaneGeometry(1.0, 0.12);
+  const hpBarMat = new THREE.MeshBasicMaterial({ color: 0x00ff44, side: THREE.DoubleSide });
+  const hpBarMesh = new THREE.Mesh(hpBarGeo, hpBarMat);
+  hpBarMesh.position.set(0, size + 0.5, 0);
+  hpBarMesh.rotation.x = -Math.PI / 2;
+  mesh.add(hpBarMesh);
+
+  scene.add(mesh);
+
+  // Shoot timer for drones/tanks/boss
+  const shootInterval = type === 'drone' ? 2.5 : type === 'tank' ? 1.8 : 1.2;
+
+  enemies.push({
+    mesh, hpBarMesh, type, hp, maxHp: hp, speed,
+    pos: new THREE.Vector2(sx, sz),
+    size, shootTimer: Math.random() * shootInterval, shootInterval,
+    hitFlash: 0
+  });
+}
+
+// ─── PROJECTILE FACTORY ───────────────────────────────────────────────────────
+function spawnProjectile(x, z, dx, dz, speed, color, fromEnemy, size = 0.18) {
+  const geo = new THREE.SphereGeometry(size, 8, 8);
+  const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.0 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, 0.5, z);
+  scene.add(mesh);
+  projectiles.push({ mesh, dx, dz, speed, fromEnemy, life: 4.0, size, bounced: false });
+}
+
+function spawnShieldDeflect(projIdx) {
+  const proj = projectiles[projIdx];
+  // Reflect based on player facing angle (aimAngle)
+  // New direction: reflect across the shield normal (shield normal = aimAngle direction)
+  const nx = Math.cos(aimAngle);
+  const nz = Math.sin(aimAngle);
+  // Reflect: d - 2(d·n)n
+  const dot = proj.dx * nx + proj.dz * nz;
+  const rdx = proj.dx - 2 * dot * nx;
+  const rdz = proj.dz - 2 * dot * nz;
+  const len = Math.sqrt(rdx * rdx + rdz * rdz) || 1;
+  proj.dx = rdx / len;
+  proj.dz = rdz / len;
+  proj.fromEnemy = false; // now a player projectile
+  proj.speed *= 1.3;
+  sfxShieldClang();
+  spawnParticles(proj.mesh.position.x, proj.mesh.position.z, 0x64b4ff, 6);
+  addUltCharge(0.15);
+}
+
+// ─── DAMAGE FLASH ─────────────────────────────────────────────────────────────
+let dmgFlashTimer = 0;
+function triggerDmgFlash() {
+  dmgFlashTimer = 0.25;
+  document.getElementById('dmg-flash').style.opacity = '1';
+}
+
+// ─── INPUT ────────────────────────────────────────────────────────────────────
+window.addEventListener('keydown', e => { keys[e.code] = true; });
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+window.addEventListener('mousemove', e => {
+  mouseX = e.clientX; mouseY = e.clientY;
+  // World aim: project mouse to ground plane from perspective camera
+  const rect = renderer.domElement.getBoundingClientRect();
+  const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
+  const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const pt = new THREE.Vector3();
+  raycaster.ray.intersectPlane(plane, pt);
+  if (pt) { mouseWorldX = pt.x; mouseWorldY = pt.z; }
+  aimAngle = Math.atan2(mouseWorldY - playerPos.y, mouseWorldX - playerPos.x);
+});
+window.addEventListener('mousedown', e => { if (e.button === 0) lmbDown = true; if (e.button === 2) rmbDown = true; });
+window.addEventListener('mouseup', e => {
+  if (e.button === 0) {
+    if (lmbDown && chosenCore === 'blade' && lungeState.charging) {
+      releaseLunge();
+    }
+    if (lmbDown && chosenCore === 'flux' && fluxState.charging) {
+      releaseFlux();
+    }
+    lmbDown = false;
+  }
+  if (e.button === 2) rmbDown = false;
+});
+window.addEventListener('contextmenu', e => e.preventDefault());
+window.addEventListener('keyup', e => {
+  if (e.code === 'Space' && state === 'playing') triggerUltimate();
+});
+
+// ─── ULT CHARGE ───────────────────────────────────────────────────────────────
+function addUltCharge(amt) {
+  ultCharge = Math.min(1.0, ultCharge + amt);
+  const fill = document.getElementById('ult-fill');
+  fill.style.width = (ultCharge * 100) + '%';
+  fill.style.background = CORE_ULT_COLORS[chosenCore];
+}
+
+// ─── SHIELD CORE MECHANICS ───────────────────────────────────────────────────
+function updateShield() {
+  shieldActive = lmbDown;
+  shieldMesh.visible = shieldActive && chosenCore === 'shield';
+  if (shieldActive) {
+    // Position shield in front of player along aim direction
+    const dist = 1.0;
+    shieldMesh.position.set(
+      playerPos.x + Math.cos(aimAngle) * dist,
+      0.6,
+      playerPos.y + Math.sin(aimAngle) * dist
+    );
+    shieldMesh.rotation.y = -aimAngle;
+    shieldMesh.material.opacity = 0.5 + Math.sin(Date.now() * 0.01) * 0.1;
+  }
+}
+
+// ─── BLADE CORE MECHANICS ────────────────────────────────────────────────────
+function updateBlade(dt) {
+  if (lungeState.stunTimer > 0) {
+    lungeState.stunTimer -= dt;
+    playerMat.emissive.set(0xff0000);
+    playerMat.emissiveIntensity = 0.8;
+    return;
+  } else {
+    playerMat.emissive.setHex(CORE_COLORS[chosenCore] || 0xffffff);
+    playerMat.emissiveIntensity = 0.3;
+  }
+  if (lmbDown && !lungeState.charging && dashCooldown <= 0) {
+    lungeState.charging = true;
+    lungeState.charge = 0;
+  }
+  if (lungeState.charging) {
+    lungeState.charge = Math.min(1.0, lungeState.charge + dt / 0.6);
+  }
+}
+
+function releaseLunge() {
+  if (!lungeState.charging) return;
+  const charge = lungeState.charge;
+  const lungeLen = 2.0 + charge * 4.0;
+  const dx = Math.cos(aimAngle);
+  const dz = Math.sin(aimAngle);
+  const tx = playerPos.x + dx * lungeLen;
+  const tz = playerPos.y + dz * lungeLen;
+  const nx = Math.max(-ARENA + 1, Math.min(ARENA - 1, tx));
+  const nz = Math.max(-ARENA + 1, Math.min(ARENA - 1, tz));
+  const missed = (Math.abs(tx) > ARENA - 0.5 || Math.abs(tz) > ARENA - 0.5);
+
+  lungeTrail.visible = true;
+  const startX = playerPos.x, startZ = playerPos.y;
+  const trailLen = Math.sqrt((nx - startX) ** 2 + (nz - startZ) ** 2);
+  lungeTrail.position.set((startX + nx) / 2, 0.5, (startZ + nz) / 2);
+  lungeTrail.scale.set(1, trailLen / 2, 1);
+  lungeTrail.rotation.y = -aimAngle;
+  lungeTrail.rotation.x = Math.PI / 2;
+  setTimeout(() => { lungeTrail.visible = false; }, 200);
+
+  playerPos.x = nx; playerPos.y = nz;
+  playerMesh.position.set(playerPos.x, 0.5, playerPos.y);
+  sfxBlade();
+  spawnParticles(nx, nz, 0xff5050, 8);
+
+  let hitCount = 0;
+  for (const e of enemies) {
+    const ex = e.pos.x - startX, ez = e.pos.y - startZ;
+    const dot = ex * dx + ez * dz;
+    const px = dot * dx, pz = dot * dz;
+    const perp = Math.sqrt((ex - px) ** 2 + (ez - pz) ** 2);
+    if (dot >= 0 && dot <= lungeLen + 1 && perp < 1.2) {
+      damageEnemy(e, 2 + Math.floor(charge * 2));
+      hitCount++;
+    }
+  }
+  if (hitCount > 0) { dashCooldown = 0; addUltCharge(0.1 * hitCount); if (hitCount >= 3) spawnParticles(nx, nz, 0xffaa00, 12); }
+  if (missed) { lungeState.stunTimer = 1.0; triggerDmgFlash(); }
+  lungeState.charging = false; lungeState.charge = 0;
+}
+
+// ─── FLUX CORE MECHANICS ──────────────────────────────────────────────────────
+function updateFlux(dt) {
+  if (lmbDown && !fluxState.charging) { fluxState.charging = true; fluxState.charge = 0; fluxOrb.visible = true; }
+  if (fluxState.charging) {
+    fluxState.charge = Math.min(1.0, fluxState.charge + dt / 3.0);
+    const s = 1.0 + fluxState.charge * 3.0;
+    fluxOrb.scale.setScalar(s);
+    fluxOrb.material.emissiveIntensity = 0.8 + fluxState.charge * 1.2;
+  }
+}
+
+function releaseFlux() {
+  if (!fluxState.charging) return;
+  const charge = fluxState.charge;
+  const dx = Math.cos(aimAngle), dz = Math.sin(aimAngle);
+  fluxOrb.visible = false;
+  sfxFluxFire(charge);
+  if (charge > 0.9) {
+    spawnParticles(playerPos.x, playerPos.y, 0xb464ff, 20);
+    let selfDmg = false;
+    for (const e of enemies) {
+      const d = Math.sqrt((e.pos.x - playerPos.x) ** 2 + (e.pos.y - playerPos.y) ** 2);
+      if (d < 5.5) { damageEnemy(e, 5); }
+      if (d < 1.5) selfDmg = true;
+    }
+    if (selfDmg && invincible <= 0) takeDamage(1);
+    addUltCharge(0.25);
+    document.getElementById('ult-flash').style.background = 'rgba(180,100,255,0.2)';
+    document.getElementById('ult-flash').style.opacity = '1';
+    setTimeout(() => { document.getElementById('ult-flash').style.opacity = '0'; }, 200);
+  } else if (charge > 0.3) {
+    spawnProjectile(playerPos.x, playerPos.y, dx, dz, 12 - charge * 4, 0xb464ff, false, 0.15 + charge * 0.3);
+    spawnProjectile(playerPos.x, playerPos.y, dx + 0.15, dz + 0.15, 10, 0xb464ff, false, 0.12);
+    spawnProjectile(playerPos.x, playerPos.y, dx - 0.15, dz - 0.15, 10, 0xb464ff, false, 0.12);
+    addUltCharge(0.08);
+  } else {
+    spawnProjectile(playerPos.x, playerPos.y, dx, dz, 14, 0xb464ff, false, 0.15);
+    addUltCharge(0.04);
+  }
+  fluxState.charging = false; fluxState.charge = 0;
+}
+
+// ─── ULTIMATE ─────────────────────────────────────────────────────────────────
+function triggerUltimate() {
+  if (ultCharge < 1.0 || state !== 'playing') return;
+  ultCharge = 0; addUltCharge(0);
+  sfxUlt();
+  document.getElementById('ult-flash').style.background = CORE_ULT_COLORS[chosenCore] + '33';
+  document.getElementById('ult-flash').style.opacity = '1';
+  setTimeout(() => { document.getElementById('ult-flash').style.opacity = '0'; }, 400);
+  if (chosenCore === 'shield') {
+    for (const p of projectiles) { if (p.fromEnemy) { const d = playerPos.x - p.mesh.position.x, z = playerPos.y - p.mesh.position.z; const l = Math.sqrt(d*d+z*z)||1; p.dx = d/l; p.dz = z/l; p.fromEnemy = false; p.speed *= 1.5; } }
+    spawnParticles(playerPos.x, playerPos.y, 0x64b4ff, 24);
+  } else if (chosenCore === 'blade') {
+    for (const e of [...enemies]) { const d = Math.sqrt((e.pos.x-playerPos.x)**2+(e.pos.y-playerPos.y)**2); if (d < 5) damageEnemy(e, 6); }
+    spawnParticles(playerPos.x, playerPos.y, 0xff5050, 24);
+  } else {
+    for (let i = 0; i < 8; i++) { const a = (i/8)*Math.PI*2; spawnProjectile(playerPos.x, playerPos.y, Math.cos(a), Math.sin(a), 10, 0xb464ff, false, 0.25); }
+    spawnParticles(playerPos.x, playerPos.y, 0xb464ff, 16);
+  }
+}
+
+// ─── DAMAGE ───────────────────────────────────────────────────────────────────
+function damageEnemy(e, dmg) {
+  e.hp -= dmg; e.hitFlash = 0.15;
+  if (e.hp <= 0) {
+    spawnParticles(e.pos.x, e.pos.y, e.type === 'boss' ? 0xff8800 : 0xff3300, 14);
+    sfxKill(); scene.remove(e.mesh); enemies.splice(enemies.indexOf(e), 1);
+    killCount++; addUltCharge(0.08);
+  } else {
+    e.hpBarMesh.scale.x = e.hp / e.maxHp;
+  }
+}
+
+function takeDamage(amt) {
+  if (invincible > 0) return;
+  hp -= amt; invincible = 1.5; triggerDmgFlash(); sfxHit(); updateHPBar();
+  if (hp <= 0) endGame(false);
+}
+
+let dmgFlashTimer = 0;
+function triggerDmgFlash() {
+  dmgFlashTimer = 0.25;
+  document.getElementById('dmg-flash').style.opacity = '1';
+}
+
+function updateHPBar() {
+  const div = document.getElementById('hp-bar'); div.innerHTML = '';
+  for (let i = 0; i < MAX_HP; i++) {
+    const pip = document.createElement('div'); pip.className = 'hp-pip';
+    pip.style.background = i < hp ? CORE_ULT_COLORS[chosenCore] : '#222';
+    div.appendChild(pip);
+  }
+}
+
+// ─── WAVE ─────────────────────────────────────────────────────────────────────
+function spawnWave(w) {
+  const [drones, tanks] = WAVE_DEFS[w - 1];
+  for (let i = 0; i < drones; i++) setTimeout(() => spawnEnemy('drone'), i * 300);
+  for (let i = 0; i < tanks; i++) setTimeout(() => spawnEnemy('tank'), drones * 300 + i * 400);
+  if (w === WAVE_COUNT) setTimeout(() => spawnEnemy('boss'), 1000);
+  document.getElementById('wave-text').textContent = `WAVE ${w}/${WAVE_COUNT}`;
+  const el = document.getElementById('wave-banner');
+  el.textContent = w === WAVE_COUNT ? '⚠ BOSS WAVE' : `WAVE ${w}`;
+  el.style.color = w === WAVE_COUNT ? '#ff8800' : '#ffffff';
+  el.style.opacity = '1';
+  setTimeout(() => { el.style.opacity = '0'; }, 1500);
+}
+
+// ─── UPDATE ───────────────────────────────────────────────────────────────────
+const clockMain = new THREE.Clock();
+
+function update(dt) {
+  if (state !== 'playing') return;
+  const t = clockMain.elapsedTime;
+
+  if (invincible > 0) { invincible -= dt; playerMesh.visible = Math.floor(t * 10) % 2 === 0; }
+  else playerMesh.visible = true;
+
+  if (dmgFlashTimer > 0) { dmgFlashTimer -= dt; if (dmgFlashTimer <= 0) document.getElementById('dmg-flash').style.opacity = '0'; }
+
+  // Movement
+  if (lungeState.stunTimer <= 0 && !dashActive) {
+    const speed = 6.5;
+    let mx = 0, mz = 0;
+    if (keys['KeyW'] || keys['ArrowUp']) mz -= 1;
+    if (keys['KeyS'] || keys['ArrowDown']) mz += 1;
+    if (keys['KeyA'] || keys['ArrowLeft']) mx -= 1;
+    if (keys['KeyD'] || keys['ArrowRight']) mx += 1;
+    const len = Math.sqrt(mx*mx+mz*mz);
+    if (len > 0) {
+      playerPos.x = Math.max(-ARENA+1, Math.min(ARENA-1, playerPos.x + (mx/len) * speed * dt));
+      playerPos.y = Math.max(-ARENA+1, Math.min(ARENA-1, playerPos.y + (mz/len) * speed * dt));
+    }
+  }
+
+  // Dash
+  dashCooldown = Math.max(0, dashCooldown - dt);
+  if ((rmbDown || keys['ShiftLeft']) && dashCooldown <= 0 && !dashActive) {
+    dashActive = true; dashTimer = 0.15; dashVel.set(Math.cos(aimAngle), Math.sin(aimAngle));
+    dashCooldown = 2.0; sfxDash(); invincible = Math.max(invincible, 0.2);
+  }
+  if (dashActive) {
+    dashTimer -= dt;
+    playerPos.x = Math.max(-ARENA+1, Math.min(ARENA-1, playerPos.x + dashVel.x * 18 * dt));
+    playerPos.y = Math.max(-ARENA+1, Math.min(ARENA-1, playerPos.y + dashVel.y * 18 * dt));
+    if (dashTimer <= 0) dashActive = false;
+  }
+
+  playerMesh.position.set(playerPos.x, 0.5, playerPos.y);
+  ptLight.position.set(playerPos.x, 3, playerPos.y);
+  arrowMesh.position.set(Math.cos(aimAngle) * 0.9, 0, Math.sin(aimAngle) * 0.9);
+  arrowMesh.rotation.y = -aimAngle;
+
+  if (chosenCore === 'shield') updateShield();
+  if (chosenCore === 'blade') updateBlade(dt);
+  if (chosenCore === 'flux') updateFlux(dt);
+
+  camera.position.lerp(new THREE.Vector3(playerPos.x, 22, playerPos.y + 16), 0.05);
+  camera.lookAt(playerPos.x, 0, playerPos.y);
+
+  // Enemies
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    const dx = playerPos.x - e.pos.x, dz = playerPos.y - e.pos.y;
+    const dist = Math.sqrt(dx*dx+dz*dz);
+    if (dist > (e.type === 'boss' ? 4 : 2.5)) { e.pos.x += (dx/dist)*e.speed*dt; e.pos.y += (dz/dist)*e.speed*dt; }
+    e.mesh.position.set(e.pos.x, e.type === 'boss' ? 1.2 : e.size, e.pos.y);
+    e.mesh.rotation.y += dt * 1.5;
+    e.hitFlash = Math.max(0, e.hitFlash - dt);
+    e.mesh.material.emissiveIntensity = e.hitFlash > 0 ? 2.0 : 0.5;
+    e.hpBarMesh.rotation.y = Math.atan2(camera.position.x - e.mesh.position.x, camera.position.z - e.mesh.position.z);
+    e.shootTimer -= dt;
+    if (e.shootTimer <= 0 && dist < 14) {
+      const spd = e.type === 'boss' ? 8 : 6;
+      const col = e.type === 'boss' ? 0xff8800 : 0xff2200;
+      spawnProjectile(e.pos.x, e.pos.y, dx/dist, dz/dist, spd, col, true, e.type === 'boss' ? 0.25 : 0.15);
+      e.shootTimer = e.shootInterval;
+    }
+    if (dist < 1.0 + e.size && invincible <= 0) takeDamage(1);
+  }
+
+  // Projectiles
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.mesh.position.x += p.dx * p.speed * dt;
+    p.mesh.position.z += p.dz * p.speed * dt;
+    p.life -= dt;
+    if (!p.fromEnemy && !p.bounced) {
+      if (Math.abs(p.mesh.position.x) > ARENA - 0.5) { p.dx *= -1; p.bounced = true; }
+      if (Math.abs(p.mesh.position.z) > ARENA - 0.5) { p.dz *= -1; p.bounced = true; }
+    }
+    if (p.life <= 0 || Math.abs(p.mesh.position.x) > ARENA + 2 || Math.abs(p.mesh.position.z) > ARENA + 2) {
+      scene.remove(p.mesh); projectiles.splice(i, 1); continue;
+    }
+    if (p.fromEnemy) {
+      if (chosenCore === 'shield' && shieldActive) {
+        const sx = shieldMesh.position.x - p.mesh.position.x, sz = shieldMesh.position.z - p.mesh.position.z;
+        if (Math.sqrt(sx*sx+sz*sz) < 1.2) { spawnShieldDeflect(i); continue; }
+      }
+      const dpx = p.mesh.position.x - playerPos.x, dpz = p.mesh.position.z - playerPos.y;
+      if (Math.sqrt(dpx*dpx+dpz*dpz) < 0.65 + p.size) { scene.remove(p.mesh); projectiles.splice(i, 1); takeDamage(1); continue; }
+    } else {
+      let hit = false;
+      for (let j = enemies.length - 1; j >= 0; j--) {
+        const e = enemies[j];
+        const dex = p.mesh.position.x - e.pos.x, dez = p.mesh.position.z - e.pos.y;
+        if (Math.sqrt(dex*dex+dez*dez) < e.size + p.size) { scene.remove(p.mesh); projectiles.splice(i, 1); damageEnemy(e, chosenCore === 'shield' ? 2 : 1); hit = true; break; }
+      }
+    }
+  }
+
+  // Particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.mesh.position.x += p.vx * dt; p.mesh.position.z += p.vz * dt;
+    p.vx *= 0.88; p.vz *= 0.88; p.life -= dt;
+    p.mesh.material.opacity = p.life / 0.5; p.mesh.material.transparent = true;
+    if (p.life <= 0) { scene.remove(p.mesh); particles.splice(i, 1); }
+  }
+
+  // Wave check
+  if (!waveClearing && enemies.length === 0 && gameRunning) {
+    waveClearing = true;
+    if (wave >= WAVE_COUNT) {
+      setTimeout(() => endGame(true), 1000);
+    } else {
+      setTimeout(() => { wave++; waveClearing = false; spawnWave(wave); }, 2000);
+    }
+  }
+
+  // Blade visual
+  if (chosenCore === 'blade' && lungeState.charging) {
+    playerMesh.scale.setScalar(1.0 + lungeState.charge * 0.5);
+    playerMat.emissiveIntensity = 0.5 + lungeState.charge * 1.0;
+  } else { playerMesh.scale.setScalar(1.0); }
+
+  // Flux orb position
+  if (chosenCore === 'flux' && fluxState.charging) {
+    fluxOrb.position.set(Math.cos(aimAngle) * 0.8, 0, Math.sin(aimAngle) * 0.8);
+  }
+}
+
+// ─── END GAME ─────────────────────────────────────────────────────────────────
+function endGame(won) {
+  state = 'end'; gameRunning = false;
+  document.getElementById('hud').style.display = 'none';
+  const title = document.getElementById('end-title');
+  if (won) { title.textContent = '⚡ NEXUS CLEARED'; title.style.color = CORE_ULT_COLORS[chosenCore]; document.getElementById('end-sub').textContent = `All ${WAVE_COUNT} waves. Core: ${chosenCore.toUpperCase()}`; }
+  else { title.textContent = '💀 CORE DESTROYED'; title.style.color = '#ff4444'; document.getElementById('end-sub').textContent = `Wave ${wave}/${WAVE_COUNT}. Core: ${chosenCore.toUpperCase()}`; }
+  document.getElementById('end-stat').innerHTML = `Enemies Defeated: ${killCount}<br>Waves: ${wave}/${WAVE_COUNT}`;
+  for (const e of enemies) scene.remove(e.mesh);
+  for (const p of projectiles) scene.remove(p.mesh);
+  for (const p of particles) scene.remove(p.mesh);
+  enemies = []; projectiles = []; particles = []; shieldMesh.visible = false;
+  document.getElementById('end-screen').style.display = 'flex';
+}
+
+// ─── CORE SELECT ──────────────────────────────────────────────────────────────
+window.selectCore = function(core) {
+  initAudio(); chosenCore = core;
+  document.getElementById('core-select').style.display = 'none';
+  document.getElementById('hud').style.display = 'flex';
+  const color = CORE_COLORS[core];
+  playerMat.color.setHex(color); playerMat.emissive.setHex(color);
+  playerLight.color.setHex(color); ptLight.color.setHex(color);
+  const icons = { shield: '🛡 SHIELD', blade: '⚔ BLADE', flux: '⚡ FLUX' };
+  const label = document.getElementById('core-label');
+  label.textContent = icons[core]; label.style.color = CORE_ULT_COLORS[core];
+  playerPos.set(0, 0); playerMesh.position.set(0, 0.5, 0);
+  hp = MAX_HP; wave = 1; killCount = 0; ultCharge = 0; invincible = 0; dashCooldown = 0;
+  lungeState = { charging: false, charge: 0, stunTimer: 0 };
+  fluxState = { charging: false, charge: 0 };
+  shieldActive = false; waveClearing = false; gameRunning = true; state = 'playing';
+  document.getElementById('ult-fill').style.width = '0%';
+  updateHPBar(); spawnWave(1);
+};
+
+window.toSelectScreen = function() {
+  document.getElementById('end-screen').style.display = 'none';
+  document.getElementById('core-select').style.display = 'flex';
+  state = 'select';
+  camera.position.set(0, 22, 16);
+  camera.lookAt(0, 0, 0);
+};
+
+// ─── ANIMATE ──────────────────────────────────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clockMain.getDelta(), 0.05);
+  update(dt);
+  ptLight.intensity = 1.5 + Math.sin(clockMain.elapsedTime * 2) * 0.5;
+  composer.render();
+}
+
+animate();
 </script>
 </body>
 </html>

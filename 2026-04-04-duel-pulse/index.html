@@ -1,0 +1,37 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>DUEL PULSE</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}body{background:#000;overflow:hidden;font-family:'Courier New',monospace}canvas{display:block}
+#hud{position:fixed;top:0;left:0;width:100%;padding:16px 26px;display:flex;justify-content:space-between;align-items:flex-start;z-index:20;pointer-events:none}
+.fh{display:flex;flex-direction:column;gap:4px;min-width:180px}.fn{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#888}
+.hb{width:180px;height:12px;background:#0a0a0a;border:1px solid #222;border-radius:2px}.hf{height:100%;border-radius:2px;transition:width .08s}
+#ph{background:linear-gradient(90deg,#0ff,#06c)}#eh{background:linear-gradient(90deg,#f30,#f80)}
+#feh{text-align:right}#feh .hb{margin-left:auto}
+.ri{text-align:center;color:#555;font-size:11px;letter-spacing:3px}#rd{font-size:26px;color:#eee;font-weight:bold;margin-bottom:2px}
+#ht{position:fixed;top:42%;left:50%;transform:translate(-50%,-50%);font-size:64px;font-weight:900;letter-spacing:6px;opacity:0;pointer-events:none;z-index:30;text-transform:uppercase}
+#ov{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0);pointer-events:none;z-index:5}
+.sc{position:fixed;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:50;background:rgba(0,0,0,.88)}
+.sc.h{display:none}
+.tl{font-size:74px;font-weight:900;letter-spacing:12px;background:linear-gradient(135deg,#0ff,#f0f,#ff0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}
+.sb2{font-size:12px;letter-spacing:5px;color:#444;margin-bottom:44px}
+.btn{padding:13px 42px;font-size:13px;font-family:'Courier New',monospace;letter-spacing:4px;text-transform:uppercase;cursor:pointer;border:2px solid;border-radius:2px;transition:all .18s;pointer-events:all;margin-top:5px}
+.bc{background:transparent;color:#0ff;border-color:#0ff}.bc:hover{background:#0ff1a;box-shadow:0 0 16px #0ff5}
+.br{background:transparent;color:#f33;border-color:#f33}.br:hover{background:#f331a;box-shadow:0 0 16px #f335}
+.ko{font-size:96px;font-weight:900;letter-spacing:8px;margin-bottom:5px;animation:kp .36s cubic-bezier(.36,.07,.19,.97)}
+.et{font-size:50px;font-weight:900;letter-spacing:8px;margin-bottom:5px}.es{font-size:11px;letter-spacing:4px;color:#555;margin-bottom:34px}
+@keyframes kp{0%{transform:scale(2.3);opacity:0}100%{transform:scale(1);opacity:1}}
+#di{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);font-size:10px;letter-spacing:3px;z-index:20;pointer-events:none}
+.ch{font-size:10px;letter-spacing:2px;color:#2a2a2a;line-height:2.2;margin-top:22px}
+</style></head><body>
+<div id="ov"></div>
+<div id="hud" class="h">
+  <div class="fh"><div class="fn">&#9654; YOU</div><div class="hb"><div class="hf" id="ph" style="width:100%"></div></div></div>
+  <div class="ri"><div id="rd">VS</div><div style="font-size:10px;color:#444;letter-spacing:3px">FIRST TO 3 HITS</div></div>
+  <div class="fh" id="feh"><div class="fn" style="text-align:right">AI PULSE &#9664;</div><div class="hb"><div class="hf" id="eh" style="width:100%"></div></div></div>
+</div>
+<div id="ht"></div><div id="di" class="h"></div>
+<div class="sc" id="ss"><div class="tl">DUEL PULSE</div><div class="sb2">THE SESSION IS THE CONTENT</div><button class="btn bc" id="sb">ENTER ARENA</button><div class="ch">WASD MOVE &middot; MOUSE AIM &middot; CLICK/SPACE FIRE &middot; SHIFT DASH</div></div>
+<div class="sc h" id="ws"><div class="ko" style="color:#0ff;text-shadow:0 0 32px #0ff7">PULSE KO</div><div class="et" style="color:#0ff;text-shadow:0 0 20px #0ff4">YOU WIN</div><div class="es">DUEL COMPLETE</div><button class="btn bc" id="wb">REMATCH</button></div>
+<div class="sc h" id="ls"><div class="ko" style="color:#f33;text-shadow:0 0 32px #f337">PULSE KO</div><div class="et" style="color:#f33;text-shadow:0 0 20px #f334">YOU LOSE</div><div class="es">ADAPT &amp; RETRY</div><button class="btn br" id="lb">REMATCH</button></div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"}}</script>
+<script type="module" src="game.js"></script>
+</body></html>
